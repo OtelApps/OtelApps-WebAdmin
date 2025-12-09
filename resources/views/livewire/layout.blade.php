@@ -24,6 +24,9 @@
         </div>
     </div>
     
+    <!-- Floating Help Button - outside main container for proper positioning -->
+    <livewire:components.floating-help />
+    
     @livewireScripts
 </body>
 </html>

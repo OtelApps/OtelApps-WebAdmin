@@ -3,8 +3,8 @@
         <div class="flex items-center justify-between h-16">
             <!-- Logo -->
             <div class="flex items-center">
-                <div class="flex-shrink-0">
-                    <img src="{{ asset('logo.png') }}" alt="Otel Apps Hotel" class="h-10 w-auto">
+                <div class="flex-shrink-0 h-10 w-10 flex items-center justify-center">
+                    <img src="{{ asset('logo.png') }}" alt="Otel Apps Hotel" class="max-h-10 max-w-10 object-contain">
                 </div>
                 <div class="ml-3">
                     <span class="text-xl font-semibold">Otel Apps Hotel</span>
