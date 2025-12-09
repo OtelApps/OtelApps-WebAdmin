@@ -11,7 +11,7 @@
                     >
                         <div class="flex items-center space-x-2">
                             <span class="font-semibold">{{ \App\Services\ModuleService::getLabel($key) }}</span>
-                        </div>
+</div>
                         <svg 
                             class="w-5 h-5 transition-transform {{ in_array($key, $expandedSections) ? 'rotate-180' : '' }}"
                             fill="none" 

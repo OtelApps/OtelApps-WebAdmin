@@ -1,6 +1,6 @@
 <div class="p-6">
     <div class="flex items-center justify-between mb-6">
-        <div>
+<div>
             <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Other facilities</h1>
             <a href="#" class="text-orange-500 hover:text-orange-600 text-sm mt-1 inline-block">Show archived services</a>
         </div>

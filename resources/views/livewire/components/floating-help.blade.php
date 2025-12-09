@@ -21,7 +21,7 @@
         x-transition:leave-start="opacity-100"
         x-transition:leave-end="opacity-0"
         x-cloak
-        class="fixed inset-0 bg-black bg-opacity-25 z-[9998]"
+        class="fixed inset-0 bg-black bg-opacity-40 z-[9998]"
         style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; margin: 0; padding: 0;"
     ></div>
 

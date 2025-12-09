@@ -80,7 +80,7 @@
     <!-- Bars Section -->
     <div class="mt-12">
         <div class="flex items-center justify-between mb-6">
-            <div>
+<div>
                 <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Bars</h2>
                 <a href="#" class="text-orange-500 hover:text-orange-600 text-sm mt-1 inline-block">Show archived services</a>
             </div>
