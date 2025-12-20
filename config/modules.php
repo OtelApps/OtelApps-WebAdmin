@@ -37,6 +37,14 @@ return [
         'sports' => true,
         'other_facilities' => true,
 
+        // Services sub-moduly
+        'room_service' => true,
+        'amenities' => true,
+        'laundry' => true,
+        'issues_repairs' => true,
+        'housekeeping' => true,
+        'check_in_out' => true,
+
         // Funkce
         'booking_system' => true,
         'room_service' => true,
@@ -77,6 +85,12 @@ return [
         'wellness_spa' => 'Wellness & SPA',
         'sports' => 'Sports',
         'other_facilities' => 'Other Facilities',
+        'room_service' => 'Room service',
+        'amenities' => 'Amenities',
+        'laundry' => 'Laundry',
+        'issues_repairs' => 'Issues & repairs',
+        'housekeeping' => 'Housekeeping',
+        'check_in_out' => 'Check-in/out',
     ],
 
     /*
