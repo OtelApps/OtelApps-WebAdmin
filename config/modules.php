@@ -16,7 +16,7 @@ return [
         'dashboard' => true,
         'content' => true,
         'my_app' => true,
-        'activity' => false,
+        'activity' => true,
         'crm' => true,
         'feedback' => true,
         'concierge' => true,

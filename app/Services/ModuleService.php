@@ -46,7 +46,7 @@ class ModuleService
     public static function getMainNavigation(): array
     {
         $mainModules = ['dashboard', 'content', 'my_app', 'activity', 'crm', 'feedback', 'concierge', 'insights'];
-        
+
         return array_filter($mainModules, function($module) {
             return self::isEnabled($module);
         });
