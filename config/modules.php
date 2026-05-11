@@ -31,6 +31,30 @@ return [
         'smart_assistant' => true,
         'legal_texts' => true,
 
+        // My App moduly
+        'mobile_app' => true,
+        'web_app' => true,
+
+        // Activity moduly
+        'requests' => true,
+
+        // CRM moduly
+        'guests' => true,
+        'alerts' => true,
+        'promotions' => true,
+
+        // Feedback moduly
+        'surveys' => true,
+        'external_platforms' => true,
+        'inbox' => true,
+        'stats' => true,
+
+        // Insights moduly
+        'users' => true,
+        'transactions' => true,
+        'revenue' => true,
+        'behavior' => true,
+
         // Facilities sub-moduly
         'restaurants_bars' => true,
         'wellness_spa' => true,
@@ -91,6 +115,23 @@ return [
         'issues_repairs' => 'Issues & repairs',
         'housekeeping' => 'Housekeeping',
         'check_in_out' => 'Check-in/out',
+
+        // New labels
+        'mobile_app' => 'Mobile App',
+        'web_app' => 'Web App',
+        'requests' => 'Requests',
+        'guests' => 'Guests',
+        'alerts' => 'Alerts',
+        'promotions' => 'Promotions',
+        'surveys' => 'Surveys',
+        'external_platforms' => 'External Platforms',
+        'inbox' => 'Inbox',
+        'stats' => 'Stats',
+        'users' => 'Users',
+        'transactions' => 'Transactions',
+        'revenue' => 'Revenue',
+        'behavior' => 'Behavior',
+        'image_gallery' => 'Image Gallery',
     ],
 
     /*
@@ -122,5 +163,22 @@ return [
         'wellness_spa' => 'sparkles',
         'sports' => 'trophy',
         'other_facilities' => 'squares-plus',
+
+        // New icons
+        'mobile_app' => 'phone',
+        'web_app' => 'globe-alt',
+        'requests' => 'clipboard-list',
+        'guests' => 'user-group',
+        'alerts' => 'exclamation-circle',
+        'promotions' => 'ticket',
+        'surveys' => 'clipboard-document-check',
+        'external_platforms' => 'share',
+        'inbox' => 'inbox',
+        'stats' => 'presentation-chart-line',
+        'users' => 'identification',
+        'transactions' => 'credit-card',
+        'revenue' => 'banknotes',
+        'behavior' => 'finger-print',
+        'image_gallery' => 'photo',
     ],
 ];

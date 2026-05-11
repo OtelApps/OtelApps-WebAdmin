@@ -2,13 +2,13 @@ import React from 'react';
 import { FacilityLayout } from './FacilityLayout';
 import { facilityData } from './facilityData';
 
-export function RestaurantsBars() {
-    const config = facilityData.restaurants_bars;
+export function OtherFacilities() {
+    const config = facilityData.other_facilities;
     return (
         <FacilityLayout 
             title={config.title} 
             sections={config.sections} 
-            moduleKey="restaurants_bars" 
+            moduleKey="other_facilities" 
         />
     );
 }

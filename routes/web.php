@@ -19,7 +19,9 @@ Route::prefix('api')->group(function () {
     });
 
     Route::get('/modules/sidebar', function () {
-        $sidebarModules = ModuleService::getSidebarModules();
+        $section = request()->query('section');
+        $resolvedSection = ModuleService::resolveSection($section);
+        $sidebarModules = ModuleService::getSidebarModules($section);
         $result = [];
         
         foreach ($sidebarModules as $key => $value) {
@@ -42,7 +44,10 @@ Route::prefix('api')->group(function () {
             }
         }
         
-        return response()->json(['modules' => $result]);
+        return response()->json([
+            'modules' => $result,
+            'resolvedSection' => $resolvedSection
+        ]);
     });
 
     Route::get('/modules/check/{module}', function ($module) {

@@ -3,6 +3,9 @@ import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { NotFound } from '../shared/NotFound';
 import { RestaurantsBars } from './facilities/RestaurantsBars';
+import { WellnessSpa } from './facilities/WellnessSpa';
+import { Sports } from './facilities/Sports';
+import { OtherFacilities } from './facilities/OtherFacilities';
 import { Services } from '../content/Services';
 
 export function ModulePage() {
@@ -40,9 +43,20 @@ export function ModulePage() {
         return <NotFound />;
     }
 
-    // Render specific module pages
-    if (type === 'facilities' && module === 'restaurants_bars') {
-        return <RestaurantsBars />;
+    // Render Facilities modules
+    if (type === 'facilities') {
+        switch (module) {
+            case 'restaurants_bars':
+                return <RestaurantsBars />;
+            case 'wellness_spa':
+                return <WellnessSpa />;
+            case 'sports':
+                return <Sports />;
+            case 'other_facilities':
+                return <OtherFacilities />;
+            default:
+                break;
+        }
     }
 
     // Services page
@@ -62,4 +76,6 @@ export function ModulePage() {
         </div>
     );
 }
+
+
 
