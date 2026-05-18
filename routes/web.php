@@ -1,7 +1,8 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\VenueController;
 use App\Services\ModuleService;
+use Illuminate\Support\Facades\Route;
 
 // API Routes for React - musí být před catch-all route
 Route::prefix('api')->group(function () {
@@ -66,65 +67,13 @@ Route::prefix('api')->group(function () {
         ]);
     });
 
-    // Restaurant/Bars API endpoints
-    Route::post('/restaurants/{id}/save', function ($id) {
-        $data = json_decode(request()->input('data'), true);
-        
-        // TODO: Uložit data do databáze podle ID
-        // Prozatím jen vracíme success
-        
-        return response()->json([
-            'success' => true,
-            'message' => 'Data saved successfully',
-        ]);
-    });
-
-    Route::post('/restaurants/{id}/upload-image', function ($id) {
-        $request = request();
-        
-        if (!$request->hasFile('image')) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No image file provided',
-            ], 400);
-        }
-
-        $file = $request->file('image');
-        $imageId = $request->input('image_id');
-        
-        // Validate file size (1 MB)
-        if ($file->getSize() > 1024 * 1024) {
-            return response()->json([
-                'success' => false,
-                'message' => 'File size must be less than 1 MB',
-            ], 400);
-        }
-
-        // Validate file type
-        if (!str_starts_with($file->getMimeType(), 'image/')) {
-            return response()->json([
-                'success' => false,
-                'message' => 'File must be an image',
-            ], 400);
-        }
-
-        // Generate unique filename
-        $filename = 'restaurant_' . $id . '_' . $imageId . '_' . time() . '.' . $file->getClientOriginalExtension();
-        
-        // Store file in public storage
-        $path = $file->storeAs('restaurants', $filename, 'public');
-        
-        // Return URL to the stored file
-        $url = asset('storage/' . $path);
-        
-        // TODO: Uložit URL do databáze podle ID a image_id
-        
-        return response()->json([
-            'success' => true,
-            'url' => $url,
-            'message' => 'Image uploaded successfully',
-        ]);
-    });
+    // Venues (restaurants & bars) — Supabase schema
+    Route::get('/venues', [VenueController::class, 'index']);
+    Route::post('/venues', [VenueController::class, 'store']);
+    Route::get('/venues/{slug}', [VenueController::class, 'show']);
+    Route::put('/venues/{slug}', [VenueController::class, 'update']);
+    Route::put('/venues/{slug}/menus', [VenueController::class, 'updateMenus']);
+    Route::delete('/venues/{slug}', [VenueController::class, 'destroy']);
 });
 
 // React SPA Route - všechny ostatní routes budou řešeny React Routerem

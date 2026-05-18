@@ -64,10 +64,18 @@ export function FacilityLayout({ title, sections, moduleKey }) {
 
             {/* Content */}
             <div className="p-4">
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">{item.title}</h3>
-                {item.bookingEnabled && (
-                    <span className="inline-block px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 text-xs font-medium rounded">
-                        Booking ON
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-1">{item.title}</h3>
+                {item.list_label && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{item.list_label}</p>
+                )}
+                {item.schedule_summary && (
+                    <span className="inline-block px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium rounded">
+                        {item.schedule_summary}
+                    </span>
+                )}
+                {item.is_active === false && (
+                    <span className="inline-block ml-2 px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 text-xs font-medium rounded">
+                        Neaktivní
                     </span>
                 )}
             </div>
