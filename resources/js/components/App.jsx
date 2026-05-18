@@ -3,7 +3,6 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './Layout';
 import { Dashboard } from '../pages/main/Dashboard';
 import { Content } from '../pages/content/Content';
-import { Activity } from '../pages/activity/Activity';
 import { Page } from '../pages/shared/Page';
 import { ModulePage } from '../pages/modules/ModulePage';
 import { NotFound } from '../pages/shared/NotFound';
@@ -48,7 +47,7 @@ export function App() {
                         path="activity" 
                         element={
                             <ProtectedRoute moduleName="activity">
-                                <Activity />
+                                <Page title="Activity" />
                             </ProtectedRoute>
                         } 
                     />

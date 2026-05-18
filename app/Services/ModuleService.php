@@ -4,54 +4,6 @@ namespace App\Services;
 
 class ModuleService
 {
-    private static $sidebarMap = [
-        'content' => [
-            'facilities' => [
-                'restaurants_bars',
-                'wellness_spa',
-                'sports',
-                'other_facilities',
-            ],
-            'services' => [
-                'room_service',
-                'amenities',
-                'laundry',
-                'issues_repairs',
-                'housekeeping',
-                'check_in_out',
-            ],
-            'leisure',
-            'other',
-            'welcome_message',
-            'smart_assistant',
-            'legal_texts',
-        ],
-        'my_app' => [
-            'mobile_app',
-            'web_app',
-        ],
-        'activity' => [
-            'requests',
-        ],
-        'crm' => [
-            'guests',
-            'alerts',
-            'promotions',
-        ],
-        'feedback' => [
-            'surveys',
-            'external_platforms',
-            'inbox',
-            'stats',
-        ],
-        'insights' => [
-            'users',
-            'transactions',
-            'revenue',
-            'behavior',
-        ],
-    ];
-
     /**
      * Zkontroluje, zda je modul zapnutý
      */
@@ -94,61 +46,39 @@ class ModuleService
     public static function getMainNavigation(): array
     {
         $mainModules = ['dashboard', 'content', 'my_app', 'activity', 'crm', 'feedback', 'concierge', 'insights'];
-
+        
         return array_filter($mainModules, function($module) {
             return self::isEnabled($module);
         });
     }
 
     /**
-     * Vyřeší hlavní sekci pro daný modul
+     * Získá moduly pro sidebar
      */
-    public static function resolveSection(?string $moduleKey): ?string
+    public static function getSidebarModules(): array
     {
-        if (!$moduleKey) return null;
+        $sidebarModules = [
+            'facilities' => [
+                'restaurants_bars',
+                'wellness_spa',
+                'sports',
+                'other_facilities',
+            ],
+            'services' => [
+                'room_service',
+                'amenities',
+                'laundry',
+                'issues_repairs',
+                'housekeeping',
+                'check_in_out',
+            ],
+            'leisure',
+            'other',
+            'welcome_message',
+            'smart_assistant',
+            'legal_texts',
+        ];
 
-        // Pokud je to přímo klíč sekce
-        if (isset(self::$sidebarMap[$moduleKey])) {
-            return $moduleKey;
-        }
-
-        // Prohledej mapu a najdi pod kterým rodičem se modul nachází
-        foreach (self::$sidebarMap as $section => $modules) {
-            foreach ($modules as $key => $value) {
-                if (is_array($value)) {
-                    // Je to sekce se submoduly (např. facilities)
-                    if ($key === $moduleKey) {
-                        return $section;
-                    }
-                    // Prohledej submoduly
-                    if (in_array($moduleKey, $value)) {
-                        return $section;
-                    }
-                } else {
-                    // Je to jednoduchý modul
-                    if ($value === $moduleKey) {
-                        return $section;
-                    }
-                }
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Získá moduly pro sidebar na základě aktuální sekce
-     */
-    public static function getSidebarModules(?string $section = null): array
-    {
-        // Resolve section in case a module key was passed
-        $section = self::resolveSection($section);
-
-        if (!$section || !isset(self::$sidebarMap[$section])) {
-            return [];
-        }
-
-        $sidebarModules = self::$sidebarMap[$section];
         $result = [];
 
         foreach ($sidebarModules as $key => $value) {

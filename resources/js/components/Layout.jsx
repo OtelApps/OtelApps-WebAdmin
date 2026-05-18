@@ -7,9 +7,7 @@ import { FloatingHelp } from './FloatingHelp';
 export function Layout() {
     const location = useLocation();
     const [settingsOpen, setSettingsOpen] = useState(false);
-    const showSidebar = location.pathname !== '/dashboard' && 
-                        location.pathname !== '/' && 
-                        !location.pathname.startsWith('/concierge');
+    const showSidebar = location.pathname !== '/dashboard' && location.pathname !== '/';
 
     useEffect(() => {
         const handleSettingsToggle = (e) => {
@@ -30,7 +28,7 @@ export function Layout() {
     }, []);
 
     return (
-        <div className="h-screen flex flex-col overflow-hidden">
+        <div className="min-h-screen flex flex-col">
             {/* Global Backdrop for Settings */}
             {settingsOpen && (
                 <div
@@ -58,7 +56,7 @@ export function Layout() {
                 {showSidebar && <Sidebar />}
 
                 {/* Main Content */}
-                <main className="flex-1 overflow-y-auto bg-gray-100 dark:bg-gray-900">
+                <main className="flex-1 overflow-y-auto bg-white dark:bg-gray-800">
                     <Outlet />
                 </main>
             </div>
