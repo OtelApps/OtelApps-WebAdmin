@@ -9,4 +9,10 @@ return [
         'restaurantFoodMood' => '/images/hotelRestaurant.png',
         'barLobby' => null,
     ],
+
+    'wellness_image_keys' => [
+        'pool' => '/images/pool.jpg',
+        'SPAwellness' => '/images/sauna.jpg',
+        'SPAthai' => '/images/massage.jpg',
+    ],
 ];

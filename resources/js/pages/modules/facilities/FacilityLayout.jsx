@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-export function FacilityLayout({ title, sections, moduleKey }) {
+export function FacilityLayout({ title, sections, moduleKey, headerActions, hideSectionTitle }) {
     const navigate = useNavigate();
     const [hoveredCard, setHoveredCard] = useState(null);
     const [archivedState, setArchivedState] = useState({});
@@ -86,18 +86,23 @@ export function FacilityLayout({ title, sections, moduleKey }) {
         <div className="p-6">
             {sections.map((section) => (
                 <div key={section.id} className="mb-12 last:mb-0">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{section.title}</h2>
-                        <a
-                            href="#"
-                            onClick={(e) => {
-                                e.preventDefault();
-                                toggleArchived(section.id);
-                            }}
-                            className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-                        >
-                            {archivedState[section.id] ? 'Hide archived services' : 'Show archived services'}
-                        </a>
+                    <div className="flex items-center justify-between mb-4 gap-3">
+                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                            {hideSectionTitle ? title : section.title}
+                        </h2>
+                        <div className="flex items-center gap-3 shrink-0">
+                            {headerActions}
+                            <a
+                                href="#"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    toggleArchived(section.id);
+                                }}
+                                className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white whitespace-nowrap"
+                            >
+                                {archivedState[section.id] ? 'Hide archived services' : 'Show archived services'}
+                            </a>
+                        </div>
                     </div>
 
                     {/* Action Buttons */}

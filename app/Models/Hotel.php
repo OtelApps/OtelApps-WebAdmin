@@ -29,4 +29,14 @@ class Hotel extends Model
     {
         return $this->hasMany(Venue::class);
     }
+
+    public function wellnessFacilities(): HasMany
+    {
+        return $this->hasMany(WellnessFacility::class);
+    }
+
+    public function wellnessProgramEvents(): HasMany
+    {
+        return $this->hasMany(WellnessProgramEvent::class);
+    }
 }

@@ -77,7 +77,14 @@ export function VenueMenusTab({ menus, setMenus, allergens, onSave, saveStatus }
     };
 
     const deleteMenu = async (menuIndex) => {
-        if (!window.confirm('Opravdu smazat celé menu včetně kategorií a položek?')) return;
+        const title = menus[menuIndex]?.title || 'tuto nabídku';
+        if (
+            !window.confirm(
+                `Opravdu smazat „${title}" včetně všech kategorií a položek? Změna se uloží hned.`
+            )
+        ) {
+            return;
+        }
         const next = menus.filter((_, i) => i !== menuIndex);
         setEditingItem(null);
         await applyMenusAndSave(next);
@@ -239,8 +246,8 @@ export function VenueMenusTab({ menus, setMenus, allergens, onSave, saveStatus }
                 <EmptyState onAddMenu={addMenu} />
             ) : (
                 <>
-                    {/* Menu tabs */}
-                    <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
+                    {/* Menu tabs – přejmenování a smazání u každé nabídky */}
+                    <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-thin">
                         {menus.map((menu, idx) => {
                             const count = (menu.categories || []).reduce(
                                 (s, c) => s + (c.items || []).length,
@@ -248,26 +255,22 @@ export function VenueMenusTab({ menus, setMenus, allergens, onSave, saveStatus }
                             );
                             const active = idx === activeMenuIndex;
                             return (
-                                <button
-                                    key={menu.id || idx}
-                                    type="button"
-                                    onClick={() => {
+                                <MenuTabCard
+                                    key={menu.id || `menu-${idx}`}
+                                    menu={menu}
+                                    itemCount={count}
+                                    active={active}
+                                    onSelect={() => {
                                         setActiveMenuIndex(idx);
                                         setEditingItem(null);
                                     }}
-                                    className={`shrink-0 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all ${
-                                        active
-                                            ? 'bg-orange-500 border-orange-500 text-white shadow-md shadow-orange-500/25'
-                                            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-orange-300 dark:hover:border-orange-500/50'
-                                    }`}
-                                >
-                                    <span className="block">{menu.title}</span>
-                                    <span
-                                        className={`block text-xs mt-0.5 ${active ? 'text-orange-100' : 'text-gray-400 dark:text-gray-500'}`}
-                                    >
-                                        {count} položek
-                                    </span>
-                                </button>
+                                    onRename={(title) => {
+                                        const patch = { title };
+                                        if (!menu.id) patch.slug = slugify(title);
+                                        updateMenu(idx, patch);
+                                    }}
+                                    onDelete={() => deleteMenu(idx)}
+                                />
                             );
                         })}
                     </div>
@@ -287,19 +290,7 @@ export function VenueMenusTab({ menus, setMenus, allergens, onSave, saveStatus }
                                     <ChevronIcon open={showMenuSettings} small />
                                 </button>
                                 {showMenuSettings && (
-                                    <div className="px-4 pb-4 pt-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 border-t border-gray-100 dark:border-gray-700">
-                                        <LabeledField label="Název v adminu">
-                                            <input
-                                                className={inputClass}
-                                                value={activeMenu.title}
-                                                onChange={(e) => {
-                                                    const title = e.target.value;
-                                                    const patch = { title };
-                                                    if (!activeMenu.id) patch.slug = slugify(title);
-                                                    updateMenu(activeMenuIndex, patch);
-                                                }}
-                                            />
-                                        </LabeledField>
+                                    <div className="px-4 pb-4 pt-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 border-t border-gray-100 dark:border-gray-700">
                                         <LabeledField label="Slug">
                                             <input
                                                 className={inputClass}
@@ -328,7 +319,7 @@ export function VenueMenusTab({ menus, setMenus, allergens, onSave, saveStatus }
                                                 ))}
                                             </select>
                                         </LabeledField>
-                                        <div className="flex items-end gap-3">
+                                        <div className="flex items-end">
                                             <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 pb-2">
                                                 <input
                                                     type="checkbox"
@@ -340,15 +331,8 @@ export function VenueMenusTab({ menus, setMenus, allergens, onSave, saveStatus }
                                                     }
                                                     className="rounded text-orange-500"
                                                 />
-                                                Aktivní
+                                                Aktivní v aplikaci
                                             </label>
-                                            <button
-                                                type="button"
-                                                onClick={() => deleteMenu(activeMenuIndex)}
-                                                className="text-sm text-red-600 dark:text-red-400 hover:underline pb-2"
-                                            >
-                                                Smazat menu
-                                            </button>
                                         </div>
                                     </div>
                                 )}
@@ -459,6 +443,66 @@ export function VenueMenusTab({ menus, setMenus, allergens, onSave, saveStatus }
                     }
                 />
             )}
+        </div>
+    );
+}
+
+function MenuTabCard({ menu, itemCount, active, onSelect, onRename, onDelete }) {
+    const countLabel =
+        itemCount === 1 ? '1 položka' : itemCount < 5 ? `${itemCount} položky` : `${itemCount} položek`;
+
+    return (
+        <div
+            role="button"
+            tabIndex={0}
+            onClick={onSelect}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onSelect();
+                }
+            }}
+            className={`group relative shrink-0 min-w-[168px] max-w-[220px] rounded-xl border p-3 transition-all cursor-pointer ${
+                active
+                    ? 'bg-orange-500 border-orange-500 text-white shadow-md shadow-orange-500/25 ring-2 ring-orange-400/50'
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 hover:border-orange-300 dark:hover:border-orange-500/50'
+            }`}
+        >
+            <div className="flex items-start gap-1.5 pr-6">
+                <input
+                    type="text"
+                    value={menu.title}
+                    onClick={(e) => e.stopPropagation()}
+                    onFocus={(e) => e.stopPropagation()}
+                    onChange={(e) => onRename(e.target.value)}
+                    placeholder="Název nabídky"
+                    className={`w-full min-w-0 bg-transparent border-0 border-b border-dashed px-0 py-0.5 text-sm font-semibold focus:ring-0 focus:outline-none ${
+                        active
+                            ? 'border-orange-200/80 text-white placeholder:text-orange-100 focus:border-white'
+                            : 'border-gray-300 dark:border-gray-500 text-gray-900 dark:text-white placeholder:text-gray-400 focus:border-orange-500'
+                    }`}
+                />
+            </div>
+            <p
+                className={`mt-2 text-xs ${active ? 'text-orange-100' : 'text-gray-500 dark:text-gray-400'}`}
+            >
+                {countLabel}
+            </p>
+            <button
+                type="button"
+                title="Smazat nabídku"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete();
+                }}
+                className={`absolute top-2 right-2 p-1 rounded-lg transition-colors ${
+                    active
+                        ? 'text-orange-100 hover:bg-orange-600 hover:text-white'
+                        : 'text-gray-400 opacity-0 group-hover:opacity-100 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400'
+                }`}
+            >
+                <TrashIcon />
+            </button>
         </div>
     );
 }
@@ -778,6 +822,19 @@ function CloseIcon() {
     return (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+    );
+}
+
+function TrashIcon() {
+    return (
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+            />
         </svg>
     );
 }

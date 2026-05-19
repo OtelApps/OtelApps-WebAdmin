@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\VenueController;
+use App\Http\Controllers\Api\WellnessController;
 use App\Services\ModuleService;
 use Illuminate\Support\Facades\Route;
 
@@ -74,6 +75,14 @@ Route::prefix('api')->group(function () {
     Route::put('/venues/{slug}', [VenueController::class, 'update']);
     Route::put('/venues/{slug}/menus', [VenueController::class, 'updateMenus']);
     Route::delete('/venues/{slug}', [VenueController::class, 'destroy']);
+
+    // Wellness & SPA — Supabase schema
+    Route::get('/wellness/facilities', [WellnessController::class, 'index']);
+    Route::get('/wellness/facilities/{slug}', [WellnessController::class, 'show']);
+    Route::put('/wellness/facilities/{slug}', [WellnessController::class, 'update']);
+    Route::put('/wellness/facilities/{slug}/services', [WellnessController::class, 'updateServices']);
+    Route::get('/wellness/program', [WellnessController::class, 'programIndex']);
+    Route::put('/wellness/program', [WellnessController::class, 'updateProgram']);
 });
 
 // React SPA Route - všechny ostatní routes budou řešeny React Routerem

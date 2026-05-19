@@ -9,7 +9,7 @@ import { ModulePage } from '../pages/modules/ModulePage';
 import { NotFound } from '../pages/shared/NotFound';
 import { ErrorBoundary } from './ErrorBoundary';
 import { ProtectedRoute, ProtectedModuleRoute } from './ProtectedRoute';
-import { VenueEdit } from '../pages/modules/facilities/VenueEdit';
+import { FacilityEditRouter } from '../pages/modules/facilities/FacilityEditRouter';
 
 /**
  * Hlavní React komponenta aplikace s React Router
@@ -96,7 +96,7 @@ export function App() {
                         path="module/:type/:module/:id/edit" 
                         element={
                             <ProtectedModuleRoute>
-                                <VenueEdit />
+                                <FacilityEditRouter />
                             </ProtectedModuleRoute>
                         } 
                     />
