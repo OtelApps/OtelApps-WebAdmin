@@ -1,15 +1,15 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './Layout';
-import { Dashboard } from '../pages/main/Dashboard';
+import { Dashboard } from '../pages/dashboard/Dashboard';
 import { Content } from '../pages/content/Content';
 import { Activity } from '../pages/activity/Activity';
 import { Page } from '../pages/shared/Page';
-import { ModulePage } from '../pages/modules/ModulePage';
+import { DynamicModulePage } from '../pages/shared/DynamicModulePage';
 import { NotFound } from '../pages/shared/NotFound';
 import { ErrorBoundary } from './ErrorBoundary';
 import { ProtectedRoute, ProtectedModuleRoute } from './ProtectedRoute';
-import { FacilityEditRouter } from '../pages/modules/facilities/FacilityEditRouter';
+import { DynamicEditRouter } from '../pages/shared/DynamicEditRouter';
 
 /**
  * Hlavní React komponenta aplikace s React Router
@@ -88,7 +88,7 @@ export function App() {
                         path="module/:type/:module" 
                         element={
                             <ProtectedModuleRoute>
-                                <ModulePage />
+                                <DynamicModulePage />
                             </ProtectedModuleRoute>
                         } 
                     />
@@ -96,7 +96,7 @@ export function App() {
                         path="module/:type/:module/:id/edit" 
                         element={
                             <ProtectedModuleRoute>
-                                <FacilityEditRouter />
+                                <DynamicEditRouter />
                             </ProtectedModuleRoute>
                         } 
                     />

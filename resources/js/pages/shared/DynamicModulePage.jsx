@@ -1,14 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
-import { NotFound } from '../shared/NotFound';
-import { RestaurantsBars } from './facilities/RestaurantsBars';
-import { WellnessSpa } from './facilities/WellnessSpa';
-import { Sports } from './facilities/Sports';
-import { OtherFacilities } from './facilities/OtherFacilities';
-import { Services } from '../content/Services';
+import { NotFound } from './NotFound';
+import { RestaurantsBars } from '../content/facilities/RestaurantsBars';
+import { WellnessSpa } from '../content/facilities/WellnessSpa';
+import { Sports } from '../content/facilities/Sports';
+import { OtherFacilities } from '../content/facilities/OtherFacilities';
+import { ServicesOverview } from '../content/ServicesOverview';
 
-export function ModulePage() {
+import { RoomService } from '../content/services/RoomService';
+import { Amenities } from '../content/services/Amenities';
+import { Laundry } from '../content/services/Laundry';
+import { IssuesRepairs } from '../content/services/IssuesRepairs';
+import { Housekeeping } from '../content/services/Housekeeping';
+
+import { Leisure } from '../content/leisure/Leisure';
+
+export function DynamicModulePage() {
     const { type, module } = useParams();
     const [isEnabled, setIsEnabled] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -59,9 +67,30 @@ export function ModulePage() {
         }
     }
 
-    // Services page
-    if (type === 'services' && module === 'services') {
-        return <Services />;
+    // Render Services submodules
+    if (type === 'services') {
+        switch (module) {
+            case 'room_service':
+                return <RoomService />;
+            case 'amenities':
+                return <Amenities />;
+            case 'laundry':
+                return <Laundry />;
+            case 'issues_repairs':
+                return <IssuesRepairs />;
+            case 'housekeeping':
+                return <Housekeeping />;
+            // If it's the main services overview page
+            case 'services':
+                return <ServicesOverview />;
+            default:
+                break;
+        }
+    }
+
+    // Render Leisure module
+    if (type === 'leisure' && module === 'leisure') {
+        return <Leisure />;
     }
 
     // Default module page

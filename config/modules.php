@@ -15,7 +15,7 @@ return [
         // Hlavní sekce
         'dashboard' => true,
         'content' => true,
-        'my_app' => true,
+        'my_app' => false,
         'activity' => true,
         'crm' => true,
         'feedback' => true,

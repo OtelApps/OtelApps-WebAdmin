@@ -6,6 +6,7 @@ export function MainNavigation({ settingsOpen, setSettingsOpen }) {
     const location = useLocation();
     const [modules, setModules] = useState([]);
     const [labels, setLabels] = useState({});
+    const [moduleMap, setModuleMap] = useState({});
     const [languageOpen, setLanguageOpen] = useState(false);
     const [currentLanguage, setCurrentLanguage] = useState("English");
     const [editLanguagesOpen, setEditLanguagesOpen] = useState(false);
@@ -18,12 +19,14 @@ export function MainNavigation({ settingsOpen, setSettingsOpen }) {
                 console.log("Main navigation API response:", response.data);
                 const modulesData = response.data?.modules || [];
                 const labelsData = response.data?.labels || {};
+                const mapData = response.data?.map || {};
                 const modulesArray = Array.isArray(modulesData)
                     ? modulesData
                     : [];
                 console.log("Setting modules:", modulesArray);
                 setModules(modulesArray);
                 setLabels(labelsData);
+                setModuleMap(mapData);
             })
             .catch((error) => {
                 console.error("Error loading modules:", error);
@@ -33,6 +36,7 @@ export function MainNavigation({ settingsOpen, setSettingsOpen }) {
                 );
                 setModules([]);
                 setLabels({});
+                setModuleMap({});
             });
     }, []);
 
@@ -90,10 +94,14 @@ export function MainNavigation({ settingsOpen, setSettingsOpen }) {
                 location.pathname === "/" || location.pathname === "/dashboard"
             );
         }
-        return (
-            location.pathname === `/${module}` ||
-            location.pathname.startsWith(`/${module}/`)
-        );
+        
+        const pathParts = location.pathname.split('/').filter(Boolean);
+        const currentSection = pathParts[0] === 'module' ? pathParts[1] : pathParts[0];
+        
+        // Use the map to resolve the parent module (e.g. 'requests' -> 'activity')
+        const resolvedSection = moduleMap[currentSection] || currentSection;
+        
+        return resolvedSection === module;
     };
 
     return (

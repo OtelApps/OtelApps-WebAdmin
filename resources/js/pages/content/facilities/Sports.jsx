@@ -1,11 +1,11 @@
 import React from 'react';
-import { FacilityLayout } from './FacilityLayout';
+import { ContentCardsLayout } from '../../../components/ContentCardsLayout';
 import { facilityData } from './facilityData';
 
 export function Sports() {
     const config = facilityData.sports;
     return (
-        <FacilityLayout 
+        <ContentCardsLayout 
             title={config.title} 
             sections={config.sections} 
             moduleKey="sports" 

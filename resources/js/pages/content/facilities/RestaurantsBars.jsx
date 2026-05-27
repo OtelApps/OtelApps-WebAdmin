@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { FacilityLayout } from './FacilityLayout';
+import { ContentCardsLayout } from '../../../components/ContentCardsLayout';
 
 export function RestaurantsBars() {
     const [sections, setSections] = useState([]);
@@ -55,7 +55,7 @@ export function RestaurantsBars() {
     }
 
     return (
-        <FacilityLayout
+        <ContentCardsLayout
             title="Restaurants & Bars"
             sections={sections}
             moduleKey="restaurants_bars"

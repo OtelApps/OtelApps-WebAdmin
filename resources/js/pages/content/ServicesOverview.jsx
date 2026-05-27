@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { NotFound } from '../shared/NotFound';
 
-export function Services() {
+export function ServicesOverview() {
     const [isEnabled, setIsEnabled] = useState(null);
     const [loading, setLoading] = useState(true);
 

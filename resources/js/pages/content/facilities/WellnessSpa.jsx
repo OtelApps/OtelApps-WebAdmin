@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { FacilityLayout } from './FacilityLayout';
+import { ContentCardsLayout } from '../../../components/ContentCardsLayout';
 
 export function WellnessSpa() {
     const navigate = useNavigate();
@@ -57,7 +57,7 @@ export function WellnessSpa() {
     }
 
     return (
-        <FacilityLayout
+        <ContentCardsLayout
             title="Wellness & SPA"
             hideSectionTitle
             sections={sections}

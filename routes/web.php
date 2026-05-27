@@ -17,6 +17,7 @@ Route::prefix('api')->group(function () {
         return response()->json([
             'modules' => array_values($modules), // Ensure it's a numeric array
             'labels' => $labels,
+            'map' => ModuleService::getFlatMap(),
         ]);
     });
 

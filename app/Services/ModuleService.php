@@ -170,4 +170,26 @@ class ModuleService
 
         return $result;
     }
+
+    /**
+     * Získá mapu všech modulů a jejich hlavních sekcí
+     */
+    public static function getFlatMap(): array
+    {
+        $map = [];
+        foreach (self::$sidebarMap as $section => $modules) {
+            $map[$section] = $section;
+            foreach ($modules as $key => $value) {
+                if (is_array($value)) {
+                    $map[$key] = $section;
+                    foreach ($value as $sub) {
+                        $map[$sub] = $section;
+                    }
+                } else {
+                    $map[$value] = $section;
+                }
+            }
+        }
+        return $map;
+    }
 }

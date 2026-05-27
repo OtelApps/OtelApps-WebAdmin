@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-export function FacilityLayout({ title, sections, moduleKey, headerActions, hideSectionTitle }) {
+export function ContentCardsLayout({ title, sections, moduleKey, moduleType = 'facilities', headerActions, hideSectionTitle }) {
     const navigate = useNavigate();
     const [hoveredCard, setHoveredCard] = useState(null);
     const [archivedState, setArchivedState] = useState({});
@@ -50,7 +50,7 @@ export function FacilityLayout({ title, sections, moduleKey, headerActions, hide
                 {hoveredCard === `${sectionId}-${item.id}` && (
                     <div className="absolute inset-0 bg-black bg-opacity-50 flex flex-col items-center justify-center gap-3 transition-opacity z-20">
                         <button 
-                            onClick={() => navigate(`/module/facilities/${moduleKey}/${item.id}/edit`)}
+                            onClick={() => navigate(`/module/${moduleType}/${moduleKey}/${item.id}/edit`)}
                             className="px-6 py-2 bg-white text-gray-900 rounded-lg font-semibold hover:bg-gray-100 transition-colors"
                         >
                             Edit
