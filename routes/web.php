@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\HotelSuppliesController;
 use App\Http\Controllers\Api\HotelRoomController;
 use App\Http\Controllers\Api\VenueController;
 use App\Http\Controllers\Api\WellnessController;
+use App\Http\Controllers\Api\HotelServiceRequestController;
 use App\Services\ModuleService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -168,6 +169,13 @@ Route::prefix('api')->group(function () {
     Route::put('/hotel-room-service/menus/{slug}', [HotelRoomServiceController::class, 'update']);
     Route::put('/hotel-room-service/menus/{slug}/hours', [HotelRoomServiceController::class, 'updateHours']);
     Route::put('/hotel-room-service/menus/{slug}/catalog', [HotelRoomServiceController::class, 'updateCatalog']);
+
+    // Activity — požadavky hostů (tiketovací systém)
+    Route::get('/activity/requests', [HotelServiceRequestController::class, 'index']);
+    Route::post('/activity/requests', [HotelServiceRequestController::class, 'store']);
+    Route::get('/activity/requests/{id}', [HotelServiceRequestController::class, 'show']);
+    Route::put('/activity/requests/{id}', [HotelServiceRequestController::class, 'update']);
+    Route::delete('/activity/requests/{id}', [HotelServiceRequestController::class, 'destroy']);
 });
 
 // React SPA Route - všechny ostatní routes budou řešeny React Routerem

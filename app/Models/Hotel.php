@@ -84,4 +84,14 @@ class Hotel extends Model
     {
         return $this->hasMany(FitnessFacility::class);
     }
+
+    public function serviceRequests(): HasMany
+    {
+        return $this->hasMany(HotelServiceRequest::class);
+    }
+
+    public function serviceRequestTypes(): HasMany
+    {
+        return $this->hasMany(HotelServiceRequestType::class);
+    }
 }

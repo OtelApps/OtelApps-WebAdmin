@@ -1,11 +1,38 @@
 import React, { useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { NotFound } from '../shared/NotFound';
+import { STATUS_CELL } from '../activity/activityStatus';
+
+const OPEN_STATUSES = ['new', 'pending', 'in_progress'];
+const PREVIEW_LIMIT = 3;
+
+const STATUS_BADGE_CLASS = {
+    new: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200',
+    pending: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
+    in_progress: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200',
+    solved: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200',
+    rejected: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
+    archived: 'bg-gray-100 text-gray-700 dark:bg-gray-600 dark:text-gray-200',
+};
+
+function RequestStatusBadge({ status }) {
+    const label = STATUS_CELL[status]?.label ?? status;
+    const cls = STATUS_BADGE_CLASS[status] ?? STATUS_BADGE_CLASS.new;
+    return (
+        <span className={`shrink-0 px-2 py-1 text-xs font-medium rounded-full ${cls}`}>{label}</span>
+    );
+}
 
 export function Dashboard() {
+    const navigate = useNavigate();
     const [isEnabled, setIsEnabled] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [activityEnabled, setActivityEnabled] = useState(false);
+    const [guestRequests, setGuestRequests] = useState([]);
+    const [openCount, setOpenCount] = useState(0);
+    const [requestsLoading, setRequestsLoading] = useState(false);
+    const [requestsError, setRequestsError] = useState(null);
 
     useEffect(() => {
         axios.get('/api/modules/check/dashboard')
@@ -18,6 +45,42 @@ export function Dashboard() {
                 setLoading(false);
             });
     }, []);
+
+    useEffect(() => {
+        axios
+            .get('/api/modules/check/activity')
+            .then((res) => setActivityEnabled(Boolean(res.data.enabled)))
+            .catch(() => setActivityEnabled(false));
+    }, []);
+
+    useEffect(() => {
+        if (!activityEnabled) {
+            setGuestRequests([]);
+            setOpenCount(0);
+            return;
+        }
+        setRequestsLoading(true);
+        setRequestsError(null);
+        axios
+            .get('/api/activity/requests')
+            .then((res) => {
+                const list = res.data.requests ?? [];
+                const counts = res.data.status_counts ?? {};
+                setGuestRequests(list.slice(0, PREVIEW_LIMIT));
+                setOpenCount(
+                    OPEN_STATUSES.reduce((sum, key) => sum + (Number(counts[key]) || 0), 0),
+                );
+            })
+            .catch((err) => {
+                setGuestRequests([]);
+                setOpenCount(0);
+                setRequestsError(
+                    err.response?.data?.message ||
+                        'Požadavky se nepodařilo načíst. Zkontroluj Activity v Supabase.',
+                );
+            })
+            .finally(() => setRequestsLoading(false));
+    }, [activityEnabled]);
 
     if (loading) {
         return (
@@ -71,31 +134,63 @@ export function Dashboard() {
                     </div>
                 </div>
 
-                {/* Guest Requests Card */}
+                {/* Guest Requests Card — data z Activity */}
                 <div className="bg-white dark:bg-gray-700 rounded-lg shadow-md border-2 border-gray-300 dark:border-gray-500 p-6 flex flex-col h-full">
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Guest Requests</h2>
-                        <span className="bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-semibold">12</span>
+                        {activityEnabled && openCount > 0 && (
+                            <span
+                                className="bg-red-500 text-white rounded-full min-w-8 h-8 px-2 flex items-center justify-center text-sm font-semibold"
+                                title="Nové, čekající a rozpracované"
+                            >
+                                {openCount}
+                            </span>
+                        )}
                     </div>
-                    <div className="space-y-3 mb-4 flex-1">
-                        <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-600 rounded-lg">
-                            <span className="text-sm text-gray-700 dark:text-gray-300">Room 304: Extra towels</span>
-                            <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">Pending</span>
-                        </div>
-                        <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-600 rounded-lg">
-                            <span className="text-sm text-gray-700 dark:text-gray-300">Room 112: Late checkout</span>
-                            <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">In Progress</span>
-                        </div>
-                        <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-600 rounded-lg">
-                            <span className="text-sm text-gray-700 dark:text-gray-300">Room 501: Spa booking</span>
-                            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">Done</span>
-                        </div>
+                    <div className="space-y-3 mb-4 flex-1 min-h-[120px]">
+                        {!activityEnabled ? (
+                            <p className="text-sm text-gray-500 dark:text-gray-400 py-4 text-center">
+                                Modul Activity není zapnutý.
+                            </p>
+                        ) : requestsLoading ? (
+                            <p className="text-sm text-gray-500 dark:text-gray-400 py-4 text-center">Načítání…</p>
+                        ) : requestsError ? (
+                            <p className="text-sm text-red-600 dark:text-red-400 py-2">{requestsError}</p>
+                        ) : guestRequests.length === 0 ? (
+                            <p className="text-sm text-gray-500 dark:text-gray-400 py-4 text-center">
+                                Žádné požadavky hostů.
+                            </p>
+                        ) : (
+                            guestRequests.map((row) => (
+                                <button
+                                    key={row.id}
+                                    type="button"
+                                    onClick={() => navigate('/activity')}
+                                    className="flex w-full items-center justify-between gap-2 p-3 bg-gray-50 dark:bg-gray-600 rounded-lg text-left transition hover:bg-gray-100 dark:hover:bg-gray-500/80"
+                                >
+                                    <span className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
+                                        Pokoj {row.guest_room}: {row.request}
+                                    </span>
+                                    <RequestStatusBadge status={row.status} />
+                                </button>
+                            ))
+                        )}
                     </div>
                     <div className="flex space-x-3 mt-auto">
-                        <button className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">
+                        <button
+                            type="button"
+                            disabled={!activityEnabled}
+                            onClick={() => navigate('/activity')}
+                            className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
                             Create New
                         </button>
-                        <button className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors">
+                        <button
+                            type="button"
+                            disabled={!activityEnabled}
+                            onClick={() => navigate('/activity')}
+                            className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
                             View All
                         </button>
                     </div>
@@ -165,7 +260,12 @@ export function Dashboard() {
                     </div>
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Manage Requests</h3>
                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 flex-1">Manage all Requests and Reservations from ACTIVITY</p>
-                    <button className="px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors mt-auto">
+                    <button
+                        type="button"
+                        disabled={!activityEnabled}
+                        onClick={() => navigate('/activity')}
+                        className="px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors mt-auto disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
                         MANAGE REQUESTS
                     </button>
                 </div>
