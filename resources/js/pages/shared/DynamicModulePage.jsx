@@ -3,21 +3,44 @@ import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { NotFound } from './NotFound';
 import { RestaurantsBars } from '../content/facilities/RestaurantsBars';
+import { RelaxSport } from '../content/facilities/RelaxSport';
 import { WellnessSpa } from '../content/facilities/WellnessSpa';
 import { Sports } from '../content/facilities/Sports';
-import { OtherFacilities } from '../content/facilities/OtherFacilities';
+import { Parking } from '../content/facilities/Parking';
+import { HotelInfo } from '../content/facilities/HotelInfo';
+import { HotelRooms } from '../content/facilities/HotelRooms';
 import { ServicesOverview } from '../content/ServicesOverview';
 
 import { RoomService } from '../content/services/RoomService';
 import { Amenities } from '../content/services/Amenities';
 import { Laundry } from '../content/services/Laundry';
 import { IssuesRepairs } from '../content/services/IssuesRepairs';
-import { Housekeeping } from '../content/services/Housekeeping';
-
 import { Leisure } from '../content/leisure/Leisure';
+import { ModuleSectionHub } from './ModuleSectionHub';
+
+const RELAX_SPORT_AREAS = {
+    'wellness-spa': WellnessSpa,
+    'gym-sport': Sports,
+};
+
+const FACILITIES_PAGES = {
+    restaurants_bars: RestaurantsBars,
+    relax_sport: RelaxSport,
+    hotel_info: HotelInfo,
+    hotel_rooms: HotelRooms,
+    parking: Parking,
+};
+
+const SERVICES_PAGES = {
+    room_service: RoomService,
+    amenities: Amenities,
+    laundry: Laundry,
+    issues_repairs: IssuesRepairs,
+    services: ServicesOverview,
+};
 
 export function DynamicModulePage() {
-    const { type, module } = useParams();
+    const { type, module, area } = useParams();
     const [isEnabled, setIsEnabled] = useState(null);
     const [loading, setLoading] = useState(true);
 
@@ -51,44 +74,25 @@ export function DynamicModulePage() {
         return <NotFound />;
     }
 
-    // Render Facilities modules
-    if (type === 'facilities') {
-        switch (module) {
-            case 'restaurants_bars':
-                return <RestaurantsBars />;
-            case 'wellness_spa':
-                return <WellnessSpa />;
-            case 'sports':
-                return <Sports />;
-            case 'other_facilities':
-                return <OtherFacilities />;
-            default:
-                break;
-        }
+    if (type === module && (type === 'facilities' || type === 'services')) {
+        return <ModuleSectionHub />;
     }
 
-    // Render Services submodules
-    if (type === 'services') {
-        switch (module) {
-            case 'room_service':
-                return <RoomService />;
-            case 'amenities':
-                return <Amenities />;
-            case 'laundry':
-                return <Laundry />;
-            case 'issues_repairs':
-                return <IssuesRepairs />;
-            case 'housekeeping':
-                return <Housekeeping />;
-            // If it's the main services overview page
-            case 'services':
-                return <ServicesOverview />;
-            default:
-                break;
-        }
+    if (type === 'facilities' && module === 'relax_sport' && area && RELAX_SPORT_AREAS[area]) {
+        const Page = RELAX_SPORT_AREAS[area];
+        return <Page />;
     }
 
-    // Render Leisure module
+    if (type === 'facilities' && FACILITIES_PAGES[module]) {
+        const Page = FACILITIES_PAGES[module];
+        return <Page />;
+    }
+
+    if (type === 'services' && SERVICES_PAGES[module]) {
+        const Page = SERVICES_PAGES[module];
+        return <Page />;
+    }
+
     if (type === 'leisure' && module === 'leisure') {
         return <Leisure />;
     }

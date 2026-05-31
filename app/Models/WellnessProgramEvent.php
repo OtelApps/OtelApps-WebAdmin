@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasUuidPrimaryKey;
+
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class WellnessProgramEvent extends Model
 {
+    use HasUuidPrimaryKey;
     protected $connection;
 
     protected $table = 'wellness_program_events';

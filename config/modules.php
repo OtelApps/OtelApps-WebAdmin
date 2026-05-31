@@ -57,21 +57,22 @@ return [
 
         // Facilities sub-moduly
         'restaurants_bars' => true,
-        'wellness_spa' => true,
-        'sports' => true,
-        'other_facilities' => true,
+        'relax_sport' => true,
+        'wellness_spa' => false,
+        'hotel_info' => true,
+        'hotel_rooms' => true,
+        'sports' => false,
+        'parking' => true,
 
         // Services sub-moduly
         'room_service' => true,
         'amenities' => true,
         'laundry' => true,
         'issues_repairs' => true,
-        'housekeeping' => true,
         'check_in_out' => true,
 
         // Funkce
         'booking_system' => true,
-        'room_service' => true,
         'concierge_chat' => true,
         'upsell' => true,
         'image_gallery' => true,
@@ -106,14 +107,16 @@ return [
         'smart_assistant' => 'Smart Assistant',
         'legal_texts' => 'Legal Texts',
         'restaurants_bars' => 'Restaurants & Bars',
+        'relax_sport' => 'Relax & Sport',
         'wellness_spa' => 'Wellness & SPA',
-        'sports' => 'Sports',
-        'other_facilities' => 'Other Facilities',
-        'room_service' => 'Room service',
-        'amenities' => 'Amenities',
-        'laundry' => 'Laundry',
-        'issues_repairs' => 'Issues & repairs',
-        'housekeeping' => 'Housekeeping',
+        'hotel_info' => 'Informace o hotelu',
+        'hotel_rooms' => 'Nabídka pokojů',
+        'sports' => 'Posilovna & Sport',
+        'parking' => 'Parkování',
+        'room_service' => 'Pokojová služba',
+        'amenities' => 'Doplňky',
+        'laundry' => 'Úklid pokoje',
+        'issues_repairs' => 'Údržba & opravy',
         'check_in_out' => 'Check-in/out',
 
         // New labels
@@ -160,9 +163,12 @@ return [
         'smart_assistant' => 'headphones',
         'legal_texts' => 'document',
         'restaurants_bars' => 'cake',
+        'relax_sport' => 'heart',
         'wellness_spa' => 'sparkles',
+        'hotel_info' => 'information-circle',
+        'hotel_rooms' => 'home',
         'sports' => 'trophy',
-        'other_facilities' => 'squares-plus',
+        'parking' => 'squares-plus',
 
         // New icons
         'mobile_app' => 'phone',

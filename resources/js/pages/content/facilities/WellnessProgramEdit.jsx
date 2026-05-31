@@ -86,7 +86,7 @@ export function WellnessProgramEdit() {
                 <p className="text-red-600 mb-4">{error}</p>
                 <button
                     type="button"
-                    onClick={() => navigate('/module/facilities/wellness_spa')}
+                    onClick={() => navigate('/module/facilities/relax_sport/wellness-spa')}
                     className="text-orange-500 hover:underline"
                 >
                     ← Zpět
@@ -101,7 +101,7 @@ export function WellnessProgramEdit() {
                 <div>
                     <button
                         type="button"
-                        onClick={() => navigate('/module/facilities/wellness_spa')}
+                        onClick={() => navigate('/module/facilities/relax_sport/wellness-spa')}
                         className="text-sm text-gray-500 hover:text-orange-500 mb-2"
                     >
                         ← Wellness & SPA

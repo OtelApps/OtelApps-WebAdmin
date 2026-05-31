@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
+import { FormSaveBar } from '../../../components/FormSaveBar';
 import { VenueMenusTab } from './VenueMenusTab';
 
 const TABS = [
@@ -21,7 +22,6 @@ export function VenueEdit() {
     const [menus, setMenus] = useState([]);
     const [allergens, setAllergens] = useState([]);
     const [imageKeys, setImageKeys] = useState([]);
-    const saveTimeoutRef = useRef(null);
 
     const load = useCallback(() => {
         setLoading(true);
@@ -70,35 +70,33 @@ export function VenueEdit() {
         }
     };
 
-    const debouncedSaveVenue = (payload) => {
-        if (saveTimeoutRef.current) {
-            clearTimeout(saveTimeoutRef.current);
-        }
-        saveTimeoutRef.current = setTimeout(() => saveVenue(payload), 800);
-    };
+    const buildVenuePayload = (v) => ({
+        title: v.title,
+        venue_type: v.venue_type,
+        description: v.description,
+        schedule_summary: v.schedule_summary,
+        image_key: v.image_key,
+        list_label: v.list_label,
+        sort_order: v.sort_order,
+        is_active: v.is_active,
+    });
 
     const updateVenueField = (field, value) => {
-        const next = { ...venue, [field]: value };
-        setVenue(next);
-        debouncedSaveVenue({
-            title: next.title,
-            venue_type: next.venue_type,
-            description: next.description,
-            schedule_summary: next.schedule_summary,
-            image_key: next.image_key,
-            list_label: next.list_label,
-            sort_order: next.sort_order,
-            is_active: next.is_active,
-        });
+        setVenue((prev) => (prev ? { ...prev, [field]: value } : prev));
+    };
+
+    const saveInformation = () => {
+        if (!venue) return;
+        saveVenue(buildVenuePayload(venue));
     };
 
     const updateHoursRow = (dayOrder, field, value) => {
-        const next = openingHours.map((row) =>
-            row.day_order === dayOrder ? { ...row, [field]: value } : row
+        setOpeningHours((prev) =>
+            prev.map((row) => (row.day_order === dayOrder ? { ...row, [field]: value } : row))
         );
-        setOpeningHours(next);
-        debouncedSaveVenue({ opening_hours: next });
     };
+
+    const saveHours = () => saveVenue({ opening_hours: openingHours });
 
     const saveMenus = async (menusPayload) => {
         const payload = menusPayload ?? menus;
@@ -263,6 +261,7 @@ export function VenueEdit() {
                         />
                         Aktivní (zobrazit v aplikaci)
                     </label>
+                    <FormSaveBar onSave={saveInformation} saveStatus={saveStatus} label="Uložit informace" />
                 </div>
             )}
 
@@ -284,6 +283,7 @@ export function VenueEdit() {
                             />
                         </div>
                     ))}
+                    <FormSaveBar onSave={saveHours} saveStatus={saveStatus} label="Uložit otevírací dobu" />
                 </div>
             )}
 

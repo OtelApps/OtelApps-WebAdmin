@@ -7,14 +7,15 @@ export function RestaurantsBars() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    const reloadSections = () =>
+        axios.get('/api/venues').then((response) => {
+            setSections(response.data.sections ?? []);
+        });
+
     const load = () => {
         setLoading(true);
         setError(null);
-        axios
-            .get('/api/venues')
-            .then((response) => {
-                setSections(response.data.sections ?? []);
-            })
+        reloadSections()
             .catch((err) => {
                 const message =
                     err.response?.data?.message ||
@@ -59,6 +60,7 @@ export function RestaurantsBars() {
             title="Restaurants & Bars"
             sections={sections}
             moduleKey="restaurants_bars"
+            onReload={reloadSections}
         />
     );
 }

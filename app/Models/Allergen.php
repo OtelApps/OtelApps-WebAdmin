@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasUuidPrimaryKey;
+
 use Illuminate\Database\Eloquent\Model;
 
 class Allergen extends Model
 {
+    use HasUuidPrimaryKey;
     protected $connection;
 
     public $timestamps = false;

@@ -38,6 +38,49 @@ class WellnessController extends Controller
         ]);
     }
 
+    public function store(Request $request): JsonResponse
+    {
+        $hotel = $this->resolveHotel($request);
+        $data = $request->validate([
+            'slug' => [
+                'required',
+                'string',
+                'max:120',
+                'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
+                Rule::unique(WellnessFacility::class, 'slug'),
+            ],
+            'title' => ['required', 'string', 'max:255'],
+        ]);
+
+        $facility = WellnessFacility::create([
+            ...$data,
+            'hotel_id' => $hotel->id,
+            'detail_screen' => self::DETAIL_SCREENS[0],
+            'sort_order' => 0,
+            'is_active' => true,
+        ]);
+
+        $this->seedDefaultHours($facility);
+
+        return response()->json([
+            'facility' => $this->facilityPayload($facility->fresh('hours')),
+        ], 201);
+    }
+
+    public function destroy(string $slug): JsonResponse
+    {
+        $facility = $this->findFacility($slug);
+
+        DB::connection(config('otelapps.db_connection'))->transaction(function () use ($facility) {
+            $facility->hours()->delete();
+            $facility->images()->delete();
+            $facility->services()->delete();
+            $facility->delete();
+        });
+
+        return response()->json(['success' => true]);
+    }
+
     public function show(string $slug): JsonResponse
     {
         $facility = $this->findFacility($slug);
@@ -52,7 +95,7 @@ class WellnessController extends Controller
                 'hours_text' => $h->hours_text,
             ])->values(),
             'services' => $facility->services->map(fn ($s) => $this->servicePayload($s))->values(),
-            'image_keys' => array_keys(config('otelapps.wellness_image_keys', [])),
+            'image_keys' => array_keys(config_array('otelapps.wellness_image_keys')),
             'detail_screens' => self::DETAIL_SCREENS,
         ]);
     }
@@ -286,9 +329,31 @@ class WellnessController extends Controller
         return WellnessFacility::where('slug', $slug)->firstOrFail();
     }
 
+    private function seedDefaultHours(WellnessFacility $facility): void
+    {
+        $days = [
+            [1, 'Pondělí'],
+            [2, 'Úterý'],
+            [3, 'Středa'],
+            [4, 'Čtvrtek'],
+            [5, 'Pátek'],
+            [6, 'Sobota'],
+            [7, 'Neděle'],
+        ];
+
+        foreach ($days as [$order, $name]) {
+            WellnessFacilityHour::create([
+                'facility_id' => $facility->id,
+                'day_order' => $order,
+                'day_name' => $name,
+                'hours_text' => '10:00 - 20:00',
+            ]);
+        }
+    }
+
     private function listItem(WellnessFacility $facility): array
     {
-        $imageMap = config('otelapps.wellness_image_keys', []);
+        $imageMap = config_array('otelapps.wellness_image_keys');
 
         return [
             'id' => $facility->slug,

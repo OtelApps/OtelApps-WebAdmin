@@ -92,6 +92,22 @@ export function App() {
                             </ProtectedModuleRoute>
                         } 
                     />
+                    <Route
+                        path="module/:type/:module/:area/:id/edit"
+                        element={
+                            <ProtectedModuleRoute>
+                                <DynamicEditRouter />
+                            </ProtectedModuleRoute>
+                        }
+                    />
+                    <Route
+                        path="module/:type/:module/:area"
+                        element={
+                            <ProtectedModuleRoute>
+                                <DynamicModulePage />
+                            </ProtectedModuleRoute>
+                        }
+                    />
                     <Route 
                         path="module/:type/:module/:id/edit" 
                         element={

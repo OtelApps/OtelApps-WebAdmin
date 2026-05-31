@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { ContentCardsLayout } from '../../../components/ContentCardsLayout';
 
@@ -9,14 +9,15 @@ export function WellnessSpa() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    const reloadSections = () =>
+        axios.get('/api/wellness/facilities').then((response) => {
+            setSections(response.data.sections ?? []);
+        });
+
     const load = () => {
         setLoading(true);
         setError(null);
-        axios
-            .get('/api/wellness/facilities')
-            .then((response) => {
-                setSections(response.data.sections ?? []);
-            })
+        reloadSections()
             .catch((err) => {
                 const message =
                     err.response?.data?.message ||
@@ -57,20 +58,34 @@ export function WellnessSpa() {
     }
 
     return (
-        <ContentCardsLayout
+        <div>
+            <div className="px-6 pt-6 flex flex-wrap items-center gap-4">
+                <Link
+                    to="/module/facilities/relax_sport"
+                    className="text-sm text-orange-500 hover:underline font-medium"
+                >
+                    ← Relax & Sport
+                </Link>
+            </div>
+            <ContentCardsLayout
             title="Wellness & SPA"
             hideSectionTitle
             sections={sections}
-            moduleKey="wellness_spa"
+            moduleKey="relax_sport"
+            moduleArea="wellness-spa"
+            onReload={reloadSections}
             headerActions={
                 <button
                     type="button"
-                    onClick={() => navigate('/module/facilities/wellness_spa/program/edit')}
+                    onClick={() =>
+                        navigate('/module/facilities/relax_sport/wellness-spa/program/edit')
+                    }
                     className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                 >
                     Hotelový program →
                 </button>
             }
         />
+        </div>
     );
 }

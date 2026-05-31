@@ -49,6 +49,9 @@ class VenueController extends Controller
     public function show(string $slug): JsonResponse
     {
         $venue = $this->findVenue($slug);
+        if ($venue->openingHours()->count() === 0) {
+            $this->seedDefaultOpeningHours($venue);
+        }
         $venue->load([
             'openingHours',
             'menus.categories.items.allergens',
@@ -64,7 +67,7 @@ class VenueController extends Controller
             ])->values(),
             'menus' => $venue->menus->map(fn ($menu) => $this->menuPayload($menu))->values(),
             'allergens' => Allergen::query()->orderBy('code')->get(['code', 'name_cs', 'name_en']),
-            'image_keys' => array_keys(config('otelapps.venue_image_keys', [])),
+            'image_keys' => array_keys(config_array('otelapps.venue_image_keys')),
         ]);
     }
 
@@ -88,14 +91,18 @@ class VenueController extends Controller
             'sort_order' => ['nullable', 'integer', 'min:0'],
         ]);
 
-        $venue = Venue::create([
-            ...$data,
-            'hotel_id' => $hotel->id,
-            'sort_order' => $data['sort_order'] ?? 0,
-            'is_active' => true,
-        ]);
+        $venue = DB::connection(config('otelapps.db_connection'))->transaction(function () use ($data, $hotel) {
+            $venue = Venue::create([
+                ...$data,
+                'hotel_id' => $hotel->id,
+                'sort_order' => $data['sort_order'] ?? 0,
+                'is_active' => true,
+            ]);
 
-        $this->seedDefaultOpeningHours($venue);
+            $this->seedDefaultOpeningHours($venue);
+
+            return $venue;
+        });
 
         return response()->json(['venue' => $this->venuePayload($venue->fresh('openingHours'))], 201);
     }
@@ -349,7 +356,7 @@ class VenueController extends Controller
 
     private function listItem(Venue $venue): array
     {
-        $imageMap = config('otelapps.venue_image_keys', []);
+        $imageMap = config_array('otelapps.venue_image_keys');
 
         return [
             'id' => $venue->slug,

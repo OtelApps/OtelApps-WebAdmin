@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
+import { FormSaveBar } from '../../../components/FormSaveBar';
 import { WellnessServicesTab } from './WellnessServicesTab';
 
 const BASE_TABS = [
@@ -20,7 +21,6 @@ export function WellnessFacilityEdit() {
     const [services, setServices] = useState([]);
     const [imageKeys, setImageKeys] = useState([]);
     const [detailScreens, setDetailScreens] = useState([]);
-    const saveTimeoutRef = useRef(null);
 
     const load = useCallback(() => {
         setLoading(true);
@@ -63,33 +63,33 @@ export function WellnessFacilityEdit() {
         }
     };
 
-    const debouncedSave = (payload) => {
-        if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-        saveTimeoutRef.current = setTimeout(() => saveFacility(payload), 800);
-    };
+    const buildFacilityPayload = (f) => ({
+        title: f.title,
+        list_label: f.list_label,
+        schedule_summary: f.schedule_summary,
+        description_long: f.description_long,
+        image_key: f.image_key,
+        detail_screen: f.detail_screen,
+        sort_order: f.sort_order,
+        is_active: f.is_active,
+    });
 
     const updateField = (field, value) => {
-        const next = { ...facility, [field]: value };
-        setFacility(next);
-        debouncedSave({
-            title: next.title,
-            list_label: next.list_label,
-            schedule_summary: next.schedule_summary,
-            description_long: next.description_long,
-            image_key: next.image_key,
-            detail_screen: next.detail_screen,
-            sort_order: next.sort_order,
-            is_active: next.is_active,
-        });
+        setFacility((prev) => (prev ? { ...prev, [field]: value } : prev));
+    };
+
+    const saveInformation = () => {
+        if (!facility) return;
+        saveFacility(buildFacilityPayload(facility));
     };
 
     const updateHoursRow = (dayOrder, value) => {
-        const next = openingHours.map((row) =>
-            row.day_order === dayOrder ? { ...row, hours_text: value } : row
+        setOpeningHours((prev) =>
+            prev.map((row) => (row.day_order === dayOrder ? { ...row, hours_text: value } : row))
         );
-        setOpeningHours(next);
-        debouncedSave({ opening_hours: next });
     };
+
+    const saveHours = () => saveFacility({ opening_hours: openingHours });
 
     const saveServices = async (servicesPayload) => {
         const payload = servicesPayload ?? services;
@@ -129,7 +129,7 @@ export function WellnessFacilityEdit() {
                 <p className="text-red-600 mb-4">{error || 'Oblast nenalezena.'}</p>
                 <button
                     type="button"
-                    onClick={() => navigate('/module/facilities/wellness_spa')}
+                    onClick={() => navigate('/module/facilities/relax_sport/wellness-spa')}
                     className="text-orange-500 hover:underline"
                 >
                     ← Zpět na seznam
@@ -144,10 +144,10 @@ export function WellnessFacilityEdit() {
                 <div>
                     <button
                         type="button"
-                        onClick={() => navigate('/module/facilities/wellness_spa')}
+                        onClick={() => navigate('/module/facilities/relax_sport/wellness-spa')}
                         className="text-sm text-gray-500 hover:text-orange-500 mb-2"
                     >
-                        ← Wellness & SPA
+                        ← Wellness & SPA (Relax & Sport)
                     </button>
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{facility.title}</h1>
                     <p className="text-sm text-gray-500 mt-1">{facility.detail_screen} · {facility.slug}</p>
@@ -265,6 +265,7 @@ export function WellnessFacilityEdit() {
                         />
                         Aktivní (zobrazit v aplikaci)
                     </label>
+                    <FormSaveBar onSave={saveInformation} saveStatus={saveStatus} label="Uložit informace" />
                 </div>
             )}
 
@@ -286,6 +287,7 @@ export function WellnessFacilityEdit() {
                             />
                         </div>
                     ))}
+                    <FormSaveBar onSave={saveHours} saveStatus={saveStatus} label="Uložit otevírací dobu" />
                 </div>
             )}
 

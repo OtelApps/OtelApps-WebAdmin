@@ -134,33 +134,4 @@ export const facilityData = {
             },
         ],
     },
-    other_facilities: {
-        title: "Other Facilities",
-        sections: [
-            {
-                id: "general",
-                title: "General Facilities",
-                items: [
-                    {
-                        id: 1,
-                        title: "Parking Garage",
-                        image: "/images/parking.jpg",
-                        bookingEnabled: false,
-                    },
-                    {
-                        id: 2,
-                        title: "Kids Club",
-                        image: "/images/kids.jpg",
-                        bookingEnabled: true,
-                    },
-                    {
-                        id: 3,
-                        title: "Conference Room",
-                        image: "/images/conf.jpg",
-                        bookingEnabled: true,
-                    },
-                ],
-            },
-        ],
-    },
 };

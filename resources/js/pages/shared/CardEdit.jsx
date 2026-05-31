@@ -60,7 +60,7 @@ export function CardEdit() {
     const [formData, setFormData] = useState(emptyFormData);
 
     // Pravidlo: Které moduly budou mít Katalog?
-    const modulesWithCatalog = ['restaurants_bars', 'room_service', 'wellness_spa'];
+    const modulesWithCatalog = ['restaurants_bars', 'wellness_spa'];
     const showCatalog = type === 'services' || modulesWithCatalog.includes(module);
 
     const tabs = [

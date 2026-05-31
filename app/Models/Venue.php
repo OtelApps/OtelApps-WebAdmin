@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasUuidPrimaryKey;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Venue extends Model
 {
+    use HasUuidPrimaryKey;
     protected $connection;
 
     public $timestamps = false;
@@ -49,7 +51,7 @@ class Venue extends Model
 
     public function openingHours(): HasMany
     {
-        return $this->hasMany(VenueOpeningHour::class)->orderBy('day_order');
+        return $this->hasMany(VenueOpeningHour::class, 'venue_id')->orderBy('day_order');
     }
 
     public function menus(): HasMany

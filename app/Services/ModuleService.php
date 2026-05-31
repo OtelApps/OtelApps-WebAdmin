@@ -8,16 +8,16 @@ class ModuleService
         'content' => [
             'facilities' => [
                 'restaurants_bars',
-                'wellness_spa',
-                'sports',
-                'other_facilities',
+                'relax_sport',
+                'hotel_info',
+                'hotel_rooms',
+                'parking',
             ],
             'services' => [
                 'room_service',
                 'amenities',
                 'laundry',
                 'issues_repairs',
-                'housekeeping',
                 'check_in_out',
             ],
             'leisure',
@@ -57,7 +57,7 @@ class ModuleService
      */
     public static function isEnabled(string $module): bool
     {
-        $config = config('modules.enabled', []);
+        $config = config_array('modules.enabled');
         return $config[$module] ?? false;
     }
 
@@ -66,7 +66,7 @@ class ModuleService
      */
     public static function getLabel(string $module): string
     {
-        $labels = config('modules.labels', []);
+        $labels = config_array('modules.labels');
         return $labels[$module] ?? ucfirst(str_replace('_', ' ', $module));
     }
 
@@ -75,7 +75,7 @@ class ModuleService
      */
     public static function getIcon(string $module): string
     {
-        $icons = config('modules.icons', []);
+        $icons = config_array('modules.icons');
         return $icons[$module] ?? 'square';
     }
 
@@ -84,8 +84,8 @@ class ModuleService
      */
     public static function getEnabledModules(): array
     {
-        $config = config('modules.enabled', []);
-        return array_filter($config, fn($enabled) => $enabled === true);
+        $config = config_array('modules.enabled');
+        return array_filter($config, fn ($enabled) => $enabled === true);
     }
 
     /**

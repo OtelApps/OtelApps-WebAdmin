@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasUuidPrimaryKey;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class VenueOpeningHour extends Model
 {
+    use HasUuidPrimaryKey;
     protected $connection;
 
     public $timestamps = false;
@@ -29,6 +31,6 @@ class VenueOpeningHour extends Model
 
     public function venue(): BelongsTo
     {
-        return $this->belongsTo(Venue::class);
+        return $this->belongsTo(Venue::class, 'venue_id');
     }
 }

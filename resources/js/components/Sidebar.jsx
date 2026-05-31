@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import axios from 'axios';
+import { isModuleUnavailable } from '../config/unavailableModules';
 
 export function Sidebar() {
     const location = useLocation();
@@ -78,6 +79,21 @@ export function Sidebar() {
 
     const isActive = (type, module) => {
         return location.pathname === `/module/${type}/${module}`;
+    };
+
+    const submoduleLinkClass = (moduleKey, subKey) => {
+        const active = isActive(moduleKey, subKey);
+        const unavailable = isModuleUnavailable(subKey);
+
+        if (unavailable) {
+            return active
+                ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-l-2 border-red-500'
+                : 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-700 dark:hover:text-red-300 border-l-2 border-red-400/70';
+        }
+
+        return active
+            ? 'bg-orange-100 dark:bg-orange-900/30 text-[#FFA500]'
+            : 'text-gray-600 dark:text-gray-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:text-[#FFA500]';
     };
 
     const isSectionActive = (sectionKey) => {
@@ -239,13 +255,24 @@ export function Sidebar() {
                                             <Link
                                                 key={subModule.key}
                                                 to={`/module/${moduleKey}/${subModule.key}`}
-                                                className={`block px-6 py-2 text-sm hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:text-[#FFA500] rounded-lg transition-colors ${
-                                                    isActive(moduleKey, subModule.key)
-                                                        ? 'bg-orange-100 dark:bg-orange-900/30 text-[#FFA500]'
-                                                        : 'text-gray-600 dark:text-gray-400'
-                                                }`}
+                                                className={`block px-6 py-2 text-sm rounded-lg transition-colors ${submoduleLinkClass(
+                                                    moduleKey,
+                                                    subModule.key
+                                                )}`}
+                                                title={
+                                                    isModuleUnavailable(subModule.key)
+                                                        ? 'Zatím není implementováno'
+                                                        : undefined
+                                                }
                                             >
-                                                {subModule.label}
+                                                <span className="flex items-center justify-between gap-2">
+                                                    <span>{subModule.label}</span>
+                                                    {isModuleUnavailable(subModule.key) && (
+                                                        <span className="text-[10px] font-semibold uppercase tracking-wide text-red-500 dark:text-red-400 shrink-0">
+                                                            WIP
+                                                        </span>
+                                                    )}
+                                                </span>
                                             </Link>
                                         ))}
                                     </div>
