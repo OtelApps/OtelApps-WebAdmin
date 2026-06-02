@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import http from '../../lib/http';
 
 const STATUSES = [
     { value: 'new', label: 'New' },
@@ -22,7 +22,7 @@ export function RequestEditModal({ requestId, serviceTypes, onClose, onSaved }) 
     useEffect(() => {
         setLoading(true);
         setError(null);
-        axios
+        http
             .get(`/api/activity/requests/${requestId}`)
             .then((res) => {
                 const r = res.data.request;
@@ -56,7 +56,7 @@ export function RequestEditModal({ requestId, serviceTypes, onClose, onSaved }) 
         setSaving(true);
         setError(null);
         try {
-            const { data } = await axios.put(`/api/activity/requests/${requestId}`, {
+            const { data } = await http.put(`/api/activity/requests/${requestId}`, {
                 request_text: form.request_text,
                 guest_display_name: form.guest_name,
                 room_number: form.guest_room,

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import http from '../../lib/http';
 import { STATUS_CELL, STATUS_ORDER } from './activityStatus';
 
 export function RequestStatusModal({ row, onClose, onSaved }) {
@@ -19,7 +19,7 @@ export function RequestStatusModal({ row, onClose, onSaved }) {
             if (staffNote.trim()) {
                 payload.staff_note = staffNote.trim();
             }
-            await axios.put(`/api/activity/requests/${row.id}`, payload);
+            await http.put(`/api/activity/requests/${row.id}`, payload);
             onSaved();
             onClose();
         } catch (err) {

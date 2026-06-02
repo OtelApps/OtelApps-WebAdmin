@@ -3,6 +3,8 @@
 return [
     'hotel_slug' => env('OTELAPPS_HOTEL_SLUG', 'default'),
 
+    'currency' => env('OTELAPPS_CURRENCY', 'CZK'),
+
     'db_connection' => env('OTELAPPS_DB_CONNECTION', env('DB_CONNECTION', 'sqlite')),
 
     'venue_image_keys' => [

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import http from '../../lib/http';
 import { NotFound } from '../shared/NotFound';
 import { STATUS_CELL } from '../activity/activityStatus';
+import { RevenueUpsellPanel } from '../../components/RevenueUpsellPanel';
 
 const OPEN_STATUSES = ['new', 'pending', 'in_progress'];
 const PREVIEW_LIMIT = 3;
@@ -33,9 +34,12 @@ export function Dashboard() {
     const [openCount, setOpenCount] = useState(0);
     const [requestsLoading, setRequestsLoading] = useState(false);
     const [requestsError, setRequestsError] = useState(null);
+    const [revenueData, setRevenueData] = useState(null);
+    const [revenueLoading, setRevenueLoading] = useState(false);
+    const [revenueError, setRevenueError] = useState(null);
 
     useEffect(() => {
-        axios.get('/api/modules/check/dashboard')
+        http.get('/api/modules/check/dashboard')
             .then(response => {
                 setIsEnabled(response.data.enabled);
                 setLoading(false);
@@ -47,7 +51,7 @@ export function Dashboard() {
     }, []);
 
     useEffect(() => {
-        axios
+        http
             .get('/api/modules/check/activity')
             .then((res) => setActivityEnabled(Boolean(res.data.enabled)))
             .catch(() => setActivityEnabled(false));
@@ -61,7 +65,7 @@ export function Dashboard() {
         }
         setRequestsLoading(true);
         setRequestsError(null);
-        axios
+        http
             .get('/api/activity/requests')
             .then((res) => {
                 const list = res.data.requests ?? [];
@@ -80,6 +84,22 @@ export function Dashboard() {
                 );
             })
             .finally(() => setRequestsLoading(false));
+    }, [activityEnabled]);
+
+    useEffect(() => {
+        if (!activityEnabled) {
+            setRevenueData(null);
+            return;
+        }
+        setRevenueLoading(true);
+        setRevenueError(null);
+        http.get('/api/activity/revenue-summary', { params: { period: 'today' } })
+            .then((res) => setRevenueData(res.data))
+            .catch((err) => {
+                setRevenueData(null);
+                setRevenueError(err.response?.data?.message || 'Tržby se nepodařilo načíst.');
+            })
+            .finally(() => setRevenueLoading(false));
     }, [activityEnabled]);
 
     if (loading) {
@@ -196,28 +216,32 @@ export function Dashboard() {
                     </div>
                 </div>
 
-                {/* Revenue & Upsell Card */}
+                {/* Revenue & Upsell Card — data z Activity */}
                 <div className="bg-white dark:bg-gray-700 rounded-lg shadow-md border-2 border-gray-300 dark:border-gray-500 p-6 flex flex-col h-full">
                     <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Revenue & Upsell</h2>
-                    <div className="mb-4 flex-1">
-                        <div className="mb-4">
-                            <p className="text-sm text-gray-600 dark:text-gray-400">Today's Revenue</p>
-                            <p className="text-3xl font-bold text-gray-900 dark:text-white">$1,250</p>
-                        </div>
-                        <div>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Top Services</p>
-                            <div className="flex h-8 rounded-lg overflow-hidden">
-                                <div className="bg-purple-500 flex items-center justify-center text-white text-xs font-semibold" style={{ width: '45%' }}>Spa</div>
-                                <div className="bg-purple-700 flex items-center justify-center text-white text-xs font-semibold" style={{ width: '35%' }}>Room Service</div>
-                                <div className="bg-blue-500 flex items-center justify-center text-white text-xs font-semibold" style={{ width: '20%' }}>Restaurant</div>
-                            </div>
-                        </div>
+                    <div className="flex-1">
+                        <RevenueUpsellPanel
+                            data={revenueData}
+                            loading={revenueLoading}
+                            error={revenueError}
+                            activityEnabled={activityEnabled}
+                            compact
+                        />
                     </div>
                     <div className="flex space-x-3 mt-auto">
-                        <button className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">
-                            Add Offer
+                        <button
+                            type="button"
+                            disabled={!activityEnabled}
+                            onClick={() => navigate('/activity')}
+                            className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            Activity
                         </button>
-                        <button className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors">
+                        <button
+                            type="button"
+                            onClick={() => navigate('/module/insights/revenue')}
+                            className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+                        >
                             Open Insights
                         </button>
                     </div>

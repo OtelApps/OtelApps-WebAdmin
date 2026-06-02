@@ -289,6 +289,12 @@ from h
 cross join (
   values
     (
+      'room_service', 'Room service', 'room_service',
+      'Snídaně na pokoj', 'Jan Novák', '101', 'solved', null,
+      'guest-jan-101-rs', '{"menu_slug":"snidane","total_amount":450,"items":[{"slug":"croissant","name":"Croissant","quantity":2,"unit_price":125}]}',
+      now() - interval '3 hours', now() - interval '2 hours'
+    ),
+    (
       'relax_sport', 'Sports', 'fitness_center',
       'Snorkeling underwater', 'Sara', '522', 'new', 'Message from guest',
       'guest-sara-522', '{}',
@@ -297,7 +303,7 @@ cross join (
     (
       'amenities', 'Amenities', 'bed',
       'Shaving Kit', 'James Miller', '118', 'solved', null,
-      'guest-james-118', '{"items":[{"slug":"holici-sada","name":"Holící sada","quantity":1}]}',
+      'guest-james-118', '{"items":[{"slug":"holici-sada","name":"Holící sada","quantity":1,"unit_price":89}]}',
       now() - interval '1 day', now() - interval '12 hours'
     ),
     (

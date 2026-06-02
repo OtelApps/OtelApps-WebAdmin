@@ -17,6 +17,7 @@ import { Laundry } from '../content/services/Laundry';
 import { IssuesRepairs } from '../content/services/IssuesRepairs';
 import { Leisure } from '../content/leisure/Leisure';
 import { ModuleSectionHub } from './ModuleSectionHub';
+import { Revenue } from '../insights/Revenue';
 
 const RELAX_SPORT_AREAS = {
     'wellness-spa': WellnessSpa,
@@ -95,6 +96,10 @@ export function DynamicModulePage() {
 
     if (type === 'leisure' && module === 'leisure') {
         return <Leisure />;
+    }
+
+    if (type === 'insights' && module === 'revenue') {
+        return <Revenue />;
     }
 
     // Default module page

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import axios from 'axios';
+import http from '../../lib/http';
 import { NotFound } from '../shared/NotFound';
 import { RequestAddModal } from './RequestAddModal';
 import { RequestEditModal } from './RequestEditModal';
@@ -35,7 +35,7 @@ export function Activity() {
     const [showAdd, setShowAdd] = useState(false);
 
     useEffect(() => {
-        axios
+        http
             .get('/api/modules/check/activity')
             .then((response) => {
                 setIsEnabled(response.data.enabled);
@@ -63,7 +63,7 @@ export function Activity() {
         if (dateTo) {
             params.to = dateTo;
         }
-        axios
+        http
             .get('/api/activity/requests', { params })
             .then((res) => {
                 setRows(res.data.requests ?? []);
@@ -95,7 +95,7 @@ export function Activity() {
     const handleDelete = async (id) => {
         if (!window.confirm('Opravdu smazat tento požadavek?')) return;
         try {
-            await axios.delete(`/api/activity/requests/${id}`);
+            await http.delete(`/api/activity/requests/${id}`);
             loadRequests();
         } catch {
             window.alert('Smazání se nezdařilo.');

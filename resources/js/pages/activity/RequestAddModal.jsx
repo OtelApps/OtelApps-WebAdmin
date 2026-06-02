@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import http from '../../lib/http';
 
 const inputClass =
     'w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500';
@@ -24,7 +24,7 @@ export function RequestAddModal({ serviceTypes, onClose, onSaved }) {
         setSaving(true);
         setError(null);
         try {
-            const { data } = await axios.post('/api/activity/requests', {
+            const { data } = await http.post('/api/activity/requests', {
                 service_module: form.service_module,
                 request_text: form.request_text,
                 guest_display_name: form.guest_name,
