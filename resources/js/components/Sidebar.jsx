@@ -81,6 +81,8 @@ export function Sidebar() {
         return location.pathname === `/module/${type}/${module}`;
     };
 
+    const sectionKey = resolvedSection || currentSection;
+
     const submoduleLinkClass = (moduleKey, subKey) => {
         const active = isActive(moduleKey, subKey);
         const unavailable = isModuleUnavailable(subKey);
@@ -191,6 +193,16 @@ export function Sidebar() {
                                                     <path d="M856-390 570-104q-12 12-27 18t-30 6q-15 0-30-6t-27-18L103-457q-11-11-17-25.5T80-513v-287q0-33 23.5-56.5T160-880h287q16 0 31 6.5t26 17.5l352 353q12 12 17.5 27t5.5 30q0 15-5.5 29.5T856-390ZM513-160l286-286-353-354H160v286l353 354ZM260-640q25 0 42.5-17.5T320-700q0-25-17.5-42.5T260-760q-25 0-42.5 17.5T200-700q0 25 17.5 42.5T260-640Zm220 160Z"/>
                                                 </svg>
                                             )}
+                                            {index === 3 && (resolvedSection === 'crm' || currentSection === 'crm') && (
+                                                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                                                    <path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h440v80H200v560h440v-80h80v80q0 33-23.5 56.5T640-120H200Zm440-320-56-56 103-103-103-103 56-56 103 103 103-103 56 56-103 103 103 103-56 56-103-103-103 103Z"/>
+                                                </svg>
+                                            )}
+                                            {index === 4 && (resolvedSection === 'crm' || currentSection === 'crm') && (
+                                                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                                                    <path d="M480-120q-75 0-140.5-28.5T240-240q-49-49-77.5-114.5T134-495q0-75 28.5-140.5T240-750q49-49 114.5-77.5T480-856q75 0 140.5 28.5T735-750q49 49 77.5 114.5T841-495q0 75-28.5 140.5T735-240q-49 49-114.5 77.5T480-120Zm0-80q116 0 198-82t82-198q0-116-82-198t-198-82q-116 0-198 82t-82 198q0 116 82 198t198 82Zm0-280Z"/>
+                                                </svg>
+                                            )}
                                             {index === 2 && (resolvedSection === 'feedback' || currentSection === 'feedback') && (
                                                 <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
                                                     <path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-120H640q-30 38-71.5 59T480-240q-47 0-88.5-21T320-320H200v120Zm349-142q31-22 43-58h168v-360H200v360h168q12 36 43 58t69 22q38 0 69-22ZM200-200h560-560Z"/>
@@ -280,13 +292,13 @@ export function Sidebar() {
                             </div>
                         );
                     } else {
-                        // Simple module
+                        // Jednoduchý modul v rámci sekce (např. insights → users)
                         return (
                             <Link
                                 key={moduleKey}
-                                to={`/module/${moduleKey}/${moduleKey}`}
+                                to={`/module/${sectionKey}/${moduleKey}`}
                                 className={`flex items-center gap-3 px-4 py-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg transition-colors mb-2 ${
-                                    isActive(moduleKey, moduleKey)
+                                    isActive(sectionKey, moduleKey)
                                         ? 'bg-orange-50 dark:bg-orange-900/20 text-[#FFA500]'
                                         : 'text-gray-700 dark:text-gray-300 hover:text-[#FFA500]'
                                 }`}
@@ -354,6 +366,16 @@ export function Sidebar() {
                                 {(resolvedSection === 'crm' || currentSection === 'crm') && index === 2 && (
                                     <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
                                         <path d="M856-390 570-104q-12 12-27 18t-30 6q-15 0-30-6t-27-18L103-457q-11-11-17-25.5T80-513v-287q0-33 23.5-56.5T160-880h287q16 0 31 6.5t26 17.5l352 353q12 12 17.5 27t5.5 30q0 15-5.5 29.5T856-390ZM513-160l286-286-353-354H160v286l353 354ZM260-640q25 0 42.5-17.5T320-700q0-25-17.5-42.5T260-760q-25 0-42.5 17.5T200-700q0 25 17.5 42.5T260-640Zm220 160Z"/>
+                                    </svg>
+                                )}
+                                {(resolvedSection === 'crm' || currentSection === 'crm') && index === 3 && (
+                                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                                        <path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h440v80H200v560h440v-80h80v80q0 33-23.5 56.5T640-120H200Zm440-320-56-56 103-103-103-103 56-56 103 103 103-103 56 56-103 103 103 103-56 56-103-103-103 103Z"/>
+                                    </svg>
+                                )}
+                                {(resolvedSection === 'crm' || currentSection === 'crm') && index === 4 && (
+                                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                                        <path d="M480-120q-75 0-140.5-28.5T240-240q-49-49-77.5-114.5T134-495q0-75 28.5-140.5T240-750q49-49 114.5-77.5T480-856q75 0 140.5 28.5T735-750q49 49 77.5 114.5T841-495q0 75-28.5 140.5T735-240q-49 49-114.5 77.5T480-120Zm0-80q116 0 198-82t82-198q0-116-82-198t-198-82q-116 0-198 82t-82 198q0 116 82 198t198 82Zm0-280Z"/>
                                     </svg>
                                 )}
                                 {(resolvedSection === 'feedback' || currentSection === 'feedback') && index === 2 && (

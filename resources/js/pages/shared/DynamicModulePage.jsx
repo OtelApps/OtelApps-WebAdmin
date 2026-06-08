@@ -18,6 +18,14 @@ import { IssuesRepairs } from '../content/services/IssuesRepairs';
 import { Leisure } from '../content/leisure/Leisure';
 import { ModuleSectionHub } from './ModuleSectionHub';
 import { Revenue } from '../insights/Revenue';
+import { Users } from '../insights/Users';
+import { Transactions } from '../insights/Transactions';
+import { Behavior } from '../insights/Behavior';
+import { Guests } from '../crm/Guests';
+import { Alerts } from '../crm/Alerts';
+import { Promotions } from '../crm/Promotions';
+import { Tasks } from '../crm/Tasks';
+import { History } from '../crm/History';
 
 const RELAX_SPORT_AREAS = {
     'wellness-spa': WellnessSpa,
@@ -100,6 +108,38 @@ export function DynamicModulePage() {
 
     if (type === 'insights' && module === 'revenue') {
         return <Revenue />;
+    }
+
+    if (type === 'insights' && module === 'users') {
+        return <Users />;
+    }
+
+    if (type === 'insights' && module === 'transactions') {
+        return <Transactions />;
+    }
+
+    if (type === 'insights' && module === 'behavior') {
+        return <Behavior />;
+    }
+
+    if (type === 'crm' && module === 'guests') {
+        return <Guests />;
+    }
+
+    if (type === 'crm' && module === 'alerts') {
+        return <Alerts />;
+    }
+
+    if (type === 'crm' && module === 'promotions') {
+        return <Promotions />;
+    }
+
+    if (type === 'crm' && module === 'tasks') {
+        return <Tasks />;
+    }
+
+    if (type === 'crm' && module === 'history') {
+        return <History />;
     }
 
     // Default module page

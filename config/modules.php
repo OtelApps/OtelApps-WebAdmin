@@ -42,6 +42,8 @@ return [
         'guests' => true,
         'alerts' => true,
         'promotions' => true,
+        'tasks' => true,
+        'history' => true,
 
         // Feedback moduly
         'surveys' => true,
@@ -126,6 +128,8 @@ return [
         'guests' => 'Guests',
         'alerts' => 'Alerts',
         'promotions' => 'Promotions',
+        'tasks' => 'Tasks',
+        'history' => 'History',
         'surveys' => 'Surveys',
         'external_platforms' => 'External Platforms',
         'inbox' => 'Inbox',

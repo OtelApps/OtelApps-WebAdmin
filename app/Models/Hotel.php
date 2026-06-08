@@ -94,4 +94,9 @@ class Hotel extends Model
     {
         return $this->hasMany(HotelServiceRequestType::class);
     }
+
+    public function conciergeConversations(): HasMany
+    {
+        return $this->hasMany(HotelConciergeConversation::class);
+    }
 }

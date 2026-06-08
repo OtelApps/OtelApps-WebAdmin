@@ -4,6 +4,9 @@ import { Layout } from './Layout';
 import { Dashboard } from '../pages/dashboard/Dashboard';
 import { Content } from '../pages/content/Content';
 import { Activity } from '../pages/activity/Activity';
+import { Concierge } from '../pages/concierge/Concierge';
+import { InsightsHub } from '../pages/insights/InsightsHub';
+import { CrmHub } from '../pages/crm/CrmHub';
 import { Page } from '../pages/shared/Page';
 import { DynamicModulePage } from '../pages/shared/DynamicModulePage';
 import { NotFound } from '../pages/shared/NotFound';
@@ -56,7 +59,7 @@ export function App() {
                         path="crm" 
                         element={
                             <ProtectedRoute moduleName="crm">
-                                <Page title="CRM" />
+                                <CrmHub />
                             </ProtectedRoute>
                         } 
                     />
@@ -72,7 +75,7 @@ export function App() {
                         path="concierge" 
                         element={
                             <ProtectedRoute moduleName="concierge">
-                                <Page title="Concierge" />
+                                <Concierge />
                             </ProtectedRoute>
                         } 
                     />
@@ -80,7 +83,7 @@ export function App() {
                         path="insights" 
                         element={
                             <ProtectedRoute moduleName="insights">
-                                <Page title="Insights" />
+                                <InsightsHub />
                             </ProtectedRoute>
                         } 
                     />

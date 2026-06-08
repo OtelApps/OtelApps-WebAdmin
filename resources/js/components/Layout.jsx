@@ -3,13 +3,17 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { MainNavigation } from './MainNavigation';
 import { Sidebar } from './Sidebar';
 import { FloatingHelp } from './FloatingHelp';
+import { NotificationProvider } from '../context/NotificationContext';
+import { NotificationToasts } from './notifications/NotificationToasts';
+import { NotificationSettingsModal } from './notifications/NotificationSettingsModal';
 
 export function Layout() {
     const location = useLocation();
     const [settingsOpen, setSettingsOpen] = useState(false);
     const showSidebar = location.pathname !== '/dashboard' && 
                         location.pathname !== '/' && 
-                        !location.pathname.startsWith('/concierge');
+                        !location.pathname.startsWith('/concierge') &&
+                        !location.pathname.startsWith('/activity');
 
     useEffect(() => {
         const handleSettingsToggle = (e) => {
@@ -30,7 +34,8 @@ export function Layout() {
     }, []);
 
     return (
-        <div className="h-screen flex flex-col overflow-hidden">
+        <NotificationProvider>
+            <div className="h-screen flex flex-col overflow-hidden">
             {/* Global Backdrop for Settings */}
             {settingsOpen && (
                 <div
@@ -65,7 +70,11 @@ export function Layout() {
 
             {/* Floating Help Button */}
             <FloatingHelp />
+
+            <NotificationToasts />
+            <NotificationSettingsModal />
         </div>
+        </NotificationProvider>
     );
 }
 

@@ -49,7 +49,12 @@ class HotelServiceRequestController extends Controller
             $query->where('created_at', '<=', $request->query('to').' 23:59:59');
         }
 
-        $requests = $query->orderByDesc('created_at')->get();
+        $limit = min(max((int) $request->query('limit', 0), 0), 50);
+        if ($limit > 0) {
+            $requests = (clone $query)->orderByDesc('created_at')->limit($limit)->get();
+        } else {
+            $requests = $query->orderByDesc('created_at')->get();
+        }
 
         $statusCounts = HotelServiceRequest::query()
             ->where('hotel_id', $hotel->id)

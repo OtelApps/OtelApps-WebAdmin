@@ -32,8 +32,18 @@ class ActivityRevenueController extends Controller
 
         $hotel = $this->resolveHotel($request);
 
+        $tz = config('app.timezone', 'Europe/Prague');
+        $now = \Carbon\Carbon::now($tz);
+        $from = match ($period) {
+            'week' => $now->copy()->startOfWeek(),
+            'month' => $now->copy()->startOfMonth(),
+            default => $now->copy()->startOfDay(),
+        };
+
         $requests = HotelServiceRequest::query()
             ->where('hotel_id', $hotel->id)
+            ->where('created_at', '>=', $from)
+            ->whereNotIn('status', ['rejected', 'archived'])
             ->orderByDesc('created_at')
             ->get();
 

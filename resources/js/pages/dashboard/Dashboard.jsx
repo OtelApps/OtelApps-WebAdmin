@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import http from '../../lib/http';
 import { NotFound } from '../shared/NotFound';
 import { STATUS_CELL } from '../activity/activityStatus';
-import { RevenueUpsellPanel } from '../../components/RevenueUpsellPanel';
+import { DEFAULT_LAYOUT, reorderWidgets } from './dashboardWidgetConfig';
+import { DashboardCustomizeBar, DashboardWidgetShell } from './DashboardCustomizeBar';
+import { renderDashboardWidget } from './DashboardWidgets';
 
 const OPEN_STATUSES = ['new', 'pending', 'in_progress'];
 const PREVIEW_LIMIT = 3;
@@ -21,7 +23,7 @@ function RequestStatusBadge({ status }) {
     const label = STATUS_CELL[status]?.label ?? status;
     const cls = STATUS_BADGE_CLASS[status] ?? STATUS_BADGE_CLASS.new;
     return (
-        <span className={`shrink-0 px-2 py-1 text-xs font-medium rounded-full ${cls}`}>{label}</span>
+        <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-medium ${cls}`}>{label}</span>
     );
 }
 
@@ -29,33 +31,90 @@ export function Dashboard() {
     const navigate = useNavigate();
     const [isEnabled, setIsEnabled] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [bootstrapLoading, setBootstrapLoading] = useState(false);
+
+    const [layout, setLayout] = useState(DEFAULT_LAYOUT);
+    const [draftLayout, setDraftLayout] = useState(DEFAULT_LAYOUT);
+    const [catalog, setCatalog] = useState([]);
+    const [isEditing, setIsEditing] = useState(false);
+    const [layoutSaving, setLayoutSaving] = useState(false);
+    const [dragId, setDragId] = useState(null);
+
     const [activityEnabled, setActivityEnabled] = useState(false);
+    const [conciergeEnabled, setConciergeEnabled] = useState(false);
+    const [crmEnabled, setCrmEnabled] = useState(false);
+    const [insightsEnabled, setInsightsEnabled] = useState(false);
+
     const [guestRequests, setGuestRequests] = useState([]);
     const [openCount, setOpenCount] = useState(0);
     const [requestsLoading, setRequestsLoading] = useState(false);
     const [requestsError, setRequestsError] = useState(null);
+
     const [revenueData, setRevenueData] = useState(null);
     const [revenueLoading, setRevenueLoading] = useState(false);
     const [revenueError, setRevenueError] = useState(null);
 
+    const [weekRevenueData, setWeekRevenueData] = useState(null);
+    const [weekRevenueLoading, setWeekRevenueLoading] = useState(false);
+    const [weekRevenueError, setWeekRevenueError] = useState(null);
+
+    const [overviewData, setOverviewData] = useState(null);
+    const [overviewLoading, setOverviewLoading] = useState(true);
+    const [overviewError, setOverviewError] = useState(null);
+
+    const [conciergeUnread, setConciergeUnread] = useState(0);
+    const [conciergeLoading, setConciergeLoading] = useState(false);
+    const [conciergeError, setConciergeError] = useState(null);
+
+    const [crmKpis, setCrmKpis] = useState(null);
+    const [crmLoading, setCrmLoading] = useState(false);
+    const [crmError, setCrmError] = useState(null);
+
+    const activeWidgets = isEditing ? draftLayout : layout;
+
     useEffect(() => {
         http.get('/api/modules/check/dashboard')
-            .then(response => {
+            .then((response) => {
                 setIsEnabled(response.data.enabled);
-                setLoading(false);
             })
             .catch(() => {
                 setIsEnabled(false);
-                setLoading(false);
-            });
+            })
+            .finally(() => setLoading(false));
     }, []);
 
     useEffect(() => {
-        http
-            .get('/api/modules/check/activity')
-            .then((res) => setActivityEnabled(Boolean(res.data.enabled)))
-            .catch(() => setActivityEnabled(false));
-    }, []);
+        if (!isEnabled) return;
+
+        setBootstrapLoading(true);
+        http.get('/api/dashboard/bootstrap')
+            .then((res) => {
+                const modules = res.data.modules ?? {};
+                setActivityEnabled(Boolean(modules.activity));
+                setConciergeEnabled(Boolean(modules.concierge));
+                setCrmEnabled(Boolean(modules.crm));
+                setInsightsEnabled(Boolean(modules.insights));
+
+                const layoutData = res.data.layout ?? {};
+                const widgets = layoutData.widgets ?? DEFAULT_LAYOUT;
+                setLayout(widgets);
+                setDraftLayout(widgets);
+                setCatalog(layoutData.catalog ?? []);
+
+                setOverviewData(res.data.overview ?? null);
+                setOverviewError(null);
+            })
+            .catch((err) => {
+                setLayout(DEFAULT_LAYOUT);
+                setDraftLayout(DEFAULT_LAYOUT);
+                setOverviewData(null);
+                setOverviewError(err.response?.data?.message || 'Přehled hotelu se nepodařilo načíst.');
+            })
+            .finally(() => {
+                setBootstrapLoading(false);
+                setOverviewLoading(false);
+            });
+    }, [isEnabled]);
 
     useEffect(() => {
         if (!activityEnabled) {
@@ -64,24 +123,17 @@ export function Dashboard() {
             return;
         }
         setRequestsLoading(true);
-        setRequestsError(null);
-        http
-            .get('/api/activity/requests')
+        http.get('/api/activity/requests', { params: { limit: PREVIEW_LIMIT } })
             .then((res) => {
                 const list = res.data.requests ?? [];
                 const counts = res.data.status_counts ?? {};
-                setGuestRequests(list.slice(0, PREVIEW_LIMIT));
-                setOpenCount(
-                    OPEN_STATUSES.reduce((sum, key) => sum + (Number(counts[key]) || 0), 0),
-                );
+                setGuestRequests(list);
+                setOpenCount(OPEN_STATUSES.reduce((sum, key) => sum + (Number(counts[key]) || 0), 0));
             })
             .catch((err) => {
                 setGuestRequests([]);
                 setOpenCount(0);
-                setRequestsError(
-                    err.response?.data?.message ||
-                        'Požadavky se nepodařilo načíst. Zkontroluj Activity v Supabase.',
-                );
+                setRequestsError(err.response?.data?.message || 'Požadavky se nepodařilo načíst.');
             })
             .finally(() => setRequestsLoading(false));
     }, [activityEnabled]);
@@ -92,19 +144,135 @@ export function Dashboard() {
             return;
         }
         setRevenueLoading(true);
-        setRevenueError(null);
         http.get('/api/activity/revenue-summary', { params: { period: 'today' } })
             .then((res) => setRevenueData(res.data))
-            .catch((err) => {
-                setRevenueData(null);
-                setRevenueError(err.response?.data?.message || 'Tržby se nepodařilo načíst.');
-            })
+            .catch((err) => setRevenueError(err.response?.data?.message || 'Tržby se nepodařilo načíst.'))
             .finally(() => setRevenueLoading(false));
     }, [activityEnabled]);
 
-    if (loading) {
+    useEffect(() => {
+        if (!activityEnabled || !activeWidgets.includes('insights_revenue')) {
+            setWeekRevenueData(null);
+            return;
+        }
+        setWeekRevenueLoading(true);
+        http.get('/api/activity/revenue-summary', { params: { period: 'week' } })
+            .then((res) => setWeekRevenueData(res.data))
+            .catch((err) => setWeekRevenueError(err.response?.data?.message || 'Tržby se nepodařilo načíst.'))
+            .finally(() => setWeekRevenueLoading(false));
+    }, [activityEnabled, activeWidgets]);
+
+    useEffect(() => {
+        if (!conciergeEnabled || !activeWidgets.includes('concierge_inbox')) {
+            setConciergeUnread(0);
+            return;
+        }
+        setConciergeLoading(true);
+        http.get('/api/concierge/conversations')
+            .then((res) => setConciergeUnread(res.data.unread_total ?? 0))
+            .catch((err) => setConciergeError(err.response?.data?.message || 'Concierge data se nepodařilo načíst.'))
+            .finally(() => setConciergeLoading(false));
+    }, [conciergeEnabled, activeWidgets]);
+
+    useEffect(() => {
+        if (!crmEnabled || !activeWidgets.includes('crm_snapshot')) {
+            setCrmKpis(null);
+            return;
+        }
+        setCrmLoading(true);
+        http.get('/api/crm/overview')
+            .then((res) => setCrmKpis(res.data.kpis ?? null))
+            .catch((err) => setCrmError(err.response?.data?.message || 'CRM data se nepodařilo načíst.'))
+            .finally(() => setCrmLoading(false));
+    }, [crmEnabled, activeWidgets]);
+
+    const widgetProps = useMemo(
+        () => ({
+            onNavigate: navigate,
+            overviewData,
+            overviewLoading,
+            overviewError,
+            activityEnabled,
+            revenueData,
+            revenueLoading,
+            revenueError,
+            conciergeEnabled,
+            conciergeUnread,
+            conciergeLoading,
+            conciergeError,
+            crmEnabled,
+            crmKpis,
+            crmLoading,
+            crmError,
+            insightsEnabled,
+            weekRevenueData,
+            weekRevenueLoading,
+            weekRevenueError,
+            guestRequestsProps: {
+                activityEnabled,
+                openCount,
+                guestRequests,
+                loading: requestsLoading,
+                error: requestsError,
+                onNavigate: navigate,
+                RequestStatusBadge,
+            },
+        }),
+        [
+            navigate,
+            overviewData,
+            overviewLoading,
+            overviewError,
+            activityEnabled,
+            revenueData,
+            revenueLoading,
+            revenueError,
+            conciergeEnabled,
+            conciergeUnread,
+            conciergeLoading,
+            conciergeError,
+            crmEnabled,
+            crmKpis,
+            crmLoading,
+            crmError,
+            insightsEnabled,
+            weekRevenueData,
+            weekRevenueLoading,
+            weekRevenueError,
+            openCount,
+            guestRequests,
+            requestsLoading,
+            requestsError,
+        ],
+    );
+
+    const handleSaveLayout = async () => {
+        setLayoutSaving(true);
+        try {
+            const { data } = await http.put('/api/dashboard/layout', { widgets: draftLayout });
+            setLayout(data.widgets ?? draftLayout);
+            setDraftLayout(data.widgets ?? draftLayout);
+            setCatalog(data.catalog ?? catalog);
+            setIsEditing(false);
+        } catch (err) {
+            window.alert(err.response?.data?.message || 'Uložení layoutu se nezdařilo.');
+        } finally {
+            setLayoutSaving(false);
+        }
+    };
+
+    const handleDrop = useCallback(
+        (targetId) => {
+            if (!dragId) return;
+            setDraftLayout((prev) => reorderWidgets(prev, dragId, targetId));
+            setDragId(null);
+        },
+        [dragId],
+    );
+
+    if (loading || bootstrapLoading) {
         return (
-            <div className="flex items-center justify-center min-h-screen">
+            <div className="flex min-h-screen items-center justify-center">
                 <p className="text-gray-600">Loading...</p>
             </div>
         );
@@ -113,188 +281,78 @@ export function Dashboard() {
     if (!isEnabled) {
         return <NotFound />;
     }
+
     return (
-        <div className="max-w-screen-2xl mx-auto px-0.5 sm:px-1 lg:px-1.5 py-8">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-6">Manage your hotel app</h1>
+        <div className="mx-auto max-w-screen-2xl px-0.5 py-8 sm:px-1 lg:px-1.5">
+            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Manage your hotel app</h1>
+            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Hotel Overview Card */}
-                <div className="bg-white dark:bg-gray-700 rounded-lg shadow-md border-2 border-gray-300 dark:border-gray-500 p-6 flex flex-col h-full">
-                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Hotel Overview</h2>
-                    <div className="space-y-3 flex-1">
-                        <div className="flex justify-between">
-                            <span className="text-gray-600 dark:text-gray-400">Guests staying:</span>
-                            <span className="font-semibold text-gray-900 dark:text-white">84/100</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-gray-600 dark:text-gray-400">Arrivals / Departures:</span>
-                            <span className="font-semibold text-gray-900 dark:text-white">12 / 8</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="text-gray-600 dark:text-gray-400">Occupancy:</span>
-                            <span className="font-semibold text-gray-900 dark:text-white">84%</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-gray-600 dark:text-gray-400">Trend:</span>
-                            <span className="text-green-500 font-semibold flex items-center">
-                                <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                                </svg>
-                                +5%
-                            </span>
-                        </div>
-                    </div>
-                    <div className="mt-6 flex space-x-3">
-                        <button className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">
-                            Manage Rooms
-                        </button>
-                        <button className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors">
-                            View Reservations
-                        </button>
-                    </div>
-                </div>
+            <DashboardCustomizeBar
+                isEditing={isEditing}
+                onStart={() => {
+                    setDraftLayout(layout);
+                    setIsEditing(true);
+                }}
+                onCancel={() => {
+                    setDraftLayout(layout);
+                    setIsEditing(false);
+                    setDragId(null);
+                }}
+                onSave={handleSaveLayout}
+                onReset={() => {
+                    const defaults = DEFAULT_LAYOUT.filter(
+                        (id) => catalog.some((c) => c.id === id) || id === 'hotel_overview',
+                    );
+                    setDraftLayout(defaults.length ? defaults : ['hotel_overview']);
+                }}
+                saving={layoutSaving}
+                catalog={catalog}
+                activeWidgets={draftLayout}
+                onAddWidget={(id) => setDraftLayout((prev) => (prev.includes(id) ? prev : [...prev, id]))}
+            />
 
-                {/* Guest Requests Card — data z Activity */}
-                <div className="bg-white dark:bg-gray-700 rounded-lg shadow-md border-2 border-gray-300 dark:border-gray-500 p-6 flex flex-col h-full">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Guest Requests</h2>
-                        {activityEnabled && openCount > 0 && (
-                            <span
-                                className="bg-red-500 text-white rounded-full min-w-8 h-8 px-2 flex items-center justify-center text-sm font-semibold"
-                                title="Nové, čekající a rozpracované"
-                            >
-                                {openCount}
-                            </span>
-                        )}
-                    </div>
-                    <div className="space-y-3 mb-4 flex-1 min-h-[120px]">
-                        {!activityEnabled ? (
-                            <p className="text-sm text-gray-500 dark:text-gray-400 py-4 text-center">
-                                Modul Activity není zapnutý.
-                            </p>
-                        ) : requestsLoading ? (
-                            <p className="text-sm text-gray-500 dark:text-gray-400 py-4 text-center">Načítání…</p>
-                        ) : requestsError ? (
-                            <p className="text-sm text-red-600 dark:text-red-400 py-2">{requestsError}</p>
-                        ) : guestRequests.length === 0 ? (
-                            <p className="text-sm text-gray-500 dark:text-gray-400 py-4 text-center">
-                                Žádné požadavky hostů.
-                            </p>
-                        ) : (
-                            guestRequests.map((row) => (
-                                <button
-                                    key={row.id}
-                                    type="button"
-                                    onClick={() => navigate('/activity')}
-                                    className="flex w-full items-center justify-between gap-2 p-3 bg-gray-50 dark:bg-gray-600 rounded-lg text-left transition hover:bg-gray-100 dark:hover:bg-gray-500/80"
-                                >
-                                    <span className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
-                                        Pokoj {row.guest_room}: {row.request}
-                                    </span>
-                                    <RequestStatusBadge status={row.status} />
-                                </button>
-                            ))
-                        )}
-                    </div>
-                    <div className="flex space-x-3 mt-auto">
-                        <button
-                            type="button"
-                            disabled={!activityEnabled}
-                            onClick={() => navigate('/activity')}
-                            className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            Create New
-                        </button>
-                        <button
-                            type="button"
-                            disabled={!activityEnabled}
-                            onClick={() => navigate('/activity')}
-                            className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            View All
-                        </button>
-                    </div>
-                </div>
-
-                {/* Revenue & Upsell Card — data z Activity */}
-                <div className="bg-white dark:bg-gray-700 rounded-lg shadow-md border-2 border-gray-300 dark:border-gray-500 p-6 flex flex-col h-full">
-                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Revenue & Upsell</h2>
-                    <div className="flex-1">
-                        <RevenueUpsellPanel
-                            data={revenueData}
-                            loading={revenueLoading}
-                            error={revenueError}
-                            activityEnabled={activityEnabled}
-                            compact
-                        />
-                    </div>
-                    <div className="flex space-x-3 mt-auto">
-                        <button
-                            type="button"
-                            disabled={!activityEnabled}
-                            onClick={() => navigate('/activity')}
-                            className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            Activity
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => navigate('/module/insights/revenue')}
-                            className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
-                        >
-                            Open Insights
-                        </button>
-                    </div>
-                </div>
-
-                {/* Add Content Card */}
-                <div className="bg-white dark:bg-gray-700 rounded-lg shadow-md border-2 border-gray-300 dark:border-gray-500 p-5 flex flex-col items-center h-full">
-                    <div className="w-16 h-16 bg-gray-200 dark:bg-gray-600 rounded-full flex items-center justify-center mb-4">
-                        <svg className="w-8 h-8 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Add Content</h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 flex-1">Enrich your Facilities and Services in just a couple clicks</p>
-                    <button className="px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors mt-auto">
-                        ADD CONTENT
-                    </button>
-                </div>
-
-                {/* Customize your App Card */}
-                <div className="bg-white dark:bg-gray-700 rounded-lg shadow-md border-2 border-gray-300 dark:border-gray-500 p-5 flex flex-col items-center h-full">
-                    <div className="w-16 h-16 bg-gray-200 dark:bg-gray-600 rounded-full flex items-center justify-center mb-4">
-                        <svg className="w-8 h-8 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-                        </svg>
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Customize your App</h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 flex-1">Use your Colours, Logo, Images and Icons</p>
-                    <button className="px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors mt-auto">
-                        EDIT STYLE
-                    </button>
-                </div>
-
-                {/* Manage Requests Card */}
-                <div className="bg-white dark:bg-gray-700 rounded-lg shadow-md border-2 border-gray-300 dark:border-gray-500 p-5 flex flex-col items-center h-full">
-                    <div className="w-16 h-16 bg-gray-200 dark:bg-gray-600 rounded-full flex items-center justify-center mb-4">
-                        <svg className="w-8 h-8 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                        </svg>
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Manage Requests</h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 flex-1">Manage all Requests and Reservations from ACTIVITY</p>
-                    <button
-                        type="button"
-                        disabled={!activityEnabled}
-                        onClick={() => navigate('/activity')}
-                        className="px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors mt-auto disabled:opacity-50 disabled:cursor-not-allowed"
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {activeWidgets.map((widgetId) => (
+                    <DashboardWidgetShell
+                        key={widgetId}
+                        widgetId={widgetId}
+                        isEditing={isEditing}
+                        onRemove={(id) =>
+                            setDraftLayout((prev) => (prev.length <= 1 ? prev : prev.filter((w) => w !== id)))
+                        }
+                        onDragStart={setDragId}
+                        onDragOver={() => {}}
+                        onDrop={handleDrop}
                     >
-                        MANAGE REQUESTS
-                    </button>
-                </div>
+                        {renderDashboardWidget(widgetId, widgetProps)}
+                    </DashboardWidgetShell>
+                ))}
+
+                {!isEditing && (
+                    <div className="flex h-full flex-col items-center rounded-lg border-2 border-dashed border-gray-300 bg-white p-5 shadow-sm dark:border-gray-600 dark:bg-gray-700/50">
+                        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-600">
+                            <span className="material-symbols-outlined text-3xl text-gray-600 dark:text-gray-400">
+                                dashboard_customize
+                            </span>
+                        </div>
+                        <h3 className="mb-2 text-lg font-semibold text-gray-900 dark:text-white">Customize Dashboard</h3>
+                        <p className="mb-4 flex-1 text-center text-sm text-gray-600 dark:text-gray-400">
+                            Přidejte widgety a seřaďte si je podle potřeb recepce
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setDraftLayout(layout);
+                                setIsEditing(true);
+                            }}
+                            className="mt-auto rounded-lg bg-orange-500 px-6 py-2 text-sm font-semibold text-white hover:bg-orange-600"
+                        >
+                            UPRAVIT WIDGETY
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );
 }
-

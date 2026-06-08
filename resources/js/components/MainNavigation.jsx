@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import axios from "axios";
+import { useNotifications } from "../context/NotificationContext";
+import { NotificationBell, NavBadge } from "./notifications/NotificationBell";
 
 export function MainNavigation({ settingsOpen, setSettingsOpen }) {
     const location = useLocation();
@@ -11,6 +13,7 @@ export function MainNavigation({ settingsOpen, setSettingsOpen }) {
     const [currentLanguage, setCurrentLanguage] = useState("English");
     const [editLanguagesOpen, setEditLanguagesOpen] = useState(false);
     const languageButtonRef = useRef(null);
+    const { badges, setSettingsOpen: setNotificationSettingsOpen } = useNotifications();
 
     useEffect(() => {
         axios
@@ -133,15 +136,21 @@ export function MainNavigation({ settingsOpen, setSettingsOpen }) {
                                 <Link
                                     key={module}
                                     to={`/${module}`}
-                                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                                    className={`relative px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                                         isActive(module)
                                             ? "bg-orange-500 text-white"
                                             : "text-gray-300 hover:bg-gray-700 hover:text-white"
                                     }`}
                                 >
                                     <div className="flex flex-col items-center space-y-1">
-                                        <span className="material-symbols-outlined text-[20px]">
+                                        <span className="relative material-symbols-outlined text-[20px]">
                                             {moduleIcons[module] || "extension"}
+                                            {module === "activity" && (
+                                                <NavBadge count={badges.activity} />
+                                            )}
+                                            {module === "concierge" && (
+                                                <NavBadge count={badges.concierge} />
+                                            )}
                                         </span>
                                         <span>{labels[module] || module}</span>
                                     </div>
@@ -154,8 +163,10 @@ export function MainNavigation({ settingsOpen, setSettingsOpen }) {
                         )}
                     </div>
 
-                    {/* Settings & Language */}
+                    {/* Notifications, Settings & Language */}
                     <div className="flex-1 flex items-center justify-end space-x-4 relative">
+                        <NotificationBell />
+
                         {/* Settings Button */}
                         <div className="relative">
                             <button
@@ -194,6 +205,29 @@ export function MainNavigation({ settingsOpen, setSettingsOpen }) {
                                     }}
                                     onClick={(e) => e.stopPropagation()}
                                 >
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSettingsOpen(false);
+                                            setNotificationSettingsOpen(true);
+                                        }}
+                                        className="flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                    >
+                                        <svg
+                                            className="w-5 h-5 mr-3 text-gray-400"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth="2"
+                                                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                                            />
+                                        </svg>
+                                        Nastavení notifikací
+                                    </button>
                                     <a
                                         href="#"
                                         className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"

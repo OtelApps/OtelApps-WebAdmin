@@ -5,6 +5,9 @@ return [
 
     'currency' => env('OTELAPPS_CURRENCY', 'CZK'),
 
+    /** Celková kapacita pokojů pro výpočet obsazenosti na dashboardu */
+    'room_capacity' => (int) env('OTELAPPS_ROOM_CAPACITY', 100),
+
     'db_connection' => env('OTELAPPS_DB_CONNECTION', env('DB_CONNECTION', 'sqlite')),
 
     'venue_image_keys' => [

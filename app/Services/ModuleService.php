@@ -37,6 +37,8 @@ class ModuleService
             'guests',
             'alerts',
             'promotions',
+            'tasks',
+            'history',
         ],
         'feedback' => [
             'surveys',

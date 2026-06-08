@@ -12,6 +12,11 @@ use App\Http\Controllers\Api\HotelRoomController;
 use App\Http\Controllers\Api\VenueController;
 use App\Http\Controllers\Api\WellnessController;
 use App\Http\Controllers\Api\ActivityRevenueController;
+use App\Http\Controllers\Api\InsightsController;
+use App\Http\Controllers\Api\ConciergeChatController;
+use App\Http\Controllers\Api\CrmController;
+use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\HotelServiceRequestController;
 use App\Services\ModuleService;
 use Illuminate\Http\Request;
@@ -83,6 +88,12 @@ Route::prefix('api')->group(function () {
             'enabled' => $typeEnabled && $moduleEnabled,
         ]);
     });
+
+    // Dashboard
+    Route::get('/dashboard/bootstrap', [DashboardController::class, 'bootstrap']);
+    Route::get('/dashboard/hotel-overview', [DashboardController::class, 'hotelOverview']);
+    Route::get('/dashboard/layout', [DashboardController::class, 'layout']);
+    Route::put('/dashboard/layout', [DashboardController::class, 'updateLayout']);
 
     // Venues (restaurants & bars) — Supabase schema
     Route::get('/venues', [VenueController::class, 'index']);
@@ -173,6 +184,38 @@ Route::prefix('api')->group(function () {
     Route::put('/hotel-room-service/menus/{slug}/hours', [HotelRoomServiceController::class, 'updateHours']);
     Route::put('/hotel-room-service/menus/{slug}/catalog', [HotelRoomServiceController::class, 'updateCatalog']);
 
+    // CRM — hosté, alerty, promo akce
+    Route::get('/crm/overview', [CrmController::class, 'overview']);
+    Route::get('/crm/guests', [CrmController::class, 'guests']);
+    Route::post('/crm/guests', [CrmController::class, 'storeGuest']);
+    Route::get('/crm/guests/export/csv', [CrmController::class, 'exportGuests']);
+    Route::get('/crm/guests/{guestKey}', [CrmController::class, 'showGuest']);
+    Route::put('/crm/guests/{guestKey}', [CrmController::class, 'updateGuest']);
+    Route::get('/crm/alerts', [CrmController::class, 'alerts']);
+    Route::post('/crm/alerts', [CrmController::class, 'storeAlert']);
+    Route::post('/crm/alerts/{id}/dismiss', [CrmController::class, 'dismissAlert']);
+    Route::get('/crm/promotions', [CrmController::class, 'promotions']);
+    Route::post('/crm/promotions', [CrmController::class, 'storePromotion']);
+    Route::put('/crm/promotions/{id}', [CrmController::class, 'updatePromotion']);
+    Route::delete('/crm/promotions/{id}', [CrmController::class, 'destroyPromotion']);
+    Route::get('/crm/tasks', [CrmController::class, 'tasks']);
+    Route::post('/crm/tasks', [CrmController::class, 'storeTask']);
+    Route::put('/crm/tasks/{id}', [CrmController::class, 'updateTask']);
+    Route::get('/crm/history', [CrmController::class, 'history']);
+    Route::post('/crm/interactions', [CrmController::class, 'storeInteraction']);
+
+    // WebAdmin notifikace
+    Route::get('/notifications/summary', [NotificationController::class, 'summary']);
+    Route::get('/notifications/settings', [NotificationController::class, 'settings']);
+    Route::put('/notifications/settings', [NotificationController::class, 'updateSettings']);
+    Route::post('/notifications/read', [NotificationController::class, 'markRead']);
+
+    // Insights — analytika z Activity a Concierge
+    Route::get('/insights/overview', [InsightsController::class, 'overview']);
+    Route::get('/insights/users', [InsightsController::class, 'users']);
+    Route::get('/insights/transactions', [InsightsController::class, 'transactions']);
+    Route::get('/insights/behavior', [InsightsController::class, 'behavior']);
+
     // Activity — požadavky hostů (tiketovací systém)
     Route::get('/activity/revenue-summary', [ActivityRevenueController::class, 'summary']);
     Route::get('/activity/requests', [HotelServiceRequestController::class, 'index']);
@@ -180,6 +223,14 @@ Route::prefix('api')->group(function () {
     Route::get('/activity/requests/{id}', [HotelServiceRequestController::class, 'show']);
     Route::put('/activity/requests/{id}', [HotelServiceRequestController::class, 'update']);
     Route::delete('/activity/requests/{id}', [HotelServiceRequestController::class, 'destroy']);
+
+    // Concierge — chat host ↔ recepce
+    Route::get('/concierge/realtime-config', [ConciergeChatController::class, 'realtimeConfig']);
+    Route::get('/concierge/conversations', [ConciergeChatController::class, 'index']);
+    Route::get('/concierge/conversations/{id}', [ConciergeChatController::class, 'show']);
+    Route::post('/concierge/conversations/{id}/messages', [ConciergeChatController::class, 'storeMessage']);
+    Route::post('/concierge/conversations/{id}/read', [ConciergeChatController::class, 'markRead']);
+    Route::put('/concierge/conversations/{id}', [ConciergeChatController::class, 'update']);
 });
 
 // React SPA Route - všechny ostatní routes budou řešeny React Routerem
