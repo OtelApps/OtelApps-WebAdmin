@@ -124,6 +124,32 @@ export function getAddConfig(moduleKey, section, meta) {
                     return slug;
                 },
             };
+        case 'other_facilities':
+            return {
+                modalTitle: 'Nový prostor',
+                fields: [{ name: 'title', label: 'Název', required: true }],
+                submit: async (values) => {
+                    const slug = slugify(values.title);
+                    await axios.post('/api/other-facilities/topics', {
+                        slug,
+                        title: values.title.trim(),
+                    });
+                    return slug;
+                },
+            };
+        case 'other':
+            return {
+                modalTitle: 'Nová služba',
+                fields: [{ name: 'title', label: 'Název', required: true }],
+                submit: async (values) => {
+                    const slug = slugify(values.title);
+                    await axios.post('/api/other/topics', {
+                        slug,
+                        title: values.title.trim(),
+                    });
+                    return slug;
+                },
+            };
         case 'amenities':
         case 'laundry':
         case 'issues_repairs':
@@ -188,6 +214,12 @@ export async function deleteListItem({ moduleKey, moduleType, moduleArea, item, 
             return;
         case 'parking':
             await axios.delete(`/api/hotel-parking/topics/${slug}`);
+            return;
+        case 'other_facilities':
+            await axios.delete(`/api/other-facilities/topics/${slug}`);
+            return;
+        case 'other':
+            await axios.delete(`/api/other/topics/${slug}`);
             return;
         case 'amenities':
         case 'laundry':

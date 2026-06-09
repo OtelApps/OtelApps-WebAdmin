@@ -2,20 +2,25 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { NotFound } from './NotFound';
-import { RestaurantsBars } from '../content/facilities/RestaurantsBars';
-import { RelaxSport } from '../content/facilities/RelaxSport';
-import { WellnessSpa } from '../content/facilities/WellnessSpa';
-import { Sports } from '../content/facilities/Sports';
-import { Parking } from '../content/facilities/Parking';
-import { HotelInfo } from '../content/facilities/HotelInfo';
-import { HotelRooms } from '../content/facilities/HotelRooms';
-import { ServicesOverview } from '../content/ServicesOverview';
+import { RestaurantsBars } from '../content/facilities/restaurants_bars/RestaurantsBars';
+import { RelaxSport } from '../content/facilities/relax_sport/RelaxSport';
+import { WellnessSpa } from '../content/facilities/relax_sport/WellnessSpa';
+import { Sports } from '../content/facilities/relax_sport/Sports';
+import { Parking } from '../content/facilities/parking/Parking';
+import { OtherFacilities } from '../content/facilities/other_facilities/OtherFacilities';
+import { HotelInfo } from '../content/facilities/hotel_info/HotelInfo';
+import { HotelRooms } from '../content/services/hotel_rooms/HotelRooms';
 
-import { RoomService } from '../content/services/RoomService';
-import { Amenities } from '../content/services/Amenities';
-import { Laundry } from '../content/services/Laundry';
-import { IssuesRepairs } from '../content/services/IssuesRepairs';
+import { RoomService } from '../content/services/room_service/RoomService';
+import { Amenities } from '../content/services/amenities/Amenities';
+import { Laundry } from '../content/services/laundry/Laundry';
+import { IssuesRepairs } from '../content/services/issues_repairs/IssuesRepairs';
+import { CheckInOut } from '../content/services/check_in_out/CheckInOut';
 import { Leisure } from '../content/leisure/Leisure';
+import { Other } from '../content/other/Other';
+import { WelcomeMessage } from '../content/welcome_message/WelcomeMessage';
+import { LegalTexts } from '../content/legal_texts/LegalTexts';
+import { ImageGallery } from '../content/image_gallery/ImageGallery';
 import { ModuleSectionHub } from './ModuleSectionHub';
 import { Revenue } from '../insights/Revenue';
 import { Users } from '../insights/Users';
@@ -36,16 +41,17 @@ const FACILITIES_PAGES = {
     restaurants_bars: RestaurantsBars,
     relax_sport: RelaxSport,
     hotel_info: HotelInfo,
-    hotel_rooms: HotelRooms,
     parking: Parking,
+    other_facilities: OtherFacilities,
 };
 
 const SERVICES_PAGES = {
     room_service: RoomService,
+    hotel_rooms: HotelRooms,
     amenities: Amenities,
     laundry: Laundry,
     issues_repairs: IssuesRepairs,
-    services: ServicesOverview,
+    check_in_out: CheckInOut,
 };
 
 export function DynamicModulePage() {
@@ -102,8 +108,24 @@ export function DynamicModulePage() {
         return <Page />;
     }
 
-    if (type === 'leisure' && module === 'leisure') {
+    if (type === 'content' && module === 'leisure') {
         return <Leisure />;
+    }
+
+    if (type === 'content' && module === 'other') {
+        return <Other />;
+    }
+
+    if (type === 'content' && module === 'welcome_message') {
+        return <WelcomeMessage />;
+    }
+
+    if ((type === 'content' || type === 'legal_texts') && module === 'legal_texts') {
+        return <LegalTexts />;
+    }
+
+    if (type === 'content' && module === 'image_gallery') {
+        return <ImageGallery />;
     }
 
     if (type === 'insights' && module === 'revenue') {

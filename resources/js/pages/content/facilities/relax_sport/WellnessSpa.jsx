@@ -1,15 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { ContentCardsLayout } from '../../../components/ContentCardsLayout';
+import { ContentCardsLayout } from '../../../../components/ContentCardsLayout';
 
-export function Sports() {
+export function WellnessSpa() {
+    const navigate = useNavigate();
     const [sections, setSections] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
     const reloadSections = () =>
-        axios.get('/api/fitness/facilities').then((response) => {
+        axios.get('/api/wellness/facilities').then((response) => {
             setSections(response.data.sections ?? []);
         });
 
@@ -20,7 +21,7 @@ export function Sports() {
             .catch((err) => {
                 const message =
                     err.response?.data?.message ||
-                    'Nepodařilo se načíst posilovnu a sport. Zkontroluj Supabase a tabulky fitness_facilities.';
+                    'Nepodařilo se načíst wellness. Zkontroluj připojení k Supabase (OTELAPPS_DB_CONNECTION v .env).';
                 setError(message);
             })
             .finally(() => setLoading(false));
@@ -33,7 +34,7 @@ export function Sports() {
     if (loading) {
         return (
             <div className="p-6 flex items-center justify-center min-h-[40vh]">
-                <p className="text-gray-600 dark:text-gray-400">Načítání…</p>
+                <p className="text-gray-600 dark:text-gray-400">Načítání wellness…</p>
             </div>
         );
     }
@@ -58,7 +59,7 @@ export function Sports() {
 
     return (
         <div>
-            <div className="px-6 pt-6">
+            <div className="px-6 pt-6 flex flex-wrap items-center gap-4">
                 <Link
                     to="/module/facilities/relax_sport"
                     className="text-sm text-orange-500 hover:underline font-medium"
@@ -67,13 +68,24 @@ export function Sports() {
                 </Link>
             </div>
             <ContentCardsLayout
-                title="Posilovna & Sport"
-                hideSectionTitle
-                sections={sections}
-                moduleKey="relax_sport"
-                moduleArea="gym-sport"
-                onReload={reloadSections}
-            />
+            title="Wellness & SPA"
+            hideSectionTitle
+            sections={sections}
+            moduleKey="relax_sport"
+            moduleArea="wellness-spa"
+            onReload={reloadSections}
+            headerActions={
+                <button
+                    type="button"
+                    onClick={() =>
+                        navigate('/module/facilities/relax_sport/wellness-spa/program/edit')
+                    }
+                    className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                >
+                    Hotelový program →
+                </button>
+            }
+        />
         </div>
     );
 }

@@ -2,18 +2,18 @@ import React from 'react';
 import { useParams } from 'react-router-dom';
 
 import { CardEdit } from './CardEdit';
-import { HotelInfoTopicEdit } from '../content/facilities/HotelInfoTopicEdit';
-import { HotelRoomTypeEdit } from '../content/facilities/HotelRoomTypeEdit';
-import { ParkingTopicEdit } from '../content/facilities/ParkingTopicEdit';
-import { AmenitiesEdit } from '../content/services/AmenitiesEdit';
-import { IssuesRepairsEdit } from '../content/services/IssuesRepairsEdit';
-import { LaundryEdit } from '../content/services/LaundryEdit';
-import { RoomServiceEdit } from '../content/services/RoomServiceEdit';
-import { WellnessFacilityEdit } from '../content/facilities/WellnessFacilityEdit';
-import { WellnessProgramEdit } from '../content/facilities/WellnessProgramEdit';
-import { FitnessFacilityEdit } from '../content/facilities/FitnessFacilityEdit';
-import { RelaxSportAreaEdit } from '../content/facilities/RelaxSportAreaEdit';
-import { VenueEdit } from '../content/facilities/VenueEdit';
+import { HotelInfoTopicEdit } from '../content/facilities/hotel_info/HotelInfoTopicEdit';
+import { HotelRoomTypeEdit } from '../content/services/hotel_rooms/HotelRoomTypeEdit';
+import { ParkingTopicEdit } from '../content/facilities/parking/ParkingTopicEdit';
+import { AmenitiesEdit } from '../content/services/amenities/AmenitiesEdit';
+import { IssuesRepairsEdit } from '../content/services/issues_repairs/IssuesRepairsEdit';
+import { LaundryEdit } from '../content/services/laundry/LaundryEdit';
+import { RoomServiceEdit } from '../content/services/room_service/RoomServiceEdit';
+import { WellnessFacilityEdit } from '../content/facilities/relax_sport/WellnessFacilityEdit';
+import { WellnessProgramEdit } from '../content/facilities/relax_sport/WellnessProgramEdit';
+import { FitnessFacilityEdit } from '../content/facilities/relax_sport/FitnessFacilityEdit';
+import { RelaxSportAreaEdit } from '../content/facilities/relax_sport/RelaxSportAreaEdit';
+import { VenueEdit } from '../content/facilities/restaurants_bars/VenueEdit';
 
 /**
  * Centrální směrovač pro editaci modulů.

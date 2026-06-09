@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
-import { FormSaveBar } from '../../../components/FormSaveBar';
+import { FormSaveBar } from '../../../../components/FormSaveBar';
 import { HotelRoomFeaturesTab } from './HotelRoomFeaturesTab';
 import { HotelRoomGalleryTab } from './HotelRoomGalleryTab';
 
@@ -125,7 +125,7 @@ export function HotelRoomTypeEdit() {
                 <p className="text-red-600 mb-4">{error || 'Typ pokoje nenalezen.'}</p>
                 <button
                     type="button"
-                    onClick={() => navigate('/module/facilities/hotel_rooms')}
+                    onClick={() => navigate('/module/services/hotel_rooms')}
                     className="text-orange-500 hover:underline"
                 >
                     ← Zpět na seznam
@@ -140,7 +140,7 @@ export function HotelRoomTypeEdit() {
                 <div>
                     <button
                         type="button"
-                        onClick={() => navigate('/module/facilities/hotel_rooms')}
+                        onClick={() => navigate('/module/services/hotel_rooms')}
                         className="text-sm text-gray-500 hover:text-orange-500 mb-2"
                     >
                         ← Nabídka pokojů

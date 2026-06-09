@@ -1,26 +1,25 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { ContentCardsLayout } from '../../../components/ContentCardsLayout';
+import { ContentCardsLayout } from '../../../../components/ContentCardsLayout';
 
-export function RoomService() {
+export function Parking() {
     const [sections, setSections] = useState([]);
-    const [title, setTitle] = useState('Pokojová služba');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
+    const reloadSections = () =>
+        axios.get('/api/hotel-parking/topics').then((response) => {
+            setSections(response.data.sections ?? []);
+        });
 
     const load = () => {
         setLoading(true);
         setError(null);
-        axios
-            .get('/api/hotel-room-service/menus')
-            .then((response) => {
-                setTitle(response.data.title ?? 'Pokojová služba');
-                setSections(response.data.sections ?? []);
-            })
+        reloadSections()
             .catch((err) => {
                 const message =
                     err.response?.data?.message ||
-                    'Nepodařilo se načíst pokojovou službu. Zkontroluj Supabase a tabulky hotel_room_service_menus.';
+                    'Nepodařilo se načíst parkování. Zkontroluj Supabase (OTELAPPS_DB_CONNECTION) a tabulku hotel_parking_topics.';
                 setError(message);
             })
             .finally(() => setLoading(false));
@@ -33,7 +32,7 @@ export function RoomService() {
     if (loading) {
         return (
             <div className="p-6 flex items-center justify-center min-h-[40vh]">
-                <p className="text-gray-600 dark:text-gray-400">Načítání pokojové služby…</p>
+                <p className="text-gray-600 dark:text-gray-400">Načítání parkování…</p>
             </div>
         );
     }
@@ -58,11 +57,11 @@ export function RoomService() {
 
     return (
         <ContentCardsLayout
-            title={title}
+            title="Parkování"
+            hideSectionTitle
             sections={sections}
-            moduleKey="room_service"
-            moduleType="services"
-            editTab="catalogs"
+            moduleKey="parking"
+            onReload={reloadSections}
         />
     );
 }

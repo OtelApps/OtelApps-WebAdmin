@@ -1,42 +1,48 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
-import { FormSaveBar } from '../../../components/FormSaveBar';
-import { FitnessGalleryTab } from './FitnessGalleryTab';
+import { FormSaveBar } from '../../../../components/FormSaveBar';
+import { LaundryCatalogTab } from './LaundryCatalogTab';
 
 const TABS = [
     { id: 'information', label: 'Informace' },
-    { id: 'hours', label: 'Otevírací doba' },
-    { id: 'gallery', label: 'Galerie' },
+    { id: 'hours', label: 'Rozpis' },
+    { id: 'catalog', label: 'Katalog' },
 ];
 
-export function FitnessFacilityEdit() {
+const TAB_IDS = TABS.map((t) => t.id);
+
+function tabFromHash(hash) {
+    const id = hash.replace(/^#/, '');
+    return TAB_IDS.includes(id) ? id : 'information';
+}
+
+export function LaundryEdit() {
     const { id: slug } = useParams();
+    const location = useLocation();
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState('information');
+    const [activeTab, setActiveTab] = useState(() => tabFromHash(location.hash));
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [saveStatus, setSaveStatus] = useState(null);
-    const [facility, setFacility] = useState(null);
+    const [housekeeping, setHousekeeping] = useState(null);
     const [openingHours, setOpeningHours] = useState([]);
-    const [images, setImages] = useState([]);
+    const [categories, setCategories] = useState([]);
     const [imageKeys, setImageKeys] = useState([]);
-    const [detailScreens, setDetailScreens] = useState([]);
 
     const load = useCallback(() => {
         setLoading(true);
         setError(null);
         axios
-            .get(`/api/fitness/facilities/${slug}`)
+            .get(`/api/hotel-housekeeping/${slug}`)
             .then((res) => {
-                setFacility(res.data.facility);
+                setHousekeeping(res.data.housekeeping);
                 setOpeningHours(res.data.opening_hours ?? []);
-                setImages(res.data.images ?? []);
+                setCategories(res.data.categories ?? []);
                 setImageKeys(res.data.image_keys ?? []);
-                setDetailScreens(res.data.detail_screens ?? []);
             })
             .catch((err) => {
-                setError(err.response?.data?.message || 'Oblast se nepodařila načíst.');
+                setError(err.response?.data?.message || 'Službu se nepodařilo načíst.');
             })
             .finally(() => setLoading(false));
     }, [slug]);
@@ -45,18 +51,29 @@ export function FitnessFacilityEdit() {
         load();
     }, [load]);
 
+    useEffect(() => {
+        setActiveTab(tabFromHash(location.hash));
+    }, [location.hash]);
+
+    const selectTab = (tabId) => {
+        setActiveTab(tabId);
+        navigate(
+            { pathname: `/module/services/laundry/${slug}/edit`, hash: tabId },
+            { replace: true }
+        );
+    };
+
     const showSaveStatus = (status) => {
         setSaveStatus(status);
         if (status === 'saved') setTimeout(() => setSaveStatus(null), 2000);
         if (status === 'error') setTimeout(() => setSaveStatus(null), 4000);
     };
 
-    const saveFacility = async (payload) => {
+    const saveHousekeeping = async (payload) => {
         setSaveStatus('saving');
         try {
-            const { data } = await axios.put(`/api/fitness/facilities/${slug}`, payload);
-            setFacility(data.facility);
-            if (payload.opening_hours) setOpeningHours(payload.opening_hours);
+            const { data } = await axios.put(`/api/hotel-housekeeping/${slug}`, payload);
+            setHousekeeping(data.housekeeping);
             showSaveStatus('saved');
         } catch (e) {
             console.error(e);
@@ -64,24 +81,21 @@ export function FitnessFacilityEdit() {
         }
     };
 
-    const buildFacilityPayload = (f) => ({
-        title: f.title,
-        list_label: f.list_label,
-        schedule_summary: f.schedule_summary,
-        description_long: f.description_long,
-        image_key: f.image_key,
-        detail_screen: f.detail_screen,
-        sort_order: f.sort_order,
-        is_active: f.is_active,
+    const buildHousekeepingPayload = (h) => ({
+        title: h.title,
+        description: h.description,
+        schedule_summary: h.schedule_summary,
+        header_image_key: h.header_image_key,
+        is_active: h.is_active,
     });
 
     const updateField = (field, value) => {
-        setFacility((prev) => (prev ? { ...prev, [field]: value } : prev));
+        setHousekeeping((prev) => (prev ? { ...prev, [field]: value } : prev));
     };
 
     const saveInformation = () => {
-        if (!facility) return;
-        saveFacility(buildFacilityPayload(facility));
+        if (!housekeeping) return;
+        saveHousekeeping(buildHousekeepingPayload(housekeeping));
     };
 
     const updateHoursRow = (dayOrder, value) => {
@@ -90,16 +104,28 @@ export function FitnessFacilityEdit() {
         );
     };
 
-    const saveHours = () => saveFacility({ opening_hours: openingHours });
-
-    const saveImages = async (imagesPayload) => {
-        const payload = imagesPayload ?? images;
+    const saveHours = async () => {
         setSaveStatus('saving');
         try {
-            const { data } = await axios.put(`/api/fitness/facilities/${slug}/images`, {
-                images: payload,
+            const { data } = await axios.put(`/api/hotel-housekeeping/${slug}/hours`, {
+                opening_hours: openingHours,
             });
-            setImages(data.images ?? []);
+            setOpeningHours(data.opening_hours ?? openingHours);
+            showSaveStatus('saved');
+        } catch (e) {
+            console.error(e);
+            showSaveStatus('error');
+        }
+    };
+
+    const saveCatalog = async (categoriesPayload) => {
+        const payload = categoriesPayload ?? categories;
+        setSaveStatus('saving');
+        try {
+            const { data } = await axios.put(`/api/hotel-housekeeping/${slug}/catalog`, {
+                categories: payload,
+            });
+            setCategories(data.categories ?? []);
             showSaveStatus('saved');
         } catch (e) {
             console.error(e);
@@ -115,16 +141,16 @@ export function FitnessFacilityEdit() {
         );
     }
 
-    if (error || !facility) {
+    if (error || !housekeeping) {
         return (
             <div className="p-6">
-                <p className="text-red-600 mb-4">{error || 'Oblast nenalezena.'}</p>
+                <p className="text-red-600 mb-4">{error || 'Služba nenalezena.'}</p>
                 <button
                     type="button"
-                    onClick={() => navigate('/module/facilities/relax_sport/gym-sport')}
+                    onClick={() => navigate('/module/services/laundry')}
                     className="text-orange-500 hover:underline"
                 >
-                    ← Zpět na seznam
+                    ← Zpět na úklid pokoje
                 </button>
             </div>
         );
@@ -136,15 +162,13 @@ export function FitnessFacilityEdit() {
                 <div>
                     <button
                         type="button"
-                        onClick={() => navigate('/module/facilities/relax_sport/gym-sport')}
+                        onClick={() => navigate('/module/services/laundry')}
                         className="text-sm text-gray-500 hover:text-orange-500 mb-2"
                     >
-                        ← Posilovna & Sport (Relax & Sport)
+                        ← Úklid pokoje
                     </button>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{facility.title}</h1>
-                    <p className="text-sm text-gray-500 mt-1">
-                        {facility.detail_screen} · {facility.slug}
-                    </p>
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{housekeeping.title}</h1>
+                    <p className="text-sm text-gray-500 mt-1">{housekeeping.slug}</p>
                 </div>
                 {saveStatus && (
                     <span
@@ -168,7 +192,7 @@ export function FitnessFacilityEdit() {
                     <button
                         key={tab.id}
                         type="button"
-                        onClick={() => setActiveTab(tab.id)}
+                        onClick={() => selectTab(tab.id)}
                         className={`shrink-0 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                             activeTab === tab.id
                                 ? 'border-orange-500 text-orange-500'
@@ -182,61 +206,41 @@ export function FitnessFacilityEdit() {
 
             {activeTab === 'information' && (
                 <div className="space-y-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-                    <Field label="Název">
+                    <Field label="Název služby">
                         <input
                             className={inputClass}
-                            value={facility.title}
+                            value={housekeeping.title}
                             onChange={(e) => updateField('title', e.target.value)}
                         />
                     </Field>
                     <Field label="Slug">
                         <input
                             className={`${inputClass} bg-gray-50 dark:bg-gray-900`}
-                            value={facility.slug}
+                            value={housekeeping.slug}
                             readOnly
                         />
                     </Field>
-                    <Field label="Popis (detail v aplikaci)">
+                    <Field label="Popis">
                         <textarea
                             className={inputClass}
-                            rows={6}
-                            value={facility.description_long || ''}
-                            onChange={(e) => updateField('description_long', e.target.value)}
+                            rows={5}
+                            value={housekeeping.description || ''}
+                            onChange={(e) => updateField('description', e.target.value)}
                         />
                     </Field>
-                    <Field label="Shrnutí otevírací doby (v seznamu)">
+                    <Field label="Shrnutí rozpisu">
                         <input
                             className={inputClass}
-                            value={facility.schedule_summary || ''}
-                            onChange={(e) => updateField('schedule_summary', e.target.value)}
-                            placeholder="např. Od 11:00 - Do 21:00"
+                            value={housekeeping.schedule_summary || ''}
+                            onChange={(e) => updateField('schedule_summary', e.target.value || null)}
+                            placeholder="06:00 - 20:00"
                         />
                     </Field>
-                    <Field label="Štítek v seznamu">
-                        <input
-                            className={inputClass}
-                            value={facility.list_label || ''}
-                            onChange={(e) => updateField('list_label', e.target.value)}
-                        />
-                    </Field>
-                    <Field label="Obrazovka detailu v aplikaci">
+                    <Field label="Klíč hlavičkového obrázku">
                         <select
                             className={inputClass}
-                            value={facility.detail_screen}
-                            onChange={(e) => updateField('detail_screen', e.target.value)}
-                        >
-                            {detailScreens.map((s) => (
-                                <option key={s} value={s}>
-                                    {s}
-                                </option>
-                            ))}
-                        </select>
-                    </Field>
-                    <Field label="Klíč náhledového obrázku (seznam)">
-                        <select
-                            className={inputClass}
-                            value={facility.image_key || ''}
-                            onChange={(e) => updateField('image_key', e.target.value || null)}
+                            value={housekeeping.header_image_key || ''}
+                            onChange={(e) => updateField('header_image_key', e.target.value || null)}
                         >
                             <option value="">— žádný —</option>
                             {imageKeys.map((key) => (
@@ -246,20 +250,10 @@ export function FitnessFacilityEdit() {
                             ))}
                         </select>
                     </Field>
-                    <Field label="Pořadí">
-                        <input
-                            type="number"
-                            className={inputClass}
-                            value={facility.sort_order}
-                            onChange={(e) =>
-                                updateField('sort_order', parseInt(e.target.value, 10) || 0)
-                            }
-                        />
-                    </Field>
                     <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                         <input
                             type="checkbox"
-                            checked={facility.is_active}
+                            checked={housekeeping.is_active}
                             onChange={(e) => updateField('is_active', e.target.checked)}
                             className="rounded text-orange-500"
                         />
@@ -272,7 +266,7 @@ export function FitnessFacilityEdit() {
             {activeTab === 'hours' && (
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 space-y-3">
                     <p className="text-sm text-gray-500 mb-4">
-                        Tabulka <code className="text-xs">fitness_facility_hours</code>
+                        Otevírací doba — tabulka <code className="text-xs">hotel_housekeeping_hours</code>
                     </p>
                     {openingHours.map((row) => (
                         <div key={row.day_order} className="grid grid-cols-3 gap-3 items-center">
@@ -283,21 +277,21 @@ export function FitnessFacilityEdit() {
                                 className={`${inputClass} col-span-2`}
                                 value={row.hours_text}
                                 onChange={(e) => updateHoursRow(row.day_order, e.target.value)}
-                                placeholder="08:00 - 21:00"
+                                placeholder="06:00 - 20:00"
                             />
                         </div>
                     ))}
-                    <FormSaveBar onSave={saveHours} saveStatus={saveStatus} label="Uložit otevírací dobu" />
+                    <FormSaveBar onSave={saveHours} saveStatus={saveStatus} label="Uložit rozpis" />
                 </div>
             )}
 
-            {activeTab === 'gallery' && (
-                <FitnessGalleryTab
-                    images={images}
-                    setImages={setImages}
-                    imageKeys={imageKeys}
-                    onSave={saveImages}
+            {activeTab === 'catalog' && (
+                <LaundryCatalogTab
+                    categories={categories}
+                    setCategories={setCategories}
+                    onSave={saveCatalog}
                     saveStatus={saveStatus}
+                    imageKeys={imageKeys}
                 />
             )}
         </div>
@@ -307,9 +301,7 @@ export function FitnessFacilityEdit() {
 function Field({ label, children }) {
     return (
         <label className="block">
-            <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                {label}
-            </span>
+            <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</span>
             {children}
         </label>
     );

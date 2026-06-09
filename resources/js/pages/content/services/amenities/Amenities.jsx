@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { ContentCardsLayout } from '../../../components/ContentCardsLayout';
+import { ContentCardsLayout } from '../../../../components/ContentCardsLayout';
 
 export function Amenities() {
     const navigate = useNavigate();

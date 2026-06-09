@@ -65,6 +65,7 @@ return [
         'hotel_rooms' => true,
         'sports' => false,
         'parking' => true,
+        'other_facilities' => true,
 
         // Services sub-moduly
         'room_service' => true,
@@ -115,6 +116,7 @@ return [
         'hotel_rooms' => 'Nabídka pokojů',
         'sports' => 'Posilovna & Sport',
         'parking' => 'Parkování',
+        'other_facilities' => 'Other facilities',
         'room_service' => 'Pokojová služba',
         'amenities' => 'Doplňky',
         'laundry' => 'Úklid pokoje',
@@ -173,6 +175,7 @@ return [
         'hotel_rooms' => 'home',
         'sports' => 'trophy',
         'parking' => 'squares-plus',
+        'other_facilities' => 'building-library',
 
         // New icons
         'mobile_app' => 'phone',

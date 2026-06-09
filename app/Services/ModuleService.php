@@ -10,11 +10,12 @@ class ModuleService
                 'restaurants_bars',
                 'relax_sport',
                 'hotel_info',
-                'hotel_rooms',
                 'parking',
+                'other_facilities',
             ],
             'services' => [
                 'room_service',
+                'hotel_rooms',
                 'amenities',
                 'laundry',
                 'issues_repairs',

@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { ContentCardsLayout } from '../../../components/ContentCardsLayout';
+import { ContentCardsLayout } from '../../../../components/ContentCardsLayout';
 
-export function Parking() {
+export function RestaurantsBars() {
     const [sections, setSections] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
     const reloadSections = () =>
-        axios.get('/api/hotel-parking/topics').then((response) => {
+        axios.get('/api/venues').then((response) => {
             setSections(response.data.sections ?? []);
         });
 
@@ -19,7 +19,7 @@ export function Parking() {
             .catch((err) => {
                 const message =
                     err.response?.data?.message ||
-                    'Nepodařilo se načíst parkování. Zkontroluj Supabase (OTELAPPS_DB_CONNECTION) a tabulku hotel_parking_topics.';
+                    'Nepodařilo se načíst podniky. Zkontroluj připojení k Supabase (DB_CONNECTION=supabase v .env).';
                 setError(message);
             })
             .finally(() => setLoading(false));
@@ -32,7 +32,7 @@ export function Parking() {
     if (loading) {
         return (
             <div className="p-6 flex items-center justify-center min-h-[40vh]">
-                <p className="text-gray-600 dark:text-gray-400">Načítání parkování…</p>
+                <p className="text-gray-600 dark:text-gray-400">Načítání podniků…</p>
             </div>
         );
     }
@@ -57,10 +57,9 @@ export function Parking() {
 
     return (
         <ContentCardsLayout
-            title="Parkování"
-            hideSectionTitle
+            title="Restaurants & Bars"
             sections={sections}
-            moduleKey="parking"
+            moduleKey="restaurants_bars"
             onReload={reloadSections}
         />
     );

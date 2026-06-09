@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
-import { FormSaveBar } from '../../../components/FormSaveBar';
+import { FormSaveBar } from '../../../../components/FormSaveBar';
 
 export function ParkingTopicEdit() {
     const { id: slug } = useParams();

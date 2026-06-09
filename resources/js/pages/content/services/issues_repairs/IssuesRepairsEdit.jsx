@@ -1,41 +1,50 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
-import { FormSaveBar } from '../../../components/FormSaveBar';
-import { WellnessServicesTab } from './WellnessServicesTab';
+import { FormSaveBar } from '../../../../components/FormSaveBar';
+import { IssuesRepairsCatalogTab } from './IssuesRepairsCatalogTab';
 
-const BASE_TABS = [
+const TABS = [
     { id: 'information', label: 'Informace' },
-    { id: 'hours', label: 'Otevírací doba' },
+    { id: 'hours', label: 'Rozpis' },
+    { id: 'catalog', label: 'Katalog' },
 ];
 
-export function WellnessFacilityEdit() {
+const TAB_IDS = TABS.map((t) => t.id);
+
+function tabFromHash(hash) {
+    const id = hash.replace(/^#/, '');
+    return TAB_IDS.includes(id) ? id : 'information';
+}
+
+export function IssuesRepairsEdit() {
     const { id: slug } = useParams();
+    const location = useLocation();
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState('information');
+    const [activeTab, setActiveTab] = useState(() => tabFromHash(location.hash));
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [saveStatus, setSaveStatus] = useState(null);
-    const [facility, setFacility] = useState(null);
+    const [maintenance, setMaintenance] = useState(null);
     const [openingHours, setOpeningHours] = useState([]);
-    const [services, setServices] = useState([]);
+    const [categories, setCategories] = useState([]);
     const [imageKeys, setImageKeys] = useState([]);
-    const [detailScreens, setDetailScreens] = useState([]);
+    const [iconLibraries, setIconLibraries] = useState(['ionicons', 'material-community']);
 
     const load = useCallback(() => {
         setLoading(true);
         setError(null);
         axios
-            .get(`/api/wellness/facilities/${slug}`)
+            .get(`/api/hotel-maintenance/${slug}`)
             .then((res) => {
-                setFacility(res.data.facility);
+                setMaintenance(res.data.maintenance);
                 setOpeningHours(res.data.opening_hours ?? []);
-                setServices(res.data.services ?? []);
+                setCategories(res.data.categories ?? []);
                 setImageKeys(res.data.image_keys ?? []);
-                setDetailScreens(res.data.detail_screens ?? []);
+                setIconLibraries(res.data.icon_libraries ?? ['ionicons', 'material-community']);
             })
             .catch((err) => {
-                setError(err.response?.data?.message || 'Oblast se nepodařila načíst.');
+                setError(err.response?.data?.message || 'Službu se nepodařilo načíst.');
             })
             .finally(() => setLoading(false));
     }, [slug]);
@@ -44,18 +53,29 @@ export function WellnessFacilityEdit() {
         load();
     }, [load]);
 
+    useEffect(() => {
+        setActiveTab(tabFromHash(location.hash));
+    }, [location.hash]);
+
+    const selectTab = (tabId) => {
+        setActiveTab(tabId);
+        navigate(
+            { pathname: `/module/services/issues_repairs/${slug}/edit`, hash: tabId },
+            { replace: true }
+        );
+    };
+
     const showSaveStatus = (status) => {
         setSaveStatus(status);
         if (status === 'saved') setTimeout(() => setSaveStatus(null), 2000);
         if (status === 'error') setTimeout(() => setSaveStatus(null), 4000);
     };
 
-    const saveFacility = async (payload) => {
+    const saveMaintenance = async (payload) => {
         setSaveStatus('saving');
         try {
-            const { data } = await axios.put(`/api/wellness/facilities/${slug}`, payload);
-            setFacility(data.facility);
-            if (payload.opening_hours) setOpeningHours(payload.opening_hours);
+            const { data } = await axios.put(`/api/hotel-maintenance/${slug}`, payload);
+            setMaintenance(data.maintenance);
             showSaveStatus('saved');
         } catch (e) {
             console.error(e);
@@ -63,24 +83,22 @@ export function WellnessFacilityEdit() {
         }
     };
 
-    const buildFacilityPayload = (f) => ({
-        title: f.title,
-        list_label: f.list_label,
-        schedule_summary: f.schedule_summary,
-        description_long: f.description_long,
-        image_key: f.image_key,
-        detail_screen: f.detail_screen,
-        sort_order: f.sort_order,
-        is_active: f.is_active,
+    const buildMaintenancePayload = (m) => ({
+        title: m.title,
+        description: m.description,
+        description_extra: m.description_extra,
+        schedule_summary: m.schedule_summary,
+        header_image_key: m.header_image_key,
+        is_active: m.is_active,
     });
 
     const updateField = (field, value) => {
-        setFacility((prev) => (prev ? { ...prev, [field]: value } : prev));
+        setMaintenance((prev) => (prev ? { ...prev, [field]: value } : prev));
     };
 
     const saveInformation = () => {
-        if (!facility) return;
-        saveFacility(buildFacilityPayload(facility));
+        if (!maintenance) return;
+        saveMaintenance(buildMaintenancePayload(maintenance));
     };
 
     const updateHoursRow = (dayOrder, value) => {
@@ -89,16 +107,13 @@ export function WellnessFacilityEdit() {
         );
     };
 
-    const saveHours = () => saveFacility({ opening_hours: openingHours });
-
-    const saveServices = async (servicesPayload) => {
-        const payload = servicesPayload ?? services;
+    const saveHours = async () => {
         setSaveStatus('saving');
         try {
-            const { data } = await axios.put(`/api/wellness/facilities/${slug}/services`, {
-                services: payload,
+            const { data } = await axios.put(`/api/hotel-maintenance/${slug}/hours`, {
+                opening_hours: openingHours,
             });
-            setServices(data.services ?? []);
+            setOpeningHours(data.opening_hours ?? openingHours);
             showSaveStatus('saved');
         } catch (e) {
             console.error(e);
@@ -106,14 +121,20 @@ export function WellnessFacilityEdit() {
         }
     };
 
-    const showServicesTab =
-        facility?.detail_screen === 'ThaiMassageDetail' ||
-        facility?.has_services ||
-        services.length > 0;
-
-    const tabs = showServicesTab
-        ? [...BASE_TABS, { id: 'services', label: 'Ceník služeb' }]
-        : BASE_TABS;
+    const saveCatalog = async (categoriesPayload) => {
+        const payload = categoriesPayload ?? categories;
+        setSaveStatus('saving');
+        try {
+            const { data } = await axios.put(`/api/hotel-maintenance/${slug}/catalog`, {
+                categories: payload,
+            });
+            setCategories(data.categories ?? []);
+            showSaveStatus('saved');
+        } catch (e) {
+            console.error(e);
+            showSaveStatus('error');
+        }
+    };
 
     if (loading) {
         return (
@@ -123,16 +144,16 @@ export function WellnessFacilityEdit() {
         );
     }
 
-    if (error || !facility) {
+    if (error || !maintenance) {
         return (
             <div className="p-6">
-                <p className="text-red-600 mb-4">{error || 'Oblast nenalezena.'}</p>
+                <p className="text-red-600 mb-4">{error || 'Služba nenalezena.'}</p>
                 <button
                     type="button"
-                    onClick={() => navigate('/module/facilities/relax_sport/wellness-spa')}
+                    onClick={() => navigate('/module/services/issues_repairs')}
                     className="text-orange-500 hover:underline"
                 >
-                    ← Zpět na seznam
+                    ← Zpět na údržbu a opravy
                 </button>
             </div>
         );
@@ -144,13 +165,13 @@ export function WellnessFacilityEdit() {
                 <div>
                     <button
                         type="button"
-                        onClick={() => navigate('/module/facilities/relax_sport/wellness-spa')}
+                        onClick={() => navigate('/module/services/issues_repairs')}
                         className="text-sm text-gray-500 hover:text-orange-500 mb-2"
                     >
-                        ← Wellness & SPA (Relax & Sport)
+                        ← Údržba & opravy
                     </button>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{facility.title}</h1>
-                    <p className="text-sm text-gray-500 mt-1">{facility.detail_screen} · {facility.slug}</p>
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{maintenance.title}</h1>
+                    <p className="text-sm text-gray-500 mt-1">{maintenance.slug}</p>
                 </div>
                 {saveStatus && (
                     <span
@@ -170,11 +191,11 @@ export function WellnessFacilityEdit() {
             </div>
 
             <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700 mb-6 overflow-x-auto">
-                {tabs.map((tab) => (
+                {TABS.map((tab) => (
                     <button
                         key={tab.id}
                         type="button"
-                        onClick={() => setActiveTab(tab.id)}
+                        onClick={() => selectTab(tab.id)}
                         className={`shrink-0 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                             activeTab === tab.id
                                 ? 'border-orange-500 text-orange-500'
@@ -188,57 +209,49 @@ export function WellnessFacilityEdit() {
 
             {activeTab === 'information' && (
                 <div className="space-y-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-                    <Field label="Název">
+                    <Field label="Název služby">
                         <input
                             className={inputClass}
-                            value={facility.title}
+                            value={maintenance.title}
                             onChange={(e) => updateField('title', e.target.value)}
                         />
                     </Field>
                     <Field label="Slug">
-                        <input className={`${inputClass} bg-gray-50 dark:bg-gray-900`} value={facility.slug} readOnly />
+                        <input
+                            className={`${inputClass} bg-gray-50 dark:bg-gray-900`}
+                            value={maintenance.slug}
+                            readOnly
+                        />
                     </Field>
-                    <Field label="Popis (detail v aplikaci)">
+                    <Field label="Hlavní popis">
                         <textarea
                             className={inputClass}
-                            rows={6}
-                            value={facility.description_long || ''}
-                            onChange={(e) => updateField('description_long', e.target.value)}
+                            rows={4}
+                            value={maintenance.description || ''}
+                            onChange={(e) => updateField('description', e.target.value)}
                         />
                     </Field>
-                    <Field label="Shrnutí otevírací doby (v seznamu)">
+                    <Field label="Doplňující text">
+                        <textarea
+                            className={inputClass}
+                            rows={3}
+                            value={maintenance.description_extra || ''}
+                            onChange={(e) => updateField('description_extra', e.target.value || null)}
+                        />
+                    </Field>
+                    <Field label="Shrnutí rozpisu">
                         <input
                             className={inputClass}
-                            value={facility.schedule_summary || ''}
-                            onChange={(e) => updateField('schedule_summary', e.target.value)}
-                            placeholder="např. Od 10:00 - Do 20:00"
+                            value={maintenance.schedule_summary || ''}
+                            onChange={(e) => updateField('schedule_summary', e.target.value || null)}
+                            placeholder="06:00 - 20:00"
                         />
                     </Field>
-                    <Field label="Štítek v seznamu">
-                        <input
-                            className={inputClass}
-                            value={facility.list_label || ''}
-                            onChange={(e) => updateField('list_label', e.target.value)}
-                        />
-                    </Field>
-                    <Field label="Obrazovka detailu v aplikaci">
+                    <Field label="Klíč hlavičkového obrázku">
                         <select
                             className={inputClass}
-                            value={facility.detail_screen}
-                            onChange={(e) => updateField('detail_screen', e.target.value)}
-                        >
-                            {detailScreens.map((s) => (
-                                <option key={s} value={s}>
-                                    {s}
-                                </option>
-                            ))}
-                        </select>
-                    </Field>
-                    <Field label="Klíč obrázku">
-                        <select
-                            className={inputClass}
-                            value={facility.image_key || ''}
-                            onChange={(e) => updateField('image_key', e.target.value || null)}
+                            value={maintenance.header_image_key || ''}
+                            onChange={(e) => updateField('header_image_key', e.target.value || null)}
                         >
                             <option value="">— žádný —</option>
                             {imageKeys.map((key) => (
@@ -248,18 +261,10 @@ export function WellnessFacilityEdit() {
                             ))}
                         </select>
                     </Field>
-                    <Field label="Pořadí">
-                        <input
-                            type="number"
-                            className={inputClass}
-                            value={facility.sort_order}
-                            onChange={(e) => updateField('sort_order', parseInt(e.target.value, 10) || 0)}
-                        />
-                    </Field>
                     <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                         <input
                             type="checkbox"
-                            checked={facility.is_active}
+                            checked={maintenance.is_active}
                             onChange={(e) => updateField('is_active', e.target.checked)}
                             className="rounded text-orange-500"
                         />
@@ -272,7 +277,7 @@ export function WellnessFacilityEdit() {
             {activeTab === 'hours' && (
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 space-y-3">
                     <p className="text-sm text-gray-500 mb-4">
-                        Tabulka <code className="text-xs">wellness_facility_hours</code>
+                        Otevírací doba — tabulka <code className="text-xs">hotel_maintenance_hours</code>
                     </p>
                     {openingHours.map((row) => (
                         <div key={row.day_order} className="grid grid-cols-3 gap-3 items-center">
@@ -283,20 +288,21 @@ export function WellnessFacilityEdit() {
                                 className={`${inputClass} col-span-2`}
                                 value={row.hours_text}
                                 onChange={(e) => updateHoursRow(row.day_order, e.target.value)}
-                                placeholder="08:00 - 20:00"
+                                placeholder="06:00 - 20:00"
                             />
                         </div>
                     ))}
-                    <FormSaveBar onSave={saveHours} saveStatus={saveStatus} label="Uložit otevírací dobu" />
+                    <FormSaveBar onSave={saveHours} saveStatus={saveStatus} label="Uložit rozpis" />
                 </div>
             )}
 
-            {activeTab === 'services' && showServicesTab && (
-                <WellnessServicesTab
-                    services={services}
-                    setServices={setServices}
-                    onSave={saveServices}
+            {activeTab === 'catalog' && (
+                <IssuesRepairsCatalogTab
+                    categories={categories}
+                    setCategories={setCategories}
+                    onSave={saveCatalog}
                     saveStatus={saveStatus}
+                    iconLibraries={iconLibraries}
                 />
             )}
         </div>

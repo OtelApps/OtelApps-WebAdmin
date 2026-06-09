@@ -489,43 +489,31 @@ export function Concierge() {
     }
 
     return (
-        <div className="flex h-[calc(100vh-4rem)] flex-col bg-gray-50 dark:bg-gray-900">
-            <header className="shrink-0 border-b border-gray-200 bg-white px-4 py-4 dark:border-gray-700 dark:bg-gray-800 sm:px-6">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-center gap-3">
-                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Concierge</h1>
+        <div className="flex h-[calc(100vh-4rem)] flex-col lg:flex-row bg-gray-50 dark:bg-gray-900">
+            {/* --- LEVÝ PANEL (Sidebar) --- */}
+            <aside
+                className={`flex h-full w-full shrink-0 flex-col border-r border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800 lg:w-[360px] xl:w-[400px] ${
+                    selectedId ? 'hidden lg:flex' : 'flex'
+                }`}
+            >
+                {/* Mobilní hlavička (zobrazena pouze na mobilu, pokud není otevřen chat) */}
+                <div className="flex items-center justify-between border-b border-gray-200 p-4 lg:hidden dark:border-gray-700">
+                    <div className="flex items-center gap-2">
+                        <h1 className="text-xl font-bold text-gray-900 dark:text-white">Concierge</h1>
                         {unreadTotal > 0 ? (
-                            <span className="rounded-full bg-red-500 px-2.5 py-0.5 text-xs font-bold text-white">
-                                {unreadTotal} nových
+                            <span className="rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white">
+                                {unreadTotal}
                             </span>
                         ) : null}
                     </div>
                     <button
                         type="button"
                         onClick={() => loadConversations()}
-                        className="inline-flex items-center gap-2 self-start rounded-full border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300"
+                        className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                     >
-                        <span className="material-symbols-outlined text-lg">refresh</span>
-                        Obnovit
+                        <span className="material-symbols-outlined text-xl">refresh</span>
                     </button>
                 </div>
-                <p className="mt-1 text-sm text-gray-500">
-                    Přímá komunikace hostů s recepcí z mobilní aplikace
-                </p>
-            </header>
-
-            {listError ? (
-                <div className="mx-4 mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 sm:mx-6">
-                    {listError}
-                </div>
-            ) : null}
-
-            <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-                <aside
-                    className={`flex w-full flex-col border-r border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800 lg:w-[360px] xl:w-[400px] ${
-                        selectedId ? 'hidden lg:flex' : 'flex'
-                    }`}
-                >
                     <div className="shrink-0 space-y-3 border-b border-gray-100 p-3 dark:border-gray-700">
                         <input
                             type="search"
@@ -553,31 +541,42 @@ export function Concierge() {
                                 </button>
                             ))}
                         </div>
-                        <div className="flex flex-wrap gap-1.5">
-                            <button
-                                type="button"
-                                onClick={() => setLocaleFilter('')}
-                                className={`rounded-full px-2 py-1 text-xs ${
-                                    !localeFilter ? 'ring-2 ring-orange-400' : 'opacity-60 hover:opacity-100'
-                                }`}
-                            >
-                                🌐
-                            </button>
-                            {GUEST_LOCALES.map((l) => (
+                        <div className="flex items-center justify-between">
+                            <div className="flex flex-wrap gap-1.5">
                                 <button
-                                    key={l.code}
                                     type="button"
-                                    onClick={() => setLocaleFilter(localeFilter === l.code ? '' : l.code)}
-                                    title={l.label}
-                                    className={`rounded-full px-2 py-1 text-base transition ${
-                                        localeFilter === l.code
-                                            ? 'ring-2 ring-orange-400'
-                                            : 'opacity-60 hover:opacity-100'
+                                    onClick={() => setLocaleFilter('')}
+                                    className={`rounded-full px-2 py-1 text-xs ${
+                                        !localeFilter ? 'ring-2 ring-orange-400' : 'opacity-60 hover:opacity-100'
                                     }`}
                                 >
-                                    {l.flag}
+                                    🌐
                                 </button>
-                            ))}
+                                {GUEST_LOCALES.map((l) => (
+                                    <button
+                                        key={l.code}
+                                        type="button"
+                                        onClick={() => setLocaleFilter(localeFilter === l.code ? '' : l.code)}
+                                        title={l.label}
+                                        className={`rounded-full px-2 py-1 text-base transition ${
+                                            localeFilter === l.code
+                                                ? 'ring-2 ring-orange-400'
+                                                : 'opacity-60 hover:opacity-100'
+                                        }`}
+                                    >
+                                        {l.flag}
+                                    </button>
+                                ))}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => loadConversations()}
+                                className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 shadow-sm transition hover:bg-gray-50 hover:text-orange-600 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-orange-500 dark:hover:bg-gray-700"
+                                title="Obnovit konverzace"
+                            >
+                                <span className="material-symbols-outlined text-[16px]">refresh</span>
+                                Obnovit
+                            </button>
                         </div>
                     </div>
 
@@ -604,6 +603,13 @@ export function Concierge() {
                         selectedId ? 'flex' : 'hidden lg:flex'
                     }`}
                 >
+
+
+                    {listError ? (
+                        <div className="m-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                            {listError}
+                        </div>
+                    ) : null}
                     {selectedId ? (
                         <button
                             type="button"
@@ -621,7 +627,6 @@ export function Concierge() {
                         pollThreadRef={pollThreadRef}
                     />
                 </main>
-            </div>
         </div>
     );
 }

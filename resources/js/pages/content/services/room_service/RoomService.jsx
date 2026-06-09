@@ -1,25 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { ContentCardsLayout } from '../../../components/ContentCardsLayout';
+import { ContentCardsLayout } from '../../../../components/ContentCardsLayout';
 
-export function HotelInfo() {
+export function RoomService() {
     const [sections, setSections] = useState([]);
+    const [title, setTitle] = useState('Pokojová služba');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-
-    const reloadSections = () =>
-        axios.get('/api/hotel-info/topics').then((response) => {
-            setSections(response.data.sections ?? []);
-        });
 
     const load = () => {
         setLoading(true);
         setError(null);
-        reloadSections()
+        axios
+            .get('/api/hotel-room-service/menus')
+            .then((response) => {
+                setTitle(response.data.title ?? 'Pokojová služba');
+                setSections(response.data.sections ?? []);
+            })
             .catch((err) => {
                 const message =
                     err.response?.data?.message ||
-                    'Nepodařilo se načíst informace o hotelu. Zkontroluj připojení k Supabase (OTELAPPS_DB_CONNECTION v .env) a že jsou v DB tabulky hotel_info_topics.';
+                    'Nepodařilo se načíst pokojovou službu. Zkontroluj Supabase a tabulky hotel_room_service_menus.';
                 setError(message);
             })
             .finally(() => setLoading(false));
@@ -32,7 +33,7 @@ export function HotelInfo() {
     if (loading) {
         return (
             <div className="p-6 flex items-center justify-center min-h-[40vh]">
-                <p className="text-gray-600 dark:text-gray-400">Načítání informací o hotelu…</p>
+                <p className="text-gray-600 dark:text-gray-400">Načítání pokojové služby…</p>
             </div>
         );
     }
@@ -57,11 +58,11 @@ export function HotelInfo() {
 
     return (
         <ContentCardsLayout
-            title="Informace o hotelu"
-            hideSectionTitle
+            title={title}
             sections={sections}
-            moduleKey="hotel_info"
-            onReload={reloadSections}
+            moduleKey="room_service"
+            moduleType="services"
+            editTab="catalogs"
         />
     );
 }

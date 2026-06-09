@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
-import { FormSaveBar } from '../../../components/FormSaveBar';
-import { LaundryCatalogTab } from './LaundryCatalogTab';
+import { FormSaveBar } from '../../../../components/FormSaveBar';
+import { AmenitiesCatalogTab } from './AmenitiesCatalogTab';
 
 const TABS = [
     { id: 'information', label: 'Informace' },
@@ -17,7 +17,7 @@ function tabFromHash(hash) {
     return TAB_IDS.includes(id) ? id : 'information';
 }
 
-export function LaundryEdit() {
+export function AmenitiesEdit() {
     const { id: slug } = useParams();
     const location = useLocation();
     const navigate = useNavigate();
@@ -25,7 +25,7 @@ export function LaundryEdit() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [saveStatus, setSaveStatus] = useState(null);
-    const [housekeeping, setHousekeeping] = useState(null);
+    const [supplies, setSupplies] = useState(null);
     const [openingHours, setOpeningHours] = useState([]);
     const [categories, setCategories] = useState([]);
     const [imageKeys, setImageKeys] = useState([]);
@@ -34,9 +34,9 @@ export function LaundryEdit() {
         setLoading(true);
         setError(null);
         axios
-            .get(`/api/hotel-housekeeping/${slug}`)
+            .get(`/api/hotel-supplies/${slug}`)
             .then((res) => {
-                setHousekeeping(res.data.housekeeping);
+                setSupplies(res.data.supplies);
                 setOpeningHours(res.data.opening_hours ?? []);
                 setCategories(res.data.categories ?? []);
                 setImageKeys(res.data.image_keys ?? []);
@@ -58,7 +58,7 @@ export function LaundryEdit() {
     const selectTab = (tabId) => {
         setActiveTab(tabId);
         navigate(
-            { pathname: `/module/services/laundry/${slug}/edit`, hash: tabId },
+            { pathname: `/module/services/amenities/${slug}/edit`, hash: tabId },
             { replace: true }
         );
     };
@@ -69,11 +69,11 @@ export function LaundryEdit() {
         if (status === 'error') setTimeout(() => setSaveStatus(null), 4000);
     };
 
-    const saveHousekeeping = async (payload) => {
+    const saveSupplies = async (payload) => {
         setSaveStatus('saving');
         try {
-            const { data } = await axios.put(`/api/hotel-housekeeping/${slug}`, payload);
-            setHousekeeping(data.housekeeping);
+            const { data } = await axios.put(`/api/hotel-supplies/${slug}`, payload);
+            setSupplies(data.supplies);
             showSaveStatus('saved');
         } catch (e) {
             console.error(e);
@@ -81,21 +81,22 @@ export function LaundryEdit() {
         }
     };
 
-    const buildHousekeepingPayload = (h) => ({
-        title: h.title,
-        description: h.description,
-        schedule_summary: h.schedule_summary,
-        header_image_key: h.header_image_key,
-        is_active: h.is_active,
+    const buildSuppliesPayload = (s) => ({
+        title: s.title,
+        description: s.description,
+        schedule_summary: s.schedule_summary,
+        header_image_key: s.header_image_key,
+        max_quantity_per_item: s.max_quantity_per_item,
+        is_active: s.is_active,
     });
 
     const updateField = (field, value) => {
-        setHousekeeping((prev) => (prev ? { ...prev, [field]: value } : prev));
+        setSupplies((prev) => (prev ? { ...prev, [field]: value } : prev));
     };
 
     const saveInformation = () => {
-        if (!housekeeping) return;
-        saveHousekeeping(buildHousekeepingPayload(housekeeping));
+        if (!supplies) return;
+        saveSupplies(buildSuppliesPayload(supplies));
     };
 
     const updateHoursRow = (dayOrder, value) => {
@@ -107,7 +108,7 @@ export function LaundryEdit() {
     const saveHours = async () => {
         setSaveStatus('saving');
         try {
-            const { data } = await axios.put(`/api/hotel-housekeeping/${slug}/hours`, {
+            const { data } = await axios.put(`/api/hotel-supplies/${slug}/hours`, {
                 opening_hours: openingHours,
             });
             setOpeningHours(data.opening_hours ?? openingHours);
@@ -122,7 +123,7 @@ export function LaundryEdit() {
         const payload = categoriesPayload ?? categories;
         setSaveStatus('saving');
         try {
-            const { data } = await axios.put(`/api/hotel-housekeeping/${slug}/catalog`, {
+            const { data } = await axios.put(`/api/hotel-supplies/${slug}/catalog`, {
                 categories: payload,
             });
             setCategories(data.categories ?? []);
@@ -141,16 +142,16 @@ export function LaundryEdit() {
         );
     }
 
-    if (error || !housekeeping) {
+    if (error || !supplies) {
         return (
             <div className="p-6">
                 <p className="text-red-600 mb-4">{error || 'Služba nenalezena.'}</p>
                 <button
                     type="button"
-                    onClick={() => navigate('/module/services/laundry')}
+                    onClick={() => navigate('/module/services/amenities')}
                     className="text-orange-500 hover:underline"
                 >
-                    ← Zpět na úklid pokoje
+                    ← Zpět na doplňky
                 </button>
             </div>
         );
@@ -162,13 +163,13 @@ export function LaundryEdit() {
                 <div>
                     <button
                         type="button"
-                        onClick={() => navigate('/module/services/laundry')}
+                        onClick={() => navigate('/module/services/amenities')}
                         className="text-sm text-gray-500 hover:text-orange-500 mb-2"
                     >
-                        ← Úklid pokoje
+                        ← Doplňky
                     </button>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{housekeeping.title}</h1>
-                    <p className="text-sm text-gray-500 mt-1">{housekeeping.slug}</p>
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{supplies.title}</h1>
+                    <p className="text-sm text-gray-500 mt-1">{supplies.slug}</p>
                 </div>
                 {saveStatus && (
                     <span
@@ -209,29 +210,25 @@ export function LaundryEdit() {
                     <Field label="Název služby">
                         <input
                             className={inputClass}
-                            value={housekeeping.title}
+                            value={supplies.title}
                             onChange={(e) => updateField('title', e.target.value)}
                         />
                     </Field>
                     <Field label="Slug">
-                        <input
-                            className={`${inputClass} bg-gray-50 dark:bg-gray-900`}
-                            value={housekeeping.slug}
-                            readOnly
-                        />
+                        <input className={`${inputClass} bg-gray-50 dark:bg-gray-900`} value={supplies.slug} readOnly />
                     </Field>
                     <Field label="Popis">
                         <textarea
                             className={inputClass}
-                            rows={5}
-                            value={housekeeping.description || ''}
+                            rows={4}
+                            value={supplies.description || ''}
                             onChange={(e) => updateField('description', e.target.value)}
                         />
                     </Field>
-                    <Field label="Shrnutí rozpisu">
+                    <Field label="Shrnutí rozpisu (v seznamu služeb)">
                         <input
                             className={inputClass}
-                            value={housekeeping.schedule_summary || ''}
+                            value={supplies.schedule_summary || ''}
                             onChange={(e) => updateField('schedule_summary', e.target.value || null)}
                             placeholder="06:00 - 20:00"
                         />
@@ -239,7 +236,7 @@ export function LaundryEdit() {
                     <Field label="Klíč hlavičkového obrázku">
                         <select
                             className={inputClass}
-                            value={housekeeping.header_image_key || ''}
+                            value={supplies.header_image_key || ''}
                             onChange={(e) => updateField('header_image_key', e.target.value || null)}
                         >
                             <option value="">— žádný —</option>
@@ -250,10 +247,22 @@ export function LaundryEdit() {
                             ))}
                         </select>
                     </Field>
+                    <Field label="Max. množství na položku (objednávka)">
+                        <input
+                            type="number"
+                            min={1}
+                            max={99}
+                            className={inputClass}
+                            value={supplies.max_quantity_per_item}
+                            onChange={(e) =>
+                                updateField('max_quantity_per_item', parseInt(e.target.value, 10) || 1)
+                            }
+                        />
+                    </Field>
                     <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                         <input
                             type="checkbox"
-                            checked={housekeeping.is_active}
+                            checked={supplies.is_active}
                             onChange={(e) => updateField('is_active', e.target.checked)}
                             className="rounded text-orange-500"
                         />
@@ -266,7 +275,7 @@ export function LaundryEdit() {
             {activeTab === 'hours' && (
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 space-y-3">
                     <p className="text-sm text-gray-500 mb-4">
-                        Otevírací doba — tabulka <code className="text-xs">hotel_housekeeping_hours</code>
+                        Otevírací doba služby — tabulka <code className="text-xs">hotel_supplies_hours</code>
                     </p>
                     {openingHours.map((row) => (
                         <div key={row.day_order} className="grid grid-cols-3 gap-3 items-center">
@@ -286,12 +295,11 @@ export function LaundryEdit() {
             )}
 
             {activeTab === 'catalog' && (
-                <LaundryCatalogTab
+                <AmenitiesCatalogTab
                     categories={categories}
                     setCategories={setCategories}
                     onSave={saveCatalog}
                     saveStatus={saveStatus}
-                    imageKeys={imageKeys}
                 />
             )}
         </div>

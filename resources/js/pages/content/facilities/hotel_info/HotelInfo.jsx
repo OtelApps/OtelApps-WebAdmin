@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { ContentCardsLayout } from '../../../components/ContentCardsLayout';
+import { ContentCardsLayout } from '../../../../components/ContentCardsLayout';
 
-export function RestaurantsBars() {
+export function HotelInfo() {
     const [sections, setSections] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
     const reloadSections = () =>
-        axios.get('/api/venues').then((response) => {
+        axios.get('/api/hotel-info/topics').then((response) => {
             setSections(response.data.sections ?? []);
         });
 
@@ -19,7 +19,7 @@ export function RestaurantsBars() {
             .catch((err) => {
                 const message =
                     err.response?.data?.message ||
-                    'Nepodařilo se načíst podniky. Zkontroluj připojení k Supabase (DB_CONNECTION=supabase v .env).';
+                    'Nepodařilo se načíst informace o hotelu. Zkontroluj připojení k Supabase (OTELAPPS_DB_CONNECTION v .env) a že jsou v DB tabulky hotel_info_topics.';
                 setError(message);
             })
             .finally(() => setLoading(false));
@@ -32,7 +32,7 @@ export function RestaurantsBars() {
     if (loading) {
         return (
             <div className="p-6 flex items-center justify-center min-h-[40vh]">
-                <p className="text-gray-600 dark:text-gray-400">Načítání podniků…</p>
+                <p className="text-gray-600 dark:text-gray-400">Načítání informací o hotelu…</p>
             </div>
         );
     }
@@ -57,9 +57,10 @@ export function RestaurantsBars() {
 
     return (
         <ContentCardsLayout
-            title="Restaurants & Bars"
+            title="Informace o hotelu"
+            hideSectionTitle
             sections={sections}
-            moduleKey="restaurants_bars"
+            moduleKey="hotel_info"
             onReload={reloadSections}
         />
     );
