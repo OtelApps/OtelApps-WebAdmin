@@ -1,6 +1,6 @@
 export { CrmHub } from './CrmHub';
-export { Guests } from './Guests';
-export { Alerts } from './Alerts';
-export { Promotions } from './Promotions';
-export { Tasks } from './Tasks';
-export { History } from './History';
+export { Guests } from './guests/Guests';
+export { Alerts } from './alerts/Alerts';
+export { Promotions } from './promotions/Promotions';
+export { Tasks } from './tasks/Tasks';
+export { History } from './history/History';

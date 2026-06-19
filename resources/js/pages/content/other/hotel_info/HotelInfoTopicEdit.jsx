@@ -2,40 +2,40 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { FormSaveBar } from '../../../../components/FormSaveBar';
-import { HotelRoomFeaturesTab } from './HotelRoomFeaturesTab';
-import { HotelRoomGalleryTab } from './HotelRoomGalleryTab';
+import { HotelInfoSectionsTab } from './HotelInfoSectionsTab';
 
-const TABS = [
+const BASE_TABS = [
     { id: 'information', label: 'Informace' },
-    { id: 'features', label: 'Vybavení' },
-    { id: 'gallery', label: 'Galerie' },
+    { id: 'sections', label: 'Podsekce' },
 ];
 
-export function HotelRoomTypeEdit() {
+export function HotelInfoTopicEdit() {
     const { id: slug } = useParams();
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('information');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [saveStatus, setSaveStatus] = useState(null);
-    const [roomType, setRoomType] = useState(null);
-    const [features, setFeatures] = useState([]);
-    const [gallery, setGallery] = useState([]);
+    const [topic, setTopic] = useState(null);
+    const [sections, setSections] = useState([]);
     const [imageKeys, setImageKeys] = useState([]);
+    const [navigationScreens, setNavigationScreens] = useState([]);
+    const [iconLibraries, setIconLibraries] = useState(['ionicons', 'material-community']);
 
     const load = useCallback(() => {
         setLoading(true);
         setError(null);
         axios
-            .get(`/api/hotel-rooms/types/${slug}`)
+            .get(`/api/hotel-info/topics/${slug}`)
             .then((res) => {
-                setRoomType(res.data.room_type);
-                setFeatures(res.data.features ?? []);
-                setGallery(res.data.gallery ?? []);
-                setImageKeys(res.data.image_keys ?? []);
+                setTopic(res.data.topic);
+                setSections(res.data.sections ?? []);
+                setImageKeys(res.data.list_image_keys ?? []);
+                setNavigationScreens(res.data.navigation_screens ?? []);
+                setIconLibraries(res.data.icon_libraries ?? ['ionicons', 'material-community']);
             })
             .catch((err) => {
-                setError(err.response?.data?.message || 'Typ pokoje se nepodařilo načíst.');
+                setError(err.response?.data?.message || 'Téma se nepodařilo načíst.');
             })
             .finally(() => setLoading(false));
     }, [slug]);
@@ -50,11 +50,11 @@ export function HotelRoomTypeEdit() {
         if (status === 'error') setTimeout(() => setSaveStatus(null), 4000);
     };
 
-    const saveRoomType = async (payload) => {
+    const saveTopic = async (payload) => {
         setSaveStatus('saving');
         try {
-            const { data } = await axios.put(`/api/hotel-rooms/types/${slug}`, payload);
-            setRoomType(data.room_type);
+            const { data } = await axios.put(`/api/hotel-info/topics/${slug}`, payload);
+            setTopic(data.topic);
             showSaveStatus('saved');
         } catch (e) {
             console.error(e);
@@ -62,33 +62,34 @@ export function HotelRoomTypeEdit() {
         }
     };
 
-    const buildRoomTypePayload = (r) => ({
-        title: r.title,
-        list_description: r.list_description,
-        detail_info: r.detail_info,
-        size_text: r.size_text,
-        image_key: r.image_key,
-        sort_order: r.sort_order,
-        is_active: r.is_active,
+    const buildTopicPayload = (t) => ({
+        title: t.title,
+        list_description: t.list_description,
+        detail_info: t.detail_info,
+        list_image_key: t.list_image_key,
+        detail_image_key: t.detail_image_key,
+        navigation_screen: t.navigation_screen,
+        sort_order: t.sort_order,
+        is_active: t.is_active,
     });
 
     const updateField = (field, value) => {
-        setRoomType((prev) => (prev ? { ...prev, [field]: value } : prev));
+        setTopic((prev) => (prev ? { ...prev, [field]: value } : prev));
     };
 
     const saveInformation = () => {
-        if (!roomType) return;
-        saveRoomType(buildRoomTypePayload(roomType));
+        if (!topic) return;
+        saveTopic(buildTopicPayload(topic));
     };
 
-    const saveFeatures = async (featuresPayload) => {
-        const payload = featuresPayload ?? features;
+    const saveSections = async (sectionsPayload) => {
+        const payload = sectionsPayload ?? sections;
         setSaveStatus('saving');
         try {
-            const { data } = await axios.put(`/api/hotel-rooms/types/${slug}/features`, {
-                features: payload,
+            const { data } = await axios.put(`/api/hotel-info/topics/${slug}/sections`, {
+                sections: payload,
             });
-            setFeatures(data.features ?? []);
+            setSections(data.sections ?? []);
             showSaveStatus('saved');
         } catch (e) {
             console.error(e);
@@ -96,20 +97,8 @@ export function HotelRoomTypeEdit() {
         }
     };
 
-    const saveGallery = async (galleryPayload) => {
-        const payload = galleryPayload ?? gallery;
-        setSaveStatus('saving');
-        try {
-            const { data } = await axios.put(`/api/hotel-rooms/types/${slug}/gallery`, {
-                gallery: payload,
-            });
-            setGallery(data.gallery ?? []);
-            showSaveStatus('saved');
-        } catch (e) {
-            console.error(e);
-            showSaveStatus('error');
-        }
-    };
+    const isMapTopic = topic?.navigation_screen === 'MapScreen';
+    const tabs = isMapTopic ? [BASE_TABS[0]] : BASE_TABS;
 
     if (loading) {
         return (
@@ -119,13 +108,13 @@ export function HotelRoomTypeEdit() {
         );
     }
 
-    if (error || !roomType) {
+    if (error || !topic) {
         return (
             <div className="p-6">
-                <p className="text-red-600 mb-4">{error || 'Typ pokoje nenalezen.'}</p>
+                <p className="text-red-600 mb-4">{error || 'Téma nenalezeno.'}</p>
                 <button
                     type="button"
-                    onClick={() => navigate('/module/services/hotel_rooms')}
+                    onClick={() => navigate('/module/other/hotel_info')}
                     className="text-orange-500 hover:underline"
                 >
                     ← Zpět na seznam
@@ -140,15 +129,14 @@ export function HotelRoomTypeEdit() {
                 <div>
                     <button
                         type="button"
-                        onClick={() => navigate('/module/services/hotel_rooms')}
+                        onClick={() => navigate('/module/other/hotel_info')}
                         className="text-sm text-gray-500 hover:text-orange-500 mb-2"
                     >
-                        ← Nabídka pokojů
+                        ← Informace o hotelu
                     </button>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{roomType.title}</h1>
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{topic.title}</h1>
                     <p className="text-sm text-gray-500 mt-1">
-                        {roomType.size_text ? `${roomType.size_text} · ` : ''}
-                        {roomType.slug}
+                        {topic.navigation_screen} · {topic.slug}
                     </p>
                 </div>
                 {saveStatus && (
@@ -169,7 +157,7 @@ export function HotelRoomTypeEdit() {
             </div>
 
             <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700 mb-6 overflow-x-auto">
-                {TABS.map((tab) => (
+                {tabs.map((tab) => (
                     <button
                         key={tab.id}
                         type="button"
@@ -190,63 +178,85 @@ export function HotelRoomTypeEdit() {
                     <Field label="Název">
                         <input
                             className={inputClass}
-                            value={roomType.title}
+                            value={topic.title}
                             onChange={(e) => updateField('title', e.target.value)}
                         />
                     </Field>
                     <Field label="Slug">
-                        <input className={`${inputClass} bg-gray-50 dark:bg-gray-900`} value={roomType.slug} readOnly />
+                        <input className={`${inputClass} bg-gray-50 dark:bg-gray-900`} value={topic.slug} readOnly />
                     </Field>
                     <Field label="Popis v seznamu">
                         <textarea
                             className={inputClass}
                             rows={3}
-                            value={roomType.list_description || ''}
+                            value={topic.list_description || ''}
                             onChange={(e) => updateField('list_description', e.target.value)}
                         />
                     </Field>
-                    <Field label="Detailní popis">
+                    <Field label="Úvodní text na detailu">
                         <textarea
                             className={inputClass}
                             rows={5}
-                            value={roomType.detail_info || ''}
-                            onChange={(e) => updateField('detail_info', e.target.value)}
+                            value={topic.detail_info || ''}
+                            onChange={(e) => updateField('detail_info', e.target.value || null)}
+                            placeholder={isMapTopic ? 'Pro mapu obvykle prázdné' : ''}
                         />
                     </Field>
-                    <Field label="Velikost (zobrazení v seznamu)">
-                        <input
-                            className={inputClass}
-                            value={roomType.size_text || ''}
-                            onChange={(e) => updateField('size_text', e.target.value || null)}
-                            placeholder="např. 32 m2"
-                        />
-                    </Field>
-                    <Field label="Klíč hlavního obrázku">
+                    <Field label="Obrazovka v aplikaci">
                         <select
                             className={inputClass}
-                            value={roomType.image_key || ''}
-                            onChange={(e) => updateField('image_key', e.target.value || null)}
+                            value={topic.navigation_screen}
+                            onChange={(e) => updateField('navigation_screen', e.target.value)}
                         >
-                            <option value="">— žádný —</option>
-                            {imageKeys.map((key) => (
-                                <option key={key} value={key}>
-                                    {key}
+                            {navigationScreens.map((s) => (
+                                <option key={s} value={s}>
+                                    {s}
                                 </option>
                             ))}
                         </select>
                     </Field>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Field label="Obrázek v seznamu (klíč)">
+                            <select
+                                className={inputClass}
+                                value={topic.list_image_key || ''}
+                                onChange={(e) => updateField('list_image_key', e.target.value || null)}
+                            >
+                                <option value="">— žádný —</option>
+                                {imageKeys.map((key) => (
+                                    <option key={key} value={key}>
+                                        {key}
+                                    </option>
+                                ))}
+                            </select>
+                        </Field>
+                        <Field label="Obrázek na detailu (klíč)">
+                            <select
+                                className={inputClass}
+                                value={topic.detail_image_key || ''}
+                                onChange={(e) => updateField('detail_image_key', e.target.value || null)}
+                            >
+                                <option value="">— stejný jako v seznamu —</option>
+                                {imageKeys.map((key) => (
+                                    <option key={key} value={key}>
+                                        {key}
+                                    </option>
+                                ))}
+                            </select>
+                        </Field>
+                    </div>
                     <Field label="Pořadí">
                         <input
                             type="number"
                             className={inputClass}
-                            value={roomType.sort_order}
+                            value={topic.sort_order}
                             onChange={(e) => updateField('sort_order', parseInt(e.target.value, 10) || 0)}
                         />
                     </Field>
                     <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                         <input
                             type="checkbox"
-                            checked={roomType.is_active}
+                            checked={topic.is_active}
                             onChange={(e) => updateField('is_active', e.target.checked)}
                             className="rounded text-orange-500"
                         />
@@ -256,22 +266,13 @@ export function HotelRoomTypeEdit() {
                 </div>
             )}
 
-            {activeTab === 'features' && (
-                <HotelRoomFeaturesTab
-                    features={features}
-                    setFeatures={setFeatures}
-                    onSave={saveFeatures}
+            {activeTab === 'sections' && !isMapTopic && (
+                <HotelInfoSectionsTab
+                    sections={sections}
+                    setSections={setSections}
+                    onSave={saveSections}
                     saveStatus={saveStatus}
-                />
-            )}
-
-            {activeTab === 'gallery' && (
-                <HotelRoomGalleryTab
-                    gallery={gallery}
-                    setGallery={setGallery}
-                    onSave={saveGallery}
-                    saveStatus={saveStatus}
-                    imageKeys={imageKeys}
+                    iconLibraries={iconLibraries}
                 />
             )}
         </div>

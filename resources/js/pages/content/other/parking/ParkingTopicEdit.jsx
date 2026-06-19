@@ -100,7 +100,7 @@ export function ParkingTopicEdit() {
                 <p className="text-red-600 mb-4">{error || 'Položka nenalezena.'}</p>
                 <button
                     type="button"
-                    onClick={() => navigate('/module/facilities/parking')}
+                    onClick={() => navigate('/module/other/parking')}
                     className="text-orange-500 hover:underline"
                 >
                     ← Zpět na parkování
@@ -117,7 +117,7 @@ export function ParkingTopicEdit() {
                 <div>
                     <button
                         type="button"
-                        onClick={() => navigate('/module/facilities/parking')}
+                        onClick={() => navigate('/module/other/parking')}
                         className="text-sm text-gray-500 hover:text-orange-500 mb-2"
                     >
                         ← Parkování

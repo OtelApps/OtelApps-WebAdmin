@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import http from '../../lib/http';
-import { CRM_SEGMENTS, formatDateTime, SECTION_META, TASK_PRIORITY, TASK_STATUS, TASK_TYPES } from './crmHubConfig';
-import { CrmIcon, CrmShell } from './CrmShell';
+import http from '../../../lib/http';
+import { CRM_SEGMENTS, formatDateTime, SECTION_META, TASK_PRIORITY, TASK_STATUS, TASK_TYPES } from '../crmHubConfig';
+import { CrmIcon, CrmShell } from '../CrmShell';
 
 const SEG = CRM_SEGMENTS.find((s) => s.key === 'tasks');
 

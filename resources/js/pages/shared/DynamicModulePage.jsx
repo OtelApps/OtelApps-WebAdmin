@@ -6,10 +6,10 @@ import { RestaurantsBars } from '../content/facilities/restaurants_bars/Restaura
 import { RelaxSport } from '../content/facilities/relax_sport/RelaxSport';
 import { WellnessSpa } from '../content/facilities/relax_sport/WellnessSpa';
 import { Sports } from '../content/facilities/relax_sport/Sports';
-import { Parking } from '../content/facilities/parking/Parking';
+import { Parking } from '../content/other/parking/Parking';
 import { OtherFacilities } from '../content/facilities/other_facilities/OtherFacilities';
-import { HotelInfo } from '../content/facilities/hotel_info/HotelInfo';
-import { HotelRooms } from '../content/services/hotel_rooms/HotelRooms';
+import { HotelInfo } from '../content/other/hotel_info/HotelInfo';
+import { HotelRooms } from '../content/other/hotel_rooms/HotelRooms';
 
 import { RoomService } from '../content/services/room_service/RoomService';
 import { Amenities } from '../content/services/amenities/Amenities';
@@ -21,16 +21,25 @@ import { Other } from '../content/other/Other';
 import { WelcomeMessage } from '../content/welcome_message/WelcomeMessage';
 import { LegalTexts } from '../content/legal_texts/LegalTexts';
 import { ImageGallery } from '../content/image_gallery/ImageGallery';
+import { RequiredContent } from '../content/required_content/RequiredContent';
 import { ModuleSectionHub } from './ModuleSectionHub';
 import { Revenue } from '../insights/Revenue';
 import { Users } from '../insights/Users';
 import { Transactions } from '../insights/Transactions';
 import { Behavior } from '../insights/Behavior';
-import { Guests } from '../crm/Guests';
-import { Alerts } from '../crm/Alerts';
-import { Promotions } from '../crm/Promotions';
-import { Tasks } from '../crm/Tasks';
-import { History } from '../crm/History';
+import { Guests } from '../crm/guests/Guests';
+import { Alerts } from '../crm/alerts/Alerts';
+import { Promotions } from '../crm/promotions/Promotions';
+import { Tasks } from '../crm/tasks/Tasks';
+import { History } from '../crm/history/History';
+
+import { WelcomeSurvey } from '../feedback/surveys/welcome_survey/WelcomeSurvey';
+import { GenericSurvey } from '../feedback/surveys/generic_survey/GenericSurvey';
+import { FacilitiesServicesSurveyList } from '../feedback/surveys/facilities_services_survey/FacilitiesServicesSurveyList';
+import { CheckoutSurvey } from "../feedback/surveys/checkout_survey/CheckoutSurvey";
+import ExternalPlatforms from '../feedback/external_platforms/ExternalPlatforms';
+import { FeedbackInbox } from '../feedback/inbox/FeedbackInbox';
+import { FeedbackStats } from '../feedback/stats/FeedbackStats';
 
 const RELAX_SPORT_AREAS = {
     'wellness-spa': WellnessSpa,
@@ -40,18 +49,22 @@ const RELAX_SPORT_AREAS = {
 const FACILITIES_PAGES = {
     restaurants_bars: RestaurantsBars,
     relax_sport: RelaxSport,
-    hotel_info: HotelInfo,
-    parking: Parking,
     other_facilities: OtherFacilities,
 };
 
 const SERVICES_PAGES = {
     room_service: RoomService,
-    hotel_rooms: HotelRooms,
     amenities: Amenities,
     laundry: Laundry,
     issues_repairs: IssuesRepairs,
     check_in_out: CheckInOut,
+};
+
+const OTHER_PAGES = {
+    hotel_info: HotelInfo,
+    hotel_rooms: HotelRooms,
+    parking: Parking,
+    generic_other: Other,
 };
 
 export function DynamicModulePage() {
@@ -89,7 +102,7 @@ export function DynamicModulePage() {
         return <NotFound />;
     }
 
-    if (type === module && (type === 'facilities' || type === 'services')) {
+    if (type === module && (type === 'facilities' || type === 'services' || type === 'other')) {
         return <ModuleSectionHub />;
     }
 
@@ -112,8 +125,9 @@ export function DynamicModulePage() {
         return <Leisure />;
     }
 
-    if (type === 'content' && module === 'other') {
-        return <Other />;
+    if (type === 'other' && OTHER_PAGES[module]) {
+        const Page = OTHER_PAGES[module];
+        return <Page />;
     }
 
     if (type === 'content' && module === 'welcome_message') {
@@ -126,6 +140,10 @@ export function DynamicModulePage() {
 
     if (type === 'content' && module === 'image_gallery') {
         return <ImageGallery />;
+    }
+
+    if (type === 'content' && module === 'required_content') {
+        return <RequiredContent />;
     }
 
     if (type === 'insights' && module === 'revenue') {
@@ -162,6 +180,27 @@ export function DynamicModulePage() {
 
     if (type === 'crm' && module === 'history') {
         return <History />;
+    }
+
+    if (type === 'surveys') {
+        switch (module) {
+            case 'surveys_welcome': return <WelcomeSurvey />;
+            case 'surveys_generic': return <GenericSurvey />;
+            case 'surveys_facilities': return <FacilitiesServicesSurveyList />;
+            case 'surveys_checkout': return <CheckoutSurvey />;
+        }
+    }
+
+    if (type === 'feedback' && module === 'external_platforms') {
+        return <ExternalPlatforms />;
+    }
+
+    if (type === 'feedback' && module === 'inbox') {
+        return <FeedbackInbox />;
+    }
+
+    if (type === 'feedback' && module === 'stats') {
+        return <FeedbackStats />;
     }
 
     // Default module page

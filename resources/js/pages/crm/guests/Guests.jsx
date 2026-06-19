@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import http from '../../lib/http';
-import { GuestLocaleFlag } from '../concierge/GuestLocaleFlag';
-import { GUEST_LOCALES } from '../concierge/conciergeLocales';
-import { CRM_SEGMENTS, GUEST_SEGMENTS, SEGMENT_BADGE, SECTION_META } from './crmHubConfig';
-import { CrmIcon, CrmShell } from './CrmShell';
+import http from '../../../lib/http';
+import { GuestLocaleFlag } from '../../concierge/GuestLocaleFlag';
+import { GUEST_LOCALES } from '../../concierge/conciergeLocales';
+import { CRM_SEGMENTS, GUEST_SEGMENTS, SEGMENT_BADGE, SECTION_META } from '../crmHubConfig';
+import { CrmIcon, CrmShell } from '../CrmShell';
 import { GuestDetailModal } from './GuestDetailModal';
 import { GuestAddModal } from './GuestAddModal';
 

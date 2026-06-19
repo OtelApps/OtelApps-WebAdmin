@@ -61,6 +61,7 @@ export function HotelInfo() {
             hideSectionTitle
             sections={sections}
             moduleKey="hotel_info"
+            moduleType="other"
             onReload={reloadSections}
         />
     );

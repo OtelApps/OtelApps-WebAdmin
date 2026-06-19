@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import http from '../../lib/http';
-import { CHANNEL_ICONS, CRM_SEGMENTS, formatDateTime, INTERACTION_CHANNELS, SECTION_META } from './crmHubConfig';
-import { CrmIcon, CrmShell } from './CrmShell';
+import http from '../../../lib/http';
+import { CHANNEL_ICONS, CRM_SEGMENTS, formatDateTime, INTERACTION_CHANNELS, SECTION_META } from '../crmHubConfig';
+import { CrmIcon, CrmShell } from '../CrmShell';
 
 const SEG = CRM_SEGMENTS.find((s) => s.key === 'history');
 

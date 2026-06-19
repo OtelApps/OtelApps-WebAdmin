@@ -13,6 +13,7 @@ import { NotFound } from '../pages/shared/NotFound';
 import { ErrorBoundary } from './ErrorBoundary';
 import { ProtectedRoute, ProtectedModuleRoute } from './ProtectedRoute';
 import { DynamicEditRouter } from '../pages/shared/DynamicEditRouter';
+import { FeedbackHub } from '../pages/feedback/FeedbackHub';
 
 /**
  * Hlavní React komponenta aplikace s React Router
@@ -67,7 +68,7 @@ export function App() {
                         path="feedback" 
                         element={
                             <ProtectedRoute moduleName="feedback">
-                                <Page title="Feedback" />
+                                <FeedbackHub />
                             </ProtectedRoute>
                         } 
                     />

@@ -61,6 +61,7 @@ export function Parking() {
             hideSectionTitle
             sections={sections}
             moduleKey="parking"
+            moduleType="other"
             onReload={reloadSections}
         />
     );

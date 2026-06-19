@@ -16,19 +16,19 @@ export const SECTION_META = {
             'Pokojová služba, doplňky, úklid a údržba. Obsah i objednávkové katalogy pro mobilní app.',
         hubPath: '/module/services/services',
     },
+    other: {
+        icon: 'widgets',
+        gradient: 'from-slate-500 to-gray-600',
+        accent: 'slate',
+        description: 'Doplňkové informace, památky a další obsah mimo standardní kategorie.',
+        hubPath: '/module/other/other',
+    },
     leisure: {
         icon: 'celebration',
         gradient: 'from-violet-500 to-purple-600',
         accent: 'violet',
         description: 'Program volnočasových aktivit, kalendář akcí a tipy pro hosty.',
         hubPath: '/module/content/leisure',
-    },
-    other: {
-        icon: 'widgets',
-        gradient: 'from-slate-500 to-gray-600',
-        accent: 'slate',
-        description: 'Doplňkové informace a vlastní sekce mimo standardní kategorie.',
-        hubPath: '/module/content/other',
     },
     welcome_message: {
         icon: 'waving_hand',
@@ -71,6 +71,10 @@ export const SUBMODULE_HINTS = {
     laundry: 'Úklid a praní prádla',
     issues_repairs: 'Hlášení závad a oprav',
     check_in_out: 'Check-in a check-out',
+    places_of_interest: 'Památky a zajímavá místa v okolí',
+    transportation: 'Doprava a spoje MHD',
+    where_to_go: 'Tipy na výlety a kam zajít',
+    generic_other: 'Ostatní volný obsah',
 };
 
 export const QUICK_START_STEPS = [

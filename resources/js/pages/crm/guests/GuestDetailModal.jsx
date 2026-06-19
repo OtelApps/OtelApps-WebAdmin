@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import http from '../../lib/http';
-import { GuestLocaleFlag } from '../concierge/GuestLocaleFlag';
-import { CHANNEL_ICONS, formatDate, formatDateTime, GUEST_SEGMENTS, SEGMENT_BADGE } from './crmHubConfig';
-import { CrmIcon } from './CrmShell';
+import http from '../../../lib/http';
+import { GuestLocaleFlag } from '../../concierge/GuestLocaleFlag';
+import { CHANNEL_ICONS, formatDate, formatDateTime, GUEST_SEGMENTS, SEGMENT_BADGE } from '../crmHubConfig';
+import { CrmIcon } from '../CrmShell';
 
 export function GuestDetailModal({ guestKey, onClose, onSaved }) {
     const [guest, setGuest] = useState(null);

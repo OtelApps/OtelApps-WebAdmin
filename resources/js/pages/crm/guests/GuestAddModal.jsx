@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import http from '../../lib/http';
-import { GUEST_LOCALES } from '../concierge/conciergeLocales';
-import { GUEST_SEGMENTS } from './crmHubConfig';
-import { CrmIcon } from './CrmShell';
+import http from '../../../lib/http';
+import { GUEST_LOCALES } from '../../concierge/conciergeLocales';
+import { GUEST_SEGMENTS } from '../crmHubConfig';
+import { CrmIcon } from '../CrmShell';
 
 const inputClass =
     'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:ring-2 focus:ring-orange-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white';

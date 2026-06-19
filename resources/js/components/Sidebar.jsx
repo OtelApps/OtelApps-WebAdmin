@@ -121,11 +121,12 @@ export function Sidebar() {
                     if (module.submodules) {
                         // Section with sub-items
                         const isExpanded = expandedSections.includes(moduleKey);
+                        const defaultSubmoduleKey = (module.submodules && module.submodules.length > 0) ? module.submodules[0].key : moduleKey;
                         return (
                             <div key={moduleKey} className="mb-4">
                                 <div className="flex items-center w-full">
                                     <Link
-                                        to={`/module/${moduleKey}/${moduleKey}`}
+                                        to={`/module/${moduleKey}/${defaultSubmoduleKey}`}
                                         className={`flex-1 flex items-center justify-between px-4 py-2 text-left hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg transition-colors ${
                                             isExpanded || isSectionActive(moduleKey) 
                                                 ? 'bg-orange-50 dark:bg-orange-900/20 text-[#FFA500]' 
@@ -185,7 +186,7 @@ export function Sidebar() {
                                             )}
                                             {index === 2 && (resolvedSection === 'content' || currentSection === 'content') && (
                                                 <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                                                    <path d="M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Zm0 0v-80 80Z"/>
+                                                    <path d="M120-840h320v320H120v-320Zm80 80v160-160Zm320-80h320v320H520v-320Zm80 80v160-160ZM120-440h320v320H120v-320Zm80 80v160-160Zm440-80h80v120h120v80H720v120h-80v-120H520v-80h120v-120Zm-40-320v160h160v-160H600Zm-400 0v160h160v-160H200Zm0 400v160h160v-160H200Z"/>
                                                 </svg>
                                             )}
                                             {index === 2 && (resolvedSection === 'crm' || currentSection === 'crm') && (
@@ -215,7 +216,7 @@ export function Sidebar() {
                                             )}
                                             {index === 3 && (resolvedSection === 'content' || currentSection === 'content') && (
                                                 <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                                                    <path d="M120-840h320v320H120v-320Zm80 80v160-160Zm320-80h320v320H520v-320Zm80 80v160-160ZM120-440h320v320H120v-320Zm80 80v160-160Zm440-80h80v120h120v80H720v120h-80v-120H520v-80h120v-120Zm-40-320v160h160v-160H600Zm-400 0v160h160v-160H200Zm0 400v160h160v-160H200Z"/>
+                                                    <path d="M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Zm0 0v-80 80Z"/>
                                                 </svg>
                                             )}
                                             {index === 3 && (resolvedSection === 'feedback' || currentSection === 'feedback') && (
@@ -360,7 +361,7 @@ export function Sidebar() {
                                 )}
                                 {(resolvedSection === 'content' || currentSection === 'content') && index === 2 && (
                                     <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                                        <path d="M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Zm0 0v-80 80Z"/>
+                                        <path d="M120-840h320v320H120v-320Zm80 80v160-160Zm320-80h320v320H520v-320Zm80 80v160-160ZM120-440h320v320H120v-320Zm80 80v160-160Zm440-80h80v120h120v80H720v120h-80v-120H520v-80h120v-120Zm-40-320v160h160v-160H600Zm-400 0v160h160v-160H200Zm0 400v160h160v-160H200Z"/>
                                     </svg>
                                 )}
                                 {(resolvedSection === 'crm' || currentSection === 'crm') && index === 2 && (
@@ -390,7 +391,7 @@ export function Sidebar() {
                                 )}
                                 {(resolvedSection === 'content' || currentSection === 'content') && index === 3 && (
                                     <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                                        <path d="M120-840h320v320H120v-320Zm80 80v160-160Zm320-80h320v320H520v-320Zm80 80v160-160ZM120-440h320v320H120v-320Zm80 80v160-160Zm440-80h80v120h120v80H720v120h-80v-120H520v-80h120v-120Zm-40-320v160h160v-160H600Zm-400 0v160h160v-160H200Zm0 400v160h160v-160H200Z"/>
+                                        <path d="M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Zm0 0v-80 80Z"/>
                                     </svg>
                                 )}
                                 {(resolvedSection === 'feedback' || currentSection === 'feedback') && index === 3 && (
@@ -428,12 +429,25 @@ export function Sidebar() {
                 )}
             </div>
 
-            {/* Image Gallery Footer Button - Only for Content section */}
+            {/* Footer Buttons - Only for Content section */}
             {(resolvedSection === 'content' || currentSection === 'content') && (
-                <div className="p-4 border-t border-gray-200 dark:border-gray-700 mt-auto">
+                <div className="p-4 border-t border-gray-200 dark:border-gray-700 mt-auto flex flex-col gap-3">
+                    <Link
+                        to="/module/content/required_content"
+                        className={`flex items-center justify-center gap-3 w-full px-4 py-3 rounded-xl font-bold transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-md ${
+                            isActive('content', 'required_content')
+                                ? 'bg-gradient-to-r from-teal-500 to-emerald-600 text-white'
+                                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 hover:border-teal-500 hover:text-teal-600 dark:hover:border-teal-500'
+                        }`}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                            <path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm0-560v560-560Zm218 438 226-226-56-58-170 170-86-84-56 56 142 142Z"/>
+                        </svg>
+                        <span>Required Content</span>
+                    </Link>
                     <Link
                         to="/module/content/image_gallery"
-                        className={`flex items-center justify-center gap-3 w-full px-4 py-3 rounded-xl font-bold transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg ${
+                        className={`flex items-center justify-center gap-3 w-full px-4 py-3 rounded-xl font-bold transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-md ${
                             isActive('content', 'image_gallery')
                                 ? 'bg-orange-500 text-white shadow-orange-500/30'
                                 : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-600 hover:border-orange-500 hover:text-orange-500'

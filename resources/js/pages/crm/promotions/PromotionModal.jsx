@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import http from '../../lib/http';
+import http from '../../../lib/http';
 
 const SEGMENTS = [
     { key: 'all', label: 'Všichni hosté' },

@@ -2,9 +2,9 @@ import React from 'react';
 import { useParams } from 'react-router-dom';
 
 import { CardEdit } from './CardEdit';
-import { HotelInfoTopicEdit } from '../content/facilities/hotel_info/HotelInfoTopicEdit';
-import { HotelRoomTypeEdit } from '../content/services/hotel_rooms/HotelRoomTypeEdit';
-import { ParkingTopicEdit } from '../content/facilities/parking/ParkingTopicEdit';
+import { HotelInfoTopicEdit } from '../content/other/hotel_info/HotelInfoTopicEdit';
+import { HotelRoomTypeEdit } from '../content/other/hotel_rooms/HotelRoomTypeEdit';
+import { ParkingTopicEdit } from '../content/other/parking/ParkingTopicEdit';
 import { AmenitiesEdit } from '../content/services/amenities/AmenitiesEdit';
 import { IssuesRepairsEdit } from '../content/services/issues_repairs/IssuesRepairsEdit';
 import { LaundryEdit } from '../content/services/laundry/LaundryEdit';
