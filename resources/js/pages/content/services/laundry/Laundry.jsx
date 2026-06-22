@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { ContentCardsLayout } from '../../../../components/ContentCardsLayout';
+import { ContentCardsLayout } from '../../../../components/layout/ContentCardsLayout';
 
 export function Laundry() {
     const navigate = useNavigate();
@@ -106,7 +106,6 @@ export function Laundry() {
                 sections={sections}
                 moduleKey="laundry"
                 moduleType="services"
-                editTab="catalog"
                 onReload={reloadSections}
                 listMeta={{ housekeepingSlug: meta?.housekeepingSlug }}
             />

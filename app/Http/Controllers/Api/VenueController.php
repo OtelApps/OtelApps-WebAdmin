@@ -155,6 +155,42 @@ class VenueController extends Controller
         ]);
     }
 
+    public function updateHours(Request $request, string $slug): JsonResponse
+    {
+        $venue = $this->findVenue($slug);
+
+        $data = $request->validate([
+            'opening_hours' => ['required', 'array'],
+            'opening_hours.*.day_order' => ['required', 'integer', 'between:1,7'],
+            'opening_hours.*.day_name' => ['required', 'string', 'max:40'],
+            'opening_hours.*.hours_text' => ['required', 'string', 'max:80'],
+        ]);
+
+        DB::connection(config('otelapps.db_connection'))->transaction(function () use ($venue, $data) {
+            foreach ($data['opening_hours'] as $row) {
+                VenueOpeningHour::updateOrCreate(
+                    [
+                        'venue_id' => $venue->id,
+                        'day_order' => $row['day_order'],
+                    ],
+                    [
+                        'day_name' => $row['day_name'],
+                        'hours_text' => $row['hours_text'],
+                    ]
+                );
+            }
+        });
+
+        return response()->json([
+            'opening_hours' => $venue->openingHours()->orderBy('day_order')->get()->map(fn ($h) => [
+                'id' => $h->id,
+                'day_order' => $h->day_order,
+                'day_name' => $h->day_name,
+                'hours_text' => $h->hours_text,
+            ])->values(),
+        ]);
+    }
+
     public function updateMenus(Request $request, string $slug): JsonResponse
     {
         $venue = $this->findVenue($slug);
@@ -283,16 +319,21 @@ class VenueController extends Controller
                 $this->deleteMenuCategoriesNotIn($menu->id, $keptCategoryIds);
             }
 
-            $menusToRemove = VenueMenu::where('venue_id', $venue->id)->whereNotIn('id', $keptMenuIds)->get();
-            foreach ($menusToRemove as $menu) {
-                foreach ($menu->categories as $cat) {
-                    foreach ($cat->items as $item) {
-                        $item->allergens()->detach();
-                        $item->delete();
+            $menusToRemoveIds = VenueMenu::where('venue_id', $venue->id)->whereNotIn('id', $keptMenuIds)->pluck('id')->toArray();
+            if (!empty($menusToRemoveIds)) {
+                $categoriesToRemoveIds = MenuCategory::whereIn('menu_id', $menusToRemoveIds)->pluck('id')->toArray();
+                if (!empty($categoriesToRemoveIds)) {
+                    $itemsToRemoveIds = MenuItem::whereIn('category_id', $categoriesToRemoveIds)->pluck('id')->toArray();
+                    if (!empty($itemsToRemoveIds)) {
+                        DB::connection(config('otelapps.db_connection'))
+                            ->table('menu_item_allergens')
+                            ->whereIn('menu_item_id', $itemsToRemoveIds)
+                            ->delete();
+                        MenuItem::whereIn('id', $itemsToRemoveIds)->delete();
                     }
-                    $cat->delete();
+                    MenuCategory::whereIn('id', $categoriesToRemoveIds)->delete();
                 }
-                $menu->delete();
+                VenueMenu::whereIn('id', $menusToRemoveIds)->delete();
             }
         });
 
@@ -319,10 +360,14 @@ class VenueController extends Controller
             $query->whereNotIn('id', $keptItemIds);
         }
 
-        $query->each(function (MenuItem $item) {
-            $item->allergens()->detach();
-            $item->delete();
-        });
+        $itemsToRemoveIds = $query->pluck('id')->toArray();
+        if (!empty($itemsToRemoveIds)) {
+            DB::connection(config('otelapps.db_connection'))
+                ->table('menu_item_allergens')
+                ->whereIn('menu_item_id', $itemsToRemoveIds)
+                ->delete();
+            MenuItem::whereIn('id', $itemsToRemoveIds)->delete();
+        }
     }
 
     private function deleteMenuCategoriesNotIn(string $menuId, array $keptCategoryIds): void
@@ -333,13 +378,18 @@ class VenueController extends Controller
             $query->whereNotIn('id', $keptCategoryIds);
         }
 
-        $query->each(function (MenuCategory $category) {
-            $category->items()->each(function (MenuItem $item) {
-                $item->allergens()->detach();
-                $item->delete();
-            });
-            $category->delete();
-        });
+        $categoriesToRemoveIds = $query->pluck('id')->toArray();
+        if (!empty($categoriesToRemoveIds)) {
+            $itemsToRemoveIds = MenuItem::whereIn('category_id', $categoriesToRemoveIds)->pluck('id')->toArray();
+            if (!empty($itemsToRemoveIds)) {
+                DB::connection(config('otelapps.db_connection'))
+                    ->table('menu_item_allergens')
+                    ->whereIn('menu_item_id', $itemsToRemoveIds)
+                    ->delete();
+                MenuItem::whereIn('id', $itemsToRemoveIds)->delete();
+            }
+            MenuCategory::whereIn('id', $categoriesToRemoveIds)->delete();
+        }
     }
 
     private function resolveHotel(Request $request): Hotel

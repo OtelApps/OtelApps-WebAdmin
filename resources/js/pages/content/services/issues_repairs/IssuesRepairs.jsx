@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { ContentCardsLayout } from '../../../../components/ContentCardsLayout';
+import { ContentCardsLayout } from '../../../../components/layout/ContentCardsLayout';
 
 export function IssuesRepairs() {
     const navigate = useNavigate();
@@ -110,7 +110,6 @@ export function IssuesRepairs() {
                 sections={sections}
                 moduleKey="issues_repairs"
                 moduleType="services"
-                editTab="catalog"
                 onReload={reloadSections}
                 listMeta={{ maintenanceSlug: meta?.maintenanceSlug }}
             />

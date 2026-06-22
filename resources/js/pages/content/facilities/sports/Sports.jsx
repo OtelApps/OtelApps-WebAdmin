@@ -1,26 +1,26 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { ContentCardsLayout } from '../../../../components/layout/ContentCardsLayout';
 
-export function RoomService() {
+export function Sports() {
     const [sections, setSections] = useState([]);
-    const [title, setTitle] = useState('Pokojová služba');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
+    const reloadSections = () =>
+        axios.get('/api/fitness/facilities').then((response) => {
+            setSections(response.data.sections ?? []);
+        });
 
     const load = () => {
         setLoading(true);
         setError(null);
-        axios
-            .get('/api/hotel-room-service/menus')
-            .then((response) => {
-                setTitle(response.data.title ?? 'Pokojová služba');
-                setSections(response.data.sections ?? []);
-            })
+        reloadSections()
             .catch((err) => {
                 const message =
                     err.response?.data?.message ||
-                    'Nepodařilo se načíst pokojovou službu. Zkontroluj Supabase a tabulky hotel_room_service_menus.';
+                    'Nepodařilo se načíst posilovnu a sport. Zkontroluj Supabase a tabulky fitness_facilities.';
                 setError(message);
             })
             .finally(() => setLoading(false));
@@ -33,7 +33,7 @@ export function RoomService() {
     if (loading) {
         return (
             <div className="p-6 flex items-center justify-center min-h-[40vh]">
-                <p className="text-gray-600 dark:text-gray-400">Načítání pokojové služby…</p>
+                <p className="text-gray-600 dark:text-gray-400">Načítání…</p>
             </div>
         );
     }
@@ -57,11 +57,15 @@ export function RoomService() {
     }
 
     return (
-        <ContentCardsLayout
-            title={title}
-            sections={sections}
-            moduleKey="room_service"
-            moduleType="services"
-        />
+        <div>
+
+            <ContentCardsLayout
+                title="Posilovna & Sport"
+                hideSectionTitle
+                sections={sections}
+                moduleKey="sports"
+                onReload={reloadSections}
+            />
+        </div>
     );
 }

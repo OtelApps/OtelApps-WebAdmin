@@ -55,36 +55,32 @@ export function getAddConfig(moduleKey, section, meta) {
                     return data.venue?.slug ?? slug;
                 },
             };
-        case 'relax_sport':
-            if (meta?.area === 'wellness-spa') {
-                return {
-                    modalTitle: 'Nové wellness zařízení',
-                    fields: [{ name: 'title', label: 'Název', required: true }],
-                    submit: async (values) => {
-                        const slug = slugify(values.title);
-                        await axios.post('/api/wellness/facilities', {
-                            slug,
-                            title: values.title.trim(),
-                        });
-                        return slug;
-                    },
-                };
-            }
-            if (meta?.area === 'gym-sport') {
-                return {
-                    modalTitle: 'Nové sportovní zařízení',
-                    fields: [{ name: 'title', label: 'Název', required: true }],
-                    submit: async (values) => {
-                        const slug = slugify(values.title);
-                        await axios.post('/api/fitness/facilities', {
-                            slug,
-                            title: values.title.trim(),
-                        });
-                        return slug;
-                    },
-                };
-            }
-            return null;
+        case 'wellness_spa':
+            return {
+                modalTitle: 'Nové wellness zařízení',
+                fields: [{ name: 'title', label: 'Název', required: true }],
+                submit: async (values) => {
+                    const slug = slugify(values.title);
+                    await axios.post('/api/wellness/facilities', {
+                        slug,
+                        title: values.title.trim(),
+                    });
+                    return slug;
+                },
+            };
+        case 'sports':
+            return {
+                modalTitle: 'Nové sportovní zařízení',
+                fields: [{ name: 'title', label: 'Název', required: true }],
+                submit: async (values) => {
+                    const slug = slugify(values.title);
+                    await axios.post('/api/fitness/facilities', {
+                        slug,
+                        title: values.title.trim(),
+                    });
+                    return slug;
+                },
+            };
         case 'hotel_info':
             return {
                 modalTitle: 'Nové téma',
@@ -199,12 +195,11 @@ export async function deleteListItem({ moduleKey, moduleType, moduleArea, item, 
         case 'restaurants_bars':
             await axios.delete(`/api/venues/${slug}`);
             return;
-        case 'relax_sport':
-            if (moduleArea === 'wellness-spa' || meta?.area === 'wellness-spa') {
-                await axios.delete(`/api/wellness/facilities/${slug}`);
-            } else {
-                await axios.delete(`/api/fitness/facilities/${slug}`);
-            }
+        case 'wellness_spa':
+            await axios.delete(`/api/wellness/facilities/${slug}`);
+            return;
+        case 'sports':
+            await axios.delete(`/api/fitness/facilities/${slug}`);
             return;
         case 'hotel_info':
             await axios.delete(`/api/hotel-info/topics/${slug}`);

@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
-import { FormSaveBar } from '../../../../components/FormSaveBar';
+import { ModuleEditLayout } from '../../../../components/layout/ModuleEditLayout';
+import { SectionCard, Field } from '../../../../components/ui/LayoutBlocks';
+import { FormSaveBar } from '../../../../components/ui/FormSaveBar';
 
 export function ParkingTopicEdit() {
     const { id: slug } = useParams();
@@ -111,128 +113,93 @@ export function ParkingTopicEdit() {
 
     const isExternal = topic.link_type === 'external';
 
+    const inputClass =
+        'w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500';
+
     return (
-        <div className="p-6 max-w-5xl">
-            <div className="flex items-center justify-between mb-6">
-                <div>
-                    <button
-                        type="button"
-                        onClick={() => navigate('/module/other/parking')}
-                        className="text-sm text-gray-500 hover:text-orange-500 mb-2"
-                    >
-                        ← Parkování
-                    </button>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{topic.title}</h1>
-                    <p className="text-sm text-gray-500 mt-1">
-                        {isExternal ? 'Externí odkaz' : navigationScreen} · {topic.slug}
-                    </p>
-                </div>
-                {saveStatus && (
-                    <span
-                        className={`text-sm font-medium ${
-                            saveStatus === 'saved'
-                                ? 'text-green-600'
-                                : saveStatus === 'error'
-                                  ? 'text-red-600'
-                                  : 'text-gray-500'
-                        }`}
-                    >
-                        {saveStatus === 'saving' && 'Ukládám…'}
-                        {saveStatus === 'saved' && 'Uloženo'}
-                        {saveStatus === 'error' && 'Chyba ukládání'}
-                    </span>
-                )}
-            </div>
-
-            <div className="space-y-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-                <Field label="Název">
-                    <input
-                        className={inputClass}
-                        value={topic.title}
-                        onChange={(e) => updateField('title', e.target.value)}
-                    />
-                </Field>
-                <Field label="Slug">
-                    <input className={`${inputClass} bg-gray-50 dark:bg-gray-900`} value={topic.slug} readOnly />
-                </Field>
-                <Field label="Popis v seznamu">
-                    <textarea
-                        className={inputClass}
-                        rows={3}
-                        value={topic.list_description || ''}
-                        onChange={(e) => updateField('list_description', e.target.value)}
-                    />
-                </Field>
-
-                <Field label="Typ položky">
-                    <div className="flex flex-wrap gap-4 mt-1">
-                        <label className="flex items-center gap-2 text-sm cursor-pointer">
-                            <input
-                                type="radio"
-                                name="link_type"
-                                checked={!isExternal}
-                                onChange={() => setLinkType('detail')}
-                                className="text-orange-500"
-                            />
-                            Detail v aplikaci ({navigationScreen})
-                        </label>
-                        <label className="flex items-center gap-2 text-sm cursor-pointer">
-                            <input
-                                type="radio"
-                                name="link_type"
-                                checked={isExternal}
-                                onChange={() => setLinkType('external')}
-                                className="text-orange-500"
-                            />
-                            Externí odkaz
-                        </label>
-                    </div>
-                </Field>
-
-                {isExternal ? (
-                    <Field label="URL (otevře se v prohlížeči)">
+        <ModuleEditLayout
+            title={topic.title}
+            subtitle={`${isExternal ? 'Externí odkaz' : navigationScreen} · ${topic.slug}`}
+            backTo="/module/other/parking"
+            backLabel="Parkování"
+            saveStatus={saveStatus}
+            onSave={saveInformation}
+        >
+            <div className="space-y-4">
+                <SectionCard>
+                    <Field label="Název">
                         <input
                             className={inputClass}
-                            type="url"
-                            value={topic.external_url || ''}
-                            onChange={(e) => updateField('external_url', e.target.value)}
-                            placeholder="https://parking.praha.eu"
+                            value={topic.title}
+                            onChange={(e) => updateField('title', e.target.value)}
                         />
                     </Field>
-                ) : (
-                    <Field label="Text na detailu v aplikaci">
+                    <Field label="Slug">
+                        <input className={`${inputClass} bg-gray-50 dark:bg-gray-900`} value={topic.slug} readOnly />
+                    </Field>
+                    <Field label="Popis v seznamu">
                         <textarea
                             className={inputClass}
-                            rows={8}
-                            value={topic.detail_info || ''}
-                            onChange={(e) => updateField('detail_info', e.target.value)}
+                            rows={3}
+                            value={topic.list_description || ''}
+                            onChange={(e) => updateField('list_description', e.target.value)}
                         />
                     </Field>
-                )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Field label="Obrázek v seznamu (klíč)">
-                        <select
-                            className={inputClass}
-                            value={topic.list_image_key || ''}
-                            onChange={(e) => updateField('list_image_key', e.target.value || null)}
-                        >
-                            <option value="">— žádný —</option>
-                            {imageKeys.map((key) => (
-                                <option key={key} value={key}>
-                                    {key}
-                                </option>
-                            ))}
-                        </select>
+                    <Field label="Typ položky">
+                        <div className="flex flex-wrap gap-4 mt-1">
+                            <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                <input
+                                    type="radio"
+                                    name="link_type"
+                                    checked={!isExternal}
+                                    onChange={() => setLinkType('detail')}
+                                    className="text-orange-500"
+                                />
+                                Detail v aplikaci ({navigationScreen})
+                            </label>
+                            <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                <input
+                                    type="radio"
+                                    name="link_type"
+                                    checked={isExternal}
+                                    onChange={() => setLinkType('external')}
+                                    className="text-orange-500"
+                                />
+                                Externí odkaz
+                            </label>
+                        </div>
                     </Field>
-                    {!isExternal && (
-                        <Field label="Obrázek na detailu (klíč)">
+
+                    {isExternal ? (
+                        <Field label="URL (otevře se v prohlížeči)">
+                            <input
+                                className={inputClass}
+                                type="url"
+                                value={topic.external_url || ''}
+                                onChange={(e) => updateField('external_url', e.target.value)}
+                                placeholder="https://parking.praha.eu"
+                            />
+                        </Field>
+                    ) : (
+                        <Field label="Text na detailu v aplikaci">
+                            <textarea
+                                className={inputClass}
+                                rows={8}
+                                value={topic.detail_info || ''}
+                                onChange={(e) => updateField('detail_info', e.target.value)}
+                            />
+                        </Field>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Field label="Obrázek v seznamu (klíč)">
                             <select
                                 className={inputClass}
-                                value={topic.detail_image_key || ''}
-                                onChange={(e) => updateField('detail_image_key', e.target.value || null)}
+                                value={topic.list_image_key || ''}
+                                onChange={(e) => updateField('list_image_key', e.target.value || null)}
                             >
-                                <option value="">— stejný jako v seznamu —</option>
+                                <option value="">— žádný —</option>
                                 {imageKeys.map((key) => (
                                     <option key={key} value={key}>
                                         {key}
@@ -240,40 +207,43 @@ export function ParkingTopicEdit() {
                                 ))}
                             </select>
                         </Field>
-                    )}
-                </div>
+                        {!isExternal && (
+                            <Field label="Obrázek na detailu (klíč)">
+                                <select
+                                    className={inputClass}
+                                    value={topic.detail_image_key || ''}
+                                    onChange={(e) => updateField('detail_image_key', e.target.value || null)}
+                                >
+                                    <option value="">— stejný jako v seznamu —</option>
+                                    {imageKeys.map((key) => (
+                                        <option key={key} value={key}>
+                                            {key}
+                                        </option>
+                                    ))}
+                                </select>
+                            </Field>
+                        )}
+                    </div>
 
-                <Field label="Pořadí">
-                    <input
-                        type="number"
-                        className={inputClass}
-                        value={topic.sort_order}
-                        onChange={(e) => updateField('sort_order', parseInt(e.target.value, 10) || 0)}
-                    />
-                </Field>
-                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                    <input
-                        type="checkbox"
-                        checked={topic.is_active}
-                        onChange={(e) => updateField('is_active', e.target.checked)}
-                        className="rounded text-orange-500"
-                    />
-                    Aktivní (zobrazit v aplikaci)
-                </label>
-                <FormSaveBar onSave={saveInformation} saveStatus={saveStatus} label="Uložit" />
+                    <Field label="Pořadí">
+                        <input
+                            type="number"
+                            className={inputClass}
+                            value={topic.sort_order}
+                            onChange={(e) => updateField('sort_order', parseInt(e.target.value, 10) || 0)}
+                        />
+                    </Field>
+                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                        <input
+                            type="checkbox"
+                            checked={topic.is_active}
+                            onChange={(e) => updateField('is_active', e.target.checked)}
+                            className="rounded text-orange-500"
+                        />
+                        Aktivní (zobrazit v aplikaci)
+                    </label>
+                </SectionCard>
             </div>
-        </div>
+        </ModuleEditLayout>
     );
 }
-
-function Field({ label, children }) {
-    return (
-        <label className="block">
-            <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</span>
-            {children}
-        </label>
-    );
-}
-
-const inputClass =
-    'w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500';

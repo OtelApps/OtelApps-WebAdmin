@@ -100,6 +100,7 @@ Route::prefix('api')->group(function () {
     Route::post('/venues', [VenueController::class, 'store']);
     Route::get('/venues/{slug}', [VenueController::class, 'show']);
     Route::put('/venues/{slug}', [VenueController::class, 'update']);
+    Route::put('/venues/{slug}/hours', [VenueController::class, 'updateHours']);
     Route::put('/venues/{slug}/menus', [VenueController::class, 'updateMenus']);
     Route::delete('/venues/{slug}', [VenueController::class, 'destroy']);
 

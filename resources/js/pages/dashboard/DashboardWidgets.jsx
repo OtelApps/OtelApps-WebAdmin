@@ -1,6 +1,6 @@
 import React from 'react';
-import { HotelOverviewCard } from '../../components/HotelOverviewCard';
-import { RevenueUpsellPanel } from '../../components/RevenueUpsellPanel';
+import { HotelOverviewCard } from '../../components/dashboard/HotelOverviewCard';
+import { RevenueUpsellPanel } from '../../components/dashboard/RevenueUpsellPanel';
 import { formatMoney } from '../../utils/formatMoney';
 
 function ShortcutCard({ icon, title, description, primaryLabel, onPrimary, disabled = false, badge = null }) {

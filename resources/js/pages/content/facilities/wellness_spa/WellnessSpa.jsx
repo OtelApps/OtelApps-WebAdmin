@@ -1,26 +1,27 @@
 import React, { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { ContentCardsLayout } from '../../../../components/layout/ContentCardsLayout';
 
-export function RoomService() {
+export function WellnessSpa() {
+    const navigate = useNavigate();
     const [sections, setSections] = useState([]);
-    const [title, setTitle] = useState('Pokojová služba');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
+    const reloadSections = () =>
+        axios.get('/api/wellness/facilities').then((response) => {
+            setSections(response.data.sections ?? []);
+        });
 
     const load = () => {
         setLoading(true);
         setError(null);
-        axios
-            .get('/api/hotel-room-service/menus')
-            .then((response) => {
-                setTitle(response.data.title ?? 'Pokojová služba');
-                setSections(response.data.sections ?? []);
-            })
+        reloadSections()
             .catch((err) => {
                 const message =
                     err.response?.data?.message ||
-                    'Nepodařilo se načíst pokojovou službu. Zkontroluj Supabase a tabulky hotel_room_service_menus.';
+                    'Nepodařilo se načíst wellness. Zkontroluj připojení k Supabase (OTELAPPS_DB_CONNECTION v .env).';
                 setError(message);
             })
             .finally(() => setLoading(false));
@@ -33,7 +34,7 @@ export function RoomService() {
     if (loading) {
         return (
             <div className="p-6 flex items-center justify-center min-h-[40vh]">
-                <p className="text-gray-600 dark:text-gray-400">Načítání pokojové služby…</p>
+                <p className="text-gray-600 dark:text-gray-400">Načítání wellness…</p>
             </div>
         );
     }
@@ -57,11 +58,26 @@ export function RoomService() {
     }
 
     return (
-        <ContentCardsLayout
-            title={title}
+        <div>
+
+            <ContentCardsLayout
+            title="Wellness & SPA"
+            hideSectionTitle
             sections={sections}
-            moduleKey="room_service"
-            moduleType="services"
+            moduleKey="wellness_spa"
+            onReload={reloadSections}
+            headerActions={
+                <button
+                    type="button"
+                    onClick={() =>
+                        navigate('/module/facilities/wellness_spa/program/edit')
+                    }
+                    className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                >
+                    Hotelový program →
+                </button>
+            }
         />
+        </div>
     );
 }

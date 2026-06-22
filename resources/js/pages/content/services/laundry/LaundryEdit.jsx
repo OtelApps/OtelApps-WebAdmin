@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
-import { FormSaveBar } from '../../../../components/FormSaveBar';
+import { ModuleEditLayout } from '../../../../components/layout/ModuleEditLayout';
+import { SectionCard, Field } from '../../../../components/ui/LayoutBlocks';
+import { FormSaveBar } from '../../../../components/ui/FormSaveBar';
 import { LaundryCatalogTab } from './LaundryCatalogTab';
 
 const TABS = [
@@ -10,18 +12,9 @@ const TABS = [
     { id: 'catalog', label: 'Katalog' },
 ];
 
-const TAB_IDS = TABS.map((t) => t.id);
-
-function tabFromHash(hash) {
-    const id = hash.replace(/^#/, '');
-    return TAB_IDS.includes(id) ? id : 'information';
-}
-
 export function LaundryEdit() {
     const { id: slug } = useParams();
-    const location = useLocation();
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState(() => tabFromHash(location.hash));
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [saveStatus, setSaveStatus] = useState(null);
@@ -51,17 +44,7 @@ export function LaundryEdit() {
         load();
     }, [load]);
 
-    useEffect(() => {
-        setActiveTab(tabFromHash(location.hash));
-    }, [location.hash]);
 
-    const selectTab = (tabId) => {
-        setActiveTab(tabId);
-        navigate(
-            { pathname: `/module/services/laundry/${slug}/edit`, hash: tabId },
-            { replace: true }
-        );
-    };
 
     const showSaveStatus = (status) => {
         setSaveStatus(status);
@@ -156,156 +139,117 @@ export function LaundryEdit() {
         );
     }
 
+    const inputClass =
+        'w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500';
+
     return (
-        <div className="p-6 max-w-5xl">
-            <div className="flex items-center justify-between mb-6">
-                <div>
-                    <button
-                        type="button"
-                        onClick={() => navigate('/module/services/laundry')}
-                        className="text-sm text-gray-500 hover:text-orange-500 mb-2"
-                    >
-                        ← Úklid pokoje
-                    </button>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{housekeeping.title}</h1>
-                    <p className="text-sm text-gray-500 mt-1">{housekeeping.slug}</p>
-                </div>
-                {saveStatus && (
-                    <span
-                        className={`text-sm font-medium ${
-                            saveStatus === 'saved'
-                                ? 'text-green-600'
-                                : saveStatus === 'error'
-                                  ? 'text-red-600'
-                                  : 'text-gray-500'
-                        }`}
-                    >
-                        {saveStatus === 'saving' && 'Ukládám…'}
-                        {saveStatus === 'saved' && 'Uloženo'}
-                        {saveStatus === 'error' && 'Chyba ukládání'}
-                    </span>
-                )}
-            </div>
+        <ModuleEditLayout
+            title={housekeeping.title}
+            subtitle={housekeeping.slug}
+            backTo="/module/services/laundry"
+            backLabel="Úklid pokoje"
+            saveStatus={saveStatus}
+            tabs={TABS}
+            onSave={(activeTab) => {
+                if (activeTab === 'information') saveInformation();
+                if (activeTab === 'hours') saveHours();
+                if (activeTab === 'catalog') saveCatalog();
+            }}
+        >
+            {(activeTab) => (
+                <>
+                    {activeTab === 'information' && (
+                        <div className="space-y-4">
+                            <SectionCard>
+                                <Field label="Název služby">
+                                    <input
+                                        className={inputClass}
+                                        value={housekeeping.title}
+                                        onChange={(e) => updateField('title', e.target.value)}
+                                    />
+                                </Field>
+                                <Field label="Slug">
+                                    <input
+                                        className={`${inputClass} bg-gray-50 dark:bg-gray-900`}
+                                        value={housekeeping.slug}
+                                        readOnly
+                                    />
+                                </Field>
+                                <Field label="Popis">
+                                    <textarea
+                                        className={inputClass}
+                                        rows={5}
+                                        value={housekeeping.description || ''}
+                                        onChange={(e) => updateField('description', e.target.value)}
+                                    />
+                                </Field>
+                                <Field label="Shrnutí rozpisu">
+                                    <input
+                                        className={inputClass}
+                                        value={housekeeping.schedule_summary || ''}
+                                        onChange={(e) => updateField('schedule_summary', e.target.value || null)}
+                                        placeholder="06:00 - 20:00"
+                                    />
+                                </Field>
+                                <Field label="Klíč hlavičkového obrázku">
+                                    <select
+                                        className={inputClass}
+                                        value={housekeeping.header_image_key || ''}
+                                        onChange={(e) => updateField('header_image_key', e.target.value || null)}
+                                    >
+                                        <option value="">— žádný —</option>
+                                        {imageKeys.map((key) => (
+                                            <option key={key} value={key}>
+                                                {key}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </Field>
+                                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                                        <input
+                                            type="checkbox"
+                                            checked={housekeeping.is_active}
+                                            onChange={(e) => updateField('is_active', e.target.checked)}
+                                            className="rounded text-orange-500"
+                                        />
+                                        Aktivní (zobrazit v aplikaci)
+                                    </label>
+                                </SectionCard>
+                            </div>
+                    )}
 
-            <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700 mb-6 overflow-x-auto">
-                {TABS.map((tab) => (
-                    <button
-                        key={tab.id}
-                        type="button"
-                        onClick={() => selectTab(tab.id)}
-                        className={`shrink-0 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                            activeTab === tab.id
-                                ? 'border-orange-500 text-orange-500'
-                                : 'border-transparent text-gray-500 hover:text-gray-800 dark:hover:text-gray-200'
-                        }`}
-                    >
-                        {tab.label}
-                    </button>
-                ))}
-            </div>
-
-            {activeTab === 'information' && (
-                <div className="space-y-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-                    <Field label="Název služby">
-                        <input
-                            className={inputClass}
-                            value={housekeeping.title}
-                            onChange={(e) => updateField('title', e.target.value)}
-                        />
-                    </Field>
-                    <Field label="Slug">
-                        <input
-                            className={`${inputClass} bg-gray-50 dark:bg-gray-900`}
-                            value={housekeeping.slug}
-                            readOnly
-                        />
-                    </Field>
-                    <Field label="Popis">
-                        <textarea
-                            className={inputClass}
-                            rows={5}
-                            value={housekeeping.description || ''}
-                            onChange={(e) => updateField('description', e.target.value)}
-                        />
-                    </Field>
-                    <Field label="Shrnutí rozpisu">
-                        <input
-                            className={inputClass}
-                            value={housekeeping.schedule_summary || ''}
-                            onChange={(e) => updateField('schedule_summary', e.target.value || null)}
-                            placeholder="06:00 - 20:00"
-                        />
-                    </Field>
-                    <Field label="Klíč hlavičkového obrázku">
-                        <select
-                            className={inputClass}
-                            value={housekeeping.header_image_key || ''}
-                            onChange={(e) => updateField('header_image_key', e.target.value || null)}
-                        >
-                            <option value="">— žádný —</option>
-                            {imageKeys.map((key) => (
-                                <option key={key} value={key}>
-                                    {key}
-                                </option>
+                    {activeTab === 'hours' && (
+                        <SectionCard title="Otevírací doba" description="Nastavte otevírací dobu pro jednotlivé dny. Lze zvolit konkrétní hodiny, nonstop provoz (24/7), nebo zavřeno." className="max-w-3xl">
+                            <p className="text-sm text-gray-500 mb-4">
+                                Otevírací doba — tabulka <code className="text-xs">hotel_housekeeping_hours</code>
+                            </p>
+                            {openingHours.map((row) => (
+                                <div key={row.day_order} className="grid grid-cols-3 gap-3 items-center mb-3">
+                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        {row.day_name}
+                                    </span>
+                                    <input
+                                        className={`${inputClass} col-span-2`}
+                                        value={row.hours_text}
+                                        onChange={(e) => updateHoursRow(row.day_order, e.target.value)}
+                                        placeholder="06:00 - 20:00"
+                                    />
+                                </div>
                             ))}
-                        </select>
-                    </Field>
-                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                        <input
-                            type="checkbox"
-                            checked={housekeeping.is_active}
-                            onChange={(e) => updateField('is_active', e.target.checked)}
-                            className="rounded text-orange-500"
+                        </SectionCard>
+                    )}
+
+                    {activeTab === 'catalog' && (
+                        <LaundryCatalogTab
+                            categories={categories}
+                            setCategories={setCategories}
+                            onSave={saveCatalog}
+                            saveStatus={saveStatus}
+                            imageKeys={imageKeys}
                         />
-                        Aktivní (zobrazit v aplikaci)
-                    </label>
-                    <FormSaveBar onSave={saveInformation} saveStatus={saveStatus} label="Uložit informace" />
-                </div>
+                    )}
+                </>
             )}
-
-            {activeTab === 'hours' && (
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 space-y-3">
-                    <p className="text-sm text-gray-500 mb-4">
-                        Otevírací doba — tabulka <code className="text-xs">hotel_housekeeping_hours</code>
-                    </p>
-                    {openingHours.map((row) => (
-                        <div key={row.day_order} className="grid grid-cols-3 gap-3 items-center">
-                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                {row.day_name}
-                            </span>
-                            <input
-                                className={`${inputClass} col-span-2`}
-                                value={row.hours_text}
-                                onChange={(e) => updateHoursRow(row.day_order, e.target.value)}
-                                placeholder="06:00 - 20:00"
-                            />
-                        </div>
-                    ))}
-                    <FormSaveBar onSave={saveHours} saveStatus={saveStatus} label="Uložit rozpis" />
-                </div>
-            )}
-
-            {activeTab === 'catalog' && (
-                <LaundryCatalogTab
-                    categories={categories}
-                    setCategories={setCategories}
-                    onSave={saveCatalog}
-                    saveStatus={saveStatus}
-                    imageKeys={imageKeys}
-                />
-            )}
-        </div>
+        </ModuleEditLayout>
     );
 }
-
-function Field({ label, children }) {
-    return (
-        <label className="block">
-            <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</span>
-            {children}
-        </label>
-    );
-}
-
-const inputClass =
-    'w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500';

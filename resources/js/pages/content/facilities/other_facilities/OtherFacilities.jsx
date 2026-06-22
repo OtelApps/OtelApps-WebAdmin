@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { ContentCardsLayout } from '../../../../components/ContentCardsLayout';
+import { ContentCardsLayout } from '../../../../components/layout/ContentCardsLayout';
 
 export function OtherFacilities() {
     const [sections, setSections] = useState([]);

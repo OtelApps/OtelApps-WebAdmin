@@ -2,7 +2,7 @@ import './bootstrap';
 import '../css/app.css';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import { App } from './components/App';
+import { App } from './components/layout/App';
 import Alpine from 'alpinejs';
 import React from 'react';
 

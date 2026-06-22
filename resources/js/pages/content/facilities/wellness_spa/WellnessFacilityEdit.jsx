@@ -4,39 +4,41 @@ import axios from 'axios';
 import { ModuleEditLayout } from '../../../../components/layout/ModuleEditLayout';
 import { SectionCard, Field } from '../../../../components/ui/LayoutBlocks';
 import { FormSaveBar } from '../../../../components/ui/FormSaveBar';
-import { HotelRoomFeaturesTab } from './HotelRoomFeaturesTab';
-import { HotelRoomGalleryTab } from './HotelRoomGalleryTab';
+import { WellnessServicesTab } from './WellnessServicesTab';
+import { WeeklyHoursPicker } from '../../../../components/ui/WeeklyHoursPicker';
+import { parseTextHours, formatTextHours } from '../../../../utils/hoursParser';
 
-const TABS = [
+const BASE_TABS = [
     { id: 'information', label: 'Informace' },
-    { id: 'features', label: 'Vybavení' },
-    { id: 'gallery', label: 'Galerie' },
+    { id: 'hours', label: 'Otevírací doba' },
 ];
 
-export function HotelRoomTypeEdit() {
+export function WellnessFacilityEdit() {
     const { id: slug } = useParams();
     const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [saveStatus, setSaveStatus] = useState(null);
-    const [roomType, setRoomType] = useState(null);
-    const [features, setFeatures] = useState([]);
-    const [gallery, setGallery] = useState([]);
+    const [facility, setFacility] = useState(null);
+    const [openingHours, setOpeningHours] = useState([]);
+    const [services, setServices] = useState([]);
     const [imageKeys, setImageKeys] = useState([]);
+    const [detailScreens, setDetailScreens] = useState([]);
 
     const load = useCallback(() => {
         setLoading(true);
         setError(null);
         axios
-            .get(`/api/hotel-rooms/types/${slug}`)
+            .get(`/api/wellness/facilities/${slug}`)
             .then((res) => {
-                setRoomType(res.data.room_type);
-                setFeatures(res.data.features ?? []);
-                setGallery(res.data.gallery ?? []);
+                setFacility(res.data.facility);
+                setOpeningHours(parseTextHours(res.data.opening_hours ?? []));
+                setServices(res.data.services ?? []);
                 setImageKeys(res.data.image_keys ?? []);
+                setDetailScreens(res.data.detail_screens ?? []);
             })
             .catch((err) => {
-                setError(err.response?.data?.message || 'Typ pokoje se nepodařilo načíst.');
+                setError(err.response?.data?.message || 'Oblast se nepodařila načíst.');
             })
             .finally(() => setLoading(false));
     }, [slug]);
@@ -51,11 +53,12 @@ export function HotelRoomTypeEdit() {
         if (status === 'error') setTimeout(() => setSaveStatus(null), 4000);
     };
 
-    const saveRoomType = async (payload) => {
+    const saveFacility = async (payload) => {
         setSaveStatus('saving');
         try {
-            const { data } = await axios.put(`/api/hotel-rooms/types/${slug}`, payload);
-            setRoomType(data.room_type);
+            const { data } = await axios.put(`/api/wellness/facilities/${slug}`, payload);
+            setFacility(data.facility);
+            if (payload.opening_hours) setOpeningHours(parseTextHours(payload.opening_hours));
             showSaveStatus('saved');
         } catch (e) {
             console.error(e);
@@ -63,33 +66,42 @@ export function HotelRoomTypeEdit() {
         }
     };
 
-    const buildRoomTypePayload = (r) => ({
-        title: r.title,
-        list_description: r.list_description,
-        detail_info: r.detail_info,
-        size_text: r.size_text,
-        image_key: r.image_key,
-        sort_order: r.sort_order,
-        is_active: r.is_active,
+    const buildFacilityPayload = (f) => ({
+        title: f.title,
+        list_label: f.list_label,
+        schedule_summary: f.schedule_summary,
+        description_long: f.description_long,
+        image_key: f.image_key,
+        detail_screen: f.detail_screen,
+        sort_order: f.sort_order,
+        is_active: f.is_active,
     });
 
     const updateField = (field, value) => {
-        setRoomType((prev) => (prev ? { ...prev, [field]: value } : prev));
+        setFacility((prev) => (prev ? { ...prev, [field]: value } : prev));
     };
 
     const saveInformation = () => {
-        if (!roomType) return;
-        saveRoomType(buildRoomTypePayload(roomType));
+        if (!facility) return;
+        saveFacility(buildFacilityPayload(facility));
     };
 
-    const saveFeatures = async (featuresPayload) => {
-        const payload = featuresPayload ?? features;
+    const updateHoursRow = (dayIndex, field, value) => {
+        setOpeningHours((prev) =>
+            prev.map((row, index) => (index === dayIndex ? { ...row, [field]: value } : row))
+        );
+    };
+
+    const saveHours = () => saveFacility({ opening_hours: formatTextHours(openingHours) });
+
+    const saveServices = async (servicesPayload) => {
+        const payload = servicesPayload ?? services;
         setSaveStatus('saving');
         try {
-            const { data } = await axios.put(`/api/hotel-rooms/types/${slug}/features`, {
-                features: payload,
+            const { data } = await axios.put(`/api/wellness/facilities/${slug}/services`, {
+                services: payload,
             });
-            setFeatures(data.features ?? []);
+            setServices(data.services ?? []);
             showSaveStatus('saved');
         } catch (e) {
             console.error(e);
@@ -97,20 +109,14 @@ export function HotelRoomTypeEdit() {
         }
     };
 
-    const saveGallery = async (galleryPayload) => {
-        const payload = galleryPayload ?? gallery;
-        setSaveStatus('saving');
-        try {
-            const { data } = await axios.put(`/api/hotel-rooms/types/${slug}/gallery`, {
-                gallery: payload,
-            });
-            setGallery(data.gallery ?? []);
-            showSaveStatus('saved');
-        } catch (e) {
-            console.error(e);
-            showSaveStatus('error');
-        }
-    };
+    const showServicesTab =
+        facility?.detail_screen === 'ThaiMassageDetail' ||
+        facility?.has_services ||
+        services.length > 0;
+
+    const tabs = showServicesTab
+        ? [...BASE_TABS, { id: 'services', label: 'Ceník služeb' }]
+        : BASE_TABS;
 
     if (loading) {
         return (
@@ -120,13 +126,13 @@ export function HotelRoomTypeEdit() {
         );
     }
 
-    if (error || !roomType) {
+    if (error || !facility) {
         return (
             <div className="p-6">
-                <p className="text-red-600 mb-4">{error || 'Typ pokoje nenalezen.'}</p>
+                <p className="text-red-600 mb-4">{error || 'Oblast nenalezena.'}</p>
                 <button
                     type="button"
-                    onClick={() => navigate('/module/other/hotel_rooms')}
+                    onClick={() => navigate('/module/facilities/wellness_spa')}
                     className="text-orange-500 hover:underline"
                 >
                     ← Zpět na seznam
@@ -140,16 +146,16 @@ export function HotelRoomTypeEdit() {
 
     return (
         <ModuleEditLayout
-            title={roomType.title}
-            subtitle={`${roomType.size_text ? `${roomType.size_text} · ` : ''}${roomType.slug}`}
-            backTo="/module/other/hotel_rooms"
-            backLabel="Nabídka pokojů"
+            title={facility.title}
+            subtitle={`${facility.detail_screen} · ${facility.slug}`}
+            backTo="/module/facilities/wellness_spa"
+            backLabel="Wellness & SPA"
             saveStatus={saveStatus}
-            tabs={TABS}
+            tabs={tabs}
             onSave={(activeTab) => {
                 if (activeTab === 'information') saveInformation();
-                if (activeTab === 'features') saveFeatures();
-                if (activeTab === 'gallery') saveGallery();
+                if (activeTab === 'hours') saveHours();
+                if (activeTab === 'services') saveServices();
             }}
         >
             {(activeTab) => (
@@ -160,41 +166,53 @@ export function HotelRoomTypeEdit() {
                                 <Field label="Název">
                                     <input
                                         className={inputClass}
-                                        value={roomType.title}
+                                        value={facility.title}
                                         onChange={(e) => updateField('title', e.target.value)}
                                     />
                                 </Field>
                                 <Field label="Slug">
-                                    <input className={`${inputClass} bg-gray-50 dark:bg-gray-900`} value={roomType.slug} readOnly />
+                                    <input className={`${inputClass} bg-gray-50 dark:bg-gray-900`} value={facility.slug} readOnly />
                                 </Field>
-                                <Field label="Popis v seznamu">
+                                <Field label="Popis (detail v aplikaci)">
                                     <textarea
                                         className={inputClass}
-                                        rows={3}
-                                        value={roomType.list_description || ''}
-                                        onChange={(e) => updateField('list_description', e.target.value)}
+                                        rows={6}
+                                        value={facility.description_long || ''}
+                                        onChange={(e) => updateField('description_long', e.target.value)}
                                     />
                                 </Field>
-                                <Field label="Detailní popis">
-                                    <textarea
-                                        className={inputClass}
-                                        rows={5}
-                                        value={roomType.detail_info || ''}
-                                        onChange={(e) => updateField('detail_info', e.target.value)}
-                                    />
-                                </Field>
-                                <Field label="Velikost (zobrazení v seznamu)">
+                                <Field label="Shrnutí otevírací doby (v seznamu)">
                                     <input
                                         className={inputClass}
-                                        value={roomType.size_text || ''}
-                                        onChange={(e) => updateField('size_text', e.target.value || null)}
-                                        placeholder="např. 32 m2"
+                                        value={facility.schedule_summary || ''}
+                                        onChange={(e) => updateField('schedule_summary', e.target.value)}
+                                        placeholder="např. Od 10:00 - Do 20:00"
                                     />
                                 </Field>
-                                <Field label="Klíč hlavního obrázku">
+                                <Field label="Štítek v seznamu">
+                                    <input
+                                        className={inputClass}
+                                        value={facility.list_label || ''}
+                                        onChange={(e) => updateField('list_label', e.target.value)}
+                                    />
+                                </Field>
+                                <Field label="Obrazovka detailu v aplikaci">
                                     <select
                                         className={inputClass}
-                                        value={roomType.image_key || ''}
+                                        value={facility.detail_screen}
+                                        onChange={(e) => updateField('detail_screen', e.target.value)}
+                                    >
+                                        {detailScreens.map((s) => (
+                                            <option key={s} value={s}>
+                                                {s}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </Field>
+                                <Field label="Klíč obrázku">
+                                    <select
+                                        className={inputClass}
+                                        value={facility.image_key || ''}
                                         onChange={(e) => updateField('image_key', e.target.value || null)}
                                     >
                                         <option value="">— žádný —</option>
@@ -209,14 +227,14 @@ export function HotelRoomTypeEdit() {
                                     <input
                                         type="number"
                                         className={inputClass}
-                                        value={roomType.sort_order}
+                                        value={facility.sort_order}
                                         onChange={(e) => updateField('sort_order', parseInt(e.target.value, 10) || 0)}
                                     />
                                 </Field>
                                     <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                                         <input
                                             type="checkbox"
-                                            checked={roomType.is_active}
+                                            checked={facility.is_active}
                                             onChange={(e) => updateField('is_active', e.target.checked)}
                                             className="rounded text-orange-500"
                                         />
@@ -226,22 +244,18 @@ export function HotelRoomTypeEdit() {
                             </div>
                     )}
 
-                    {activeTab === 'features' && (
-                        <HotelRoomFeaturesTab
-                            features={features}
-                            setFeatures={setFeatures}
-                            onSave={saveFeatures}
-                            saveStatus={saveStatus}
-                        />
+                    {activeTab === 'hours' && (
+                        <SectionCard title="Otevírací doba" description="Tabulka wellness_facility_hours" className="max-w-3xl">
+                            <WeeklyHoursPicker days={openingHours} onChange={updateHoursRow} />
+                        </SectionCard>
                     )}
 
-                    {activeTab === 'gallery' && (
-                        <HotelRoomGalleryTab
-                            gallery={gallery}
-                            setGallery={setGallery}
-                            onSave={saveGallery}
+                    {activeTab === 'services' && showServicesTab && (
+                        <WellnessServicesTab
+                            services={services}
+                            setServices={setServices}
+                            onSave={saveServices}
                             saveStatus={saveStatus}
-                            imageKeys={imageKeys}
                         />
                     )}
                 </>

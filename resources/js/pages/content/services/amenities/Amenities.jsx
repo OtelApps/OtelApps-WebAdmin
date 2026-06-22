@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { ContentCardsLayout } from '../../../../components/ContentCardsLayout';
+import { ContentCardsLayout } from '../../../../components/layout/ContentCardsLayout';
 
 export function Amenities() {
     const navigate = useNavigate();
@@ -109,7 +109,6 @@ export function Amenities() {
                 sections={sections}
                 moduleKey="amenities"
                 moduleType="services"
-                editTab="catalog"
                 onReload={reloadSections}
                 listMeta={{ suppliesSlug: meta?.suppliesSlug }}
             />

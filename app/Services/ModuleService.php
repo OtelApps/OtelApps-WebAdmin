@@ -8,7 +8,8 @@ class ModuleService
         'content' => [
             'facilities' => [
                 'restaurants_bars',
-                'relax_sport',
+                'wellness_spa',
+                'sports',
                 'other_facilities',
             ],
             'services' => [

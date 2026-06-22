@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
-import { FormSaveBar } from '../../../../components/FormSaveBar';
+import { ModuleEditLayout } from '../../../../components/layout/ModuleEditLayout';
+import { SectionCard, Field } from '../../../../components/ui/LayoutBlocks';
+import { FormSaveBar } from '../../../../components/ui/FormSaveBar';
 import { HotelInfoSectionsTab } from './HotelInfoSectionsTab';
 
 const BASE_TABS = [
@@ -12,7 +14,6 @@ const BASE_TABS = [
 export function HotelInfoTopicEdit() {
     const { id: slug } = useParams();
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState('information');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [saveStatus, setSaveStatus] = useState(null);
@@ -123,170 +124,129 @@ export function HotelInfoTopicEdit() {
         );
     }
 
+    const inputClass =
+        'w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500';
+
     return (
-        <div className="p-6 max-w-5xl">
-            <div className="flex items-center justify-between mb-6">
-                <div>
-                    <button
-                        type="button"
-                        onClick={() => navigate('/module/other/hotel_info')}
-                        className="text-sm text-gray-500 hover:text-orange-500 mb-2"
-                    >
-                        ← Informace o hotelu
-                    </button>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{topic.title}</h1>
-                    <p className="text-sm text-gray-500 mt-1">
-                        {topic.navigation_screen} · {topic.slug}
-                    </p>
-                </div>
-                {saveStatus && (
-                    <span
-                        className={`text-sm font-medium ${
-                            saveStatus === 'saved'
-                                ? 'text-green-600'
-                                : saveStatus === 'error'
-                                  ? 'text-red-600'
-                                  : 'text-gray-500'
-                        }`}
-                    >
-                        {saveStatus === 'saving' && 'Ukládám…'}
-                        {saveStatus === 'saved' && 'Uloženo'}
-                        {saveStatus === 'error' && 'Chyba ukládání'}
-                    </span>
-                )}
-            </div>
+        <ModuleEditLayout
+            title={topic.title}
+            subtitle={`${topic.navigation_screen} · ${topic.slug}`}
+            backTo="/module/other/hotel_info"
+            backLabel="Informace o hotelu"
+            saveStatus={saveStatus}
+            tabs={tabs}
+            onSave={(activeTab) => {
+                if (activeTab === 'information') saveInformation();
+                if (activeTab === 'sections') saveSections();
+            }}
+        >
+            {(activeTab) => (
+                <>
+                    {activeTab === 'information' && (
+                        <div className="space-y-4">
+                            <SectionCard>
+                                <Field label="Název">
+                                    <input
+                                        className={inputClass}
+                                        value={topic.title}
+                                        onChange={(e) => updateField('title', e.target.value)}
+                                    />
+                                </Field>
+                                <Field label="Slug">
+                                    <input className={`${inputClass} bg-gray-50 dark:bg-gray-900`} value={topic.slug} readOnly />
+                                </Field>
+                                <Field label="Popis v seznamu">
+                                    <textarea
+                                        className={inputClass}
+                                        rows={3}
+                                        value={topic.list_description || ''}
+                                        onChange={(e) => updateField('list_description', e.target.value)}
+                                    />
+                                </Field>
+                                <Field label="Úvodní text na detailu">
+                                    <textarea
+                                        className={inputClass}
+                                        rows={5}
+                                        value={topic.detail_info || ''}
+                                        onChange={(e) => updateField('detail_info', e.target.value || null)}
+                                        placeholder={isMapTopic ? 'Pro mapu obvykle prázdné' : ''}
+                                    />
+                                </Field>
+                                <Field label="Obrazovka v aplikaci">
+                                    <select
+                                        className={inputClass}
+                                        value={topic.navigation_screen}
+                                        onChange={(e) => updateField('navigation_screen', e.target.value)}
+                                    >
+                                        {navigationScreens.map((s) => (
+                                            <option key={s} value={s}>
+                                                {s}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </Field>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <Field label="Obrázek v seznamu (klíč)">
+                                        <select
+                                            className={inputClass}
+                                            value={topic.list_image_key || ''}
+                                            onChange={(e) => updateField('list_image_key', e.target.value || null)}
+                                        >
+                                            <option value="">— žádný —</option>
+                                            {imageKeys.map((key) => (
+                                                <option key={key} value={key}>
+                                                    {key}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </Field>
+                                    <Field label="Obrázek na detailu (klíč)">
+                                        <select
+                                            className={inputClass}
+                                            value={topic.detail_image_key || ''}
+                                            onChange={(e) => updateField('detail_image_key', e.target.value || null)}
+                                        >
+                                            <option value="">— stejný jako v seznamu —</option>
+                                            {imageKeys.map((key) => (
+                                                <option key={key} value={key}>
+                                                    {key}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </Field>
+                                </div>
+                                <Field label="Pořadí">
+                                    <input
+                                        type="number"
+                                        className={inputClass}
+                                        value={topic.sort_order}
+                                        onChange={(e) => updateField('sort_order', parseInt(e.target.value, 10) || 0)}
+                                    />
+                                </Field>
+                                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                                        <input
+                                            type="checkbox"
+                                            checked={topic.is_active}
+                                            onChange={(e) => updateField('is_active', e.target.checked)}
+                                            className="rounded text-orange-500"
+                                        />
+                                        Aktivní (zobrazit v aplikaci)
+                                    </label>
+                                </SectionCard>
+                            </div>
+                    )}
 
-            <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700 mb-6 overflow-x-auto">
-                {tabs.map((tab) => (
-                    <button
-                        key={tab.id}
-                        type="button"
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`shrink-0 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                            activeTab === tab.id
-                                ? 'border-orange-500 text-orange-500'
-                                : 'border-transparent text-gray-500 hover:text-gray-800 dark:hover:text-gray-200'
-                        }`}
-                    >
-                        {tab.label}
-                    </button>
-                ))}
-            </div>
-
-            {activeTab === 'information' && (
-                <div className="space-y-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
-                    <Field label="Název">
-                        <input
-                            className={inputClass}
-                            value={topic.title}
-                            onChange={(e) => updateField('title', e.target.value)}
+                    {activeTab === 'sections' && !isMapTopic && (
+                        <HotelInfoSectionsTab
+                            sections={sections}
+                            setSections={setSections}
+                            onSave={saveSections}
+                            saveStatus={saveStatus}
+                            iconLibraries={iconLibraries}
                         />
-                    </Field>
-                    <Field label="Slug">
-                        <input className={`${inputClass} bg-gray-50 dark:bg-gray-900`} value={topic.slug} readOnly />
-                    </Field>
-                    <Field label="Popis v seznamu">
-                        <textarea
-                            className={inputClass}
-                            rows={3}
-                            value={topic.list_description || ''}
-                            onChange={(e) => updateField('list_description', e.target.value)}
-                        />
-                    </Field>
-                    <Field label="Úvodní text na detailu">
-                        <textarea
-                            className={inputClass}
-                            rows={5}
-                            value={topic.detail_info || ''}
-                            onChange={(e) => updateField('detail_info', e.target.value || null)}
-                            placeholder={isMapTopic ? 'Pro mapu obvykle prázdné' : ''}
-                        />
-                    </Field>
-                    <Field label="Obrazovka v aplikaci">
-                        <select
-                            className={inputClass}
-                            value={topic.navigation_screen}
-                            onChange={(e) => updateField('navigation_screen', e.target.value)}
-                        >
-                            {navigationScreens.map((s) => (
-                                <option key={s} value={s}>
-                                    {s}
-                                </option>
-                            ))}
-                        </select>
-                    </Field>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Field label="Obrázek v seznamu (klíč)">
-                            <select
-                                className={inputClass}
-                                value={topic.list_image_key || ''}
-                                onChange={(e) => updateField('list_image_key', e.target.value || null)}
-                            >
-                                <option value="">— žádný —</option>
-                                {imageKeys.map((key) => (
-                                    <option key={key} value={key}>
-                                        {key}
-                                    </option>
-                                ))}
-                            </select>
-                        </Field>
-                        <Field label="Obrázek na detailu (klíč)">
-                            <select
-                                className={inputClass}
-                                value={topic.detail_image_key || ''}
-                                onChange={(e) => updateField('detail_image_key', e.target.value || null)}
-                            >
-                                <option value="">— stejný jako v seznamu —</option>
-                                {imageKeys.map((key) => (
-                                    <option key={key} value={key}>
-                                        {key}
-                                    </option>
-                                ))}
-                            </select>
-                        </Field>
-                    </div>
-                    <Field label="Pořadí">
-                        <input
-                            type="number"
-                            className={inputClass}
-                            value={topic.sort_order}
-                            onChange={(e) => updateField('sort_order', parseInt(e.target.value, 10) || 0)}
-                        />
-                    </Field>
-                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                        <input
-                            type="checkbox"
-                            checked={topic.is_active}
-                            onChange={(e) => updateField('is_active', e.target.checked)}
-                            className="rounded text-orange-500"
-                        />
-                        Aktivní (zobrazit v aplikaci)
-                    </label>
-                    <FormSaveBar onSave={saveInformation} saveStatus={saveStatus} label="Uložit informace" />
-                </div>
+                    )}
+                </>
             )}
-
-            {activeTab === 'sections' && !isMapTopic && (
-                <HotelInfoSectionsTab
-                    sections={sections}
-                    setSections={setSections}
-                    onSave={saveSections}
-                    saveStatus={saveStatus}
-                    iconLibraries={iconLibraries}
-                />
-            )}
-        </div>
+        </ModuleEditLayout>
     );
 }
-
-function Field({ label, children }) {
-    return (
-        <label className="block">
-            <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{label}</span>
-            {children}
-        </label>
-    );
-}
-
-const inputClass =
-    'w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500';

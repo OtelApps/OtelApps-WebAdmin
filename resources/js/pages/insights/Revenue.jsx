@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import http from '../../lib/http';
-import { RevenueUpsellPanel } from '../../components/RevenueUpsellPanel';
+import { RevenueUpsellPanel } from '../../components/dashboard/RevenueUpsellPanel';
 import { formatMoney } from '../../utils/formatMoney';
 import { STATUS_CELL } from '../activity/activityStatus';
 import { useInsightsData } from './useInsightsData';

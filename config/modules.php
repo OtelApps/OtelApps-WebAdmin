@@ -63,9 +63,9 @@ return [
 
         // Facilities sub-moduly
         'restaurants_bars' => true,
-        'relax_sport' => true,
-        'wellness_spa' => false,
-        'sports' => false,
+        'relax_sport' => false,
+        'wellness_spa' => true,
+        'sports' => true,
         'other_facilities' => true,
 
         // Other sub-moduly

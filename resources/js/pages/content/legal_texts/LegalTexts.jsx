@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
-import { FormSaveBar } from '../../../components/FormSaveBar';
+import { FormSaveBar } from '../../../components/ui/FormSaveBar';
 
 export function LegalTexts() {
     const [loading, setLoading] = useState(true);

@@ -9,10 +9,10 @@ import { AmenitiesEdit } from '../content/services/amenities/AmenitiesEdit';
 import { IssuesRepairsEdit } from '../content/services/issues_repairs/IssuesRepairsEdit';
 import { LaundryEdit } from '../content/services/laundry/LaundryEdit';
 import { RoomServiceEdit } from '../content/services/room_service/RoomServiceEdit';
-import { WellnessFacilityEdit } from '../content/facilities/relax_sport/WellnessFacilityEdit';
-import { WellnessProgramEdit } from '../content/facilities/relax_sport/WellnessProgramEdit';
-import { FitnessFacilityEdit } from '../content/facilities/relax_sport/FitnessFacilityEdit';
-import { RelaxSportAreaEdit } from '../content/facilities/relax_sport/RelaxSportAreaEdit';
+import { WellnessFacilityEdit } from '../content/facilities/wellness_spa/WellnessFacilityEdit';
+import { WellnessProgramEdit } from '../content/facilities/wellness_spa/WellnessProgramEdit';
+import { FitnessFacilityEdit } from '../content/facilities/sports/FitnessFacilityEdit';
+
 import { VenueEdit } from '../content/facilities/restaurants_bars/VenueEdit';
 
 /**
@@ -21,22 +21,7 @@ import { VenueEdit } from '../content/facilities/restaurants_bars/VenueEdit';
 export function DynamicEditRouter() {
     const { module, area, id } = useParams();
 
-    if (module === 'relax_sport' && area === 'wellness-spa') {
-        if (id === 'settings') {
-            return <RelaxSportAreaEdit />;
-        }
-        if (id === 'program') {
-            return <WellnessProgramEdit />;
-        }
-        return <WellnessFacilityEdit />;
-    }
 
-    if (module === 'relax_sport' && area === 'gym-sport') {
-        if (id === 'settings') {
-            return <RelaxSportAreaEdit />;
-        }
-        return <FitnessFacilityEdit />;
-    }
 
     if (module === 'hotel_info') {
         return <HotelInfoTopicEdit />;

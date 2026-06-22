@@ -62,7 +62,8 @@ export const SECTION_META = {
 
 export const SUBMODULE_HINTS = {
     restaurants_bars: 'Restaurace, bary a jídelní lístky',
-    relax_sport: 'Wellness, sauna a sportovní zázemí',
+    wellness_spa: 'Wellness, sauna a procedury',
+    sports: 'Sportovní zázemí a posilovna',
     hotel_info: 'Informace o hotelu a okolí',
     hotel_rooms: 'Typy pokojů a vybavení',
     parking: 'Parkování a doprava',

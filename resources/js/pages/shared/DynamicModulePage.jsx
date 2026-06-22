@@ -3,9 +3,8 @@ import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { NotFound } from './NotFound';
 import { RestaurantsBars } from '../content/facilities/restaurants_bars/RestaurantsBars';
-import { RelaxSport } from '../content/facilities/relax_sport/RelaxSport';
-import { WellnessSpa } from '../content/facilities/relax_sport/WellnessSpa';
-import { Sports } from '../content/facilities/relax_sport/Sports';
+import { WellnessSpa } from '../content/facilities/wellness_spa/WellnessSpa';
+import { Sports } from '../content/facilities/sports/Sports';
 import { Parking } from '../content/other/parking/Parking';
 import { OtherFacilities } from '../content/facilities/other_facilities/OtherFacilities';
 import { HotelInfo } from '../content/other/hotel_info/HotelInfo';
@@ -41,14 +40,10 @@ import ExternalPlatforms from '../feedback/external_platforms/ExternalPlatforms'
 import { FeedbackInbox } from '../feedback/inbox/FeedbackInbox';
 import { FeedbackStats } from '../feedback/stats/FeedbackStats';
 
-const RELAX_SPORT_AREAS = {
-    'wellness-spa': WellnessSpa,
-    'gym-sport': Sports,
-};
-
 const FACILITIES_PAGES = {
     restaurants_bars: RestaurantsBars,
-    relax_sport: RelaxSport,
+    wellness_spa: WellnessSpa,
+    sports: Sports,
     other_facilities: OtherFacilities,
 };
 
@@ -106,10 +101,7 @@ export function DynamicModulePage() {
         return <ModuleSectionHub />;
     }
 
-    if (type === 'facilities' && module === 'relax_sport' && area && RELAX_SPORT_AREAS[area]) {
-        const Page = RELAX_SPORT_AREAS[area];
-        return <Page />;
-    }
+
 
     if (type === 'facilities' && FACILITIES_PAGES[module]) {
         const Page = FACILITIES_PAGES[module];
