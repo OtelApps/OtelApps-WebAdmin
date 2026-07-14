@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Hotel;
 use App\Models\HotelServiceRequest;
 use App\Models\HotelServiceRequestType;
+use App\Services\GuestPushService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -13,6 +14,10 @@ use Illuminate\Validation\Rule;
 class HotelServiceRequestController extends Controller
 {
     private const STATUSES = ['new', 'pending', 'in_progress', 'solved', 'rejected', 'archived'];
+
+    public function __construct(
+        private readonly GuestPushService $guestPushService,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -160,7 +165,25 @@ class HotelServiceRequestController extends Controller
             'metadata' => ['sometimes', 'array'],
         ]);
 
+        $previousStatus = $requestModel->status;
+
         $requestModel->update($data);
+
+        if (
+            isset($data['status'])
+            && $data['status'] !== $previousStatus
+            && $requestModel->guest_external_id
+        ) {
+            $hotel = $this->resolveHotel($request);
+            $this->guestPushService->sendStatusChange(
+                $hotel,
+                (string) $requestModel->guest_external_id,
+                (string) $requestModel->service_label,
+                $requestModel->request_number,
+                (string) $requestModel->id,
+                (string) $requestModel->status,
+            );
+        }
 
         return response()->json(['request' => $this->detailPayload($requestModel->fresh())]);
     }

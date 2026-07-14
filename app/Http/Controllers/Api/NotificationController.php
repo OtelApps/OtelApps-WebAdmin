@@ -42,6 +42,8 @@ class NotificationController extends Controller
             'browser_notifications' => ['sometimes', 'boolean'],
             'sound_enabled' => ['sometimes', 'boolean'],
             'poll_interval_seconds' => ['sometimes', 'integer', Rule::in([10, 15, 30, 60])],
+            'guest_push_enabled' => ['sometimes', 'boolean'],
+            'guest_push_on_status_change' => ['sometimes', 'boolean'],
         ]);
 
         $result = $this->notificationService->updateSettings($hotel, $data);

@@ -82,7 +82,7 @@ create table if not exists public.hotel_crm_promotions (
 create index if not exists idx_hcrm_promotions_hotel_status
   on public.hotel_crm_promotions (hotel_id, status, starts_at desc nulls last);
 
--- Seed demo profilů a promo (hotel default)
+-- Seed demo profilů (4 testovací účty — viz reset_demo_guests.sql pro čistý reset)
 with h as (select id from public.hotels where slug = 'default')
 insert into public.hotel_crm_guest_profiles (
   hotel_id, guest_key, guest_external_id, display_name, room_number, locale, segment, tags, notes
@@ -91,8 +91,10 @@ select h.id, v.guest_key, v.guest_external_id, v.display_name, v.room_number, v.
 from h
 cross join (
   values
-    ('ext:guest-marc-201', 'guest-marc-201', 'Marc Dubois', '201', 'fr', 'vip', '["spa","restaurant"]', 'Preferuje večeře v 20:00'),
-    ('ext:guest-anna-415', 'guest-anna-415', 'Anna K.', '415', 'cs', 'returning', '["sport"]', 'Opakovaný host — tenis')
+    ('ext:demo-a1001-vetiska', 'demo-a1001-vetiska', 'Michal Vetiška', '101', 'cs', 'standard', '[]', null),
+    ('ext:demo-b2002-kratky', 'demo-b2002-kratky', 'Michal Krátký', '202', 'cs', 'returning', '[]', null),
+    ('ext:demo-c3003-milt', 'demo-c3003-milt', 'Lukáš Milt', '315', 'en', 'vip', '[]', null),
+    ('ext:demo-d4004-riha', 'demo-d4004-riha', 'Vojta Říha', '408', 'de', 'corporate', '[]', null)
 ) as v(guest_key, guest_external_id, display_name, room_number, locale, segment, tags, notes)
 where not exists (
   select 1 from public.hotel_crm_guest_profiles p where p.guest_key = v.guest_key

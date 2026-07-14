@@ -1,86 +1,170 @@
-import React, { useState } from 'react';
-import { NewAlertModal } from './NewAlertModal';
+import React, { useEffect, useMemo, useState } from 'react';
+import http from '../../../lib/http';
+import { ALERT_SEVERITY, CRM_SEGMENTS, SECTION_META, formatDateTime } from '../crmHubConfig';
+import { CrmIcon, CrmShell } from '../CrmShell';
+import { PushAlertForm } from './PushAlertForm';
+
+const SEG = CRM_SEGMENTS.find((s) => s.key === 'alerts');
+const META = SECTION_META.alerts;
 
 export function Alerts() {
-    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [alerts, setAlerts] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [showForm, setShowForm] = useState(false);
+    const [tab, setTab] = useState('active');
+
+    const load = () => {
+        setLoading(true);
+        setError(null);
+        http.get('/api/crm/alerts')
+            .then((res) => setAlerts(res.data.alerts ?? []))
+            .catch((err) => {
+                setAlerts([]);
+                setError(err.response?.data?.message || 'Alerty se nepodařilo načíst.');
+            })
+            .finally(() => setLoading(false));
+    };
+
+    useEffect(() => {
+        load();
+    }, []);
+
+    const dismiss = async (id) => {
+        try {
+            await http.post(`/api/crm/alerts/${id}/dismiss`);
+            load();
+        } catch {
+            window.alert('Zavření alertu se nezdařilo.');
+        }
+    };
+
+    const manualAlerts = alerts.filter((alert) => alert.alert_type === 'manual');
+
+    const visibleAlerts = useMemo(() => {
+        if (tab === 'active') {
+            return manualAlerts.filter((alert) => alert.status === 'active');
+        }
+        return manualAlerts.filter((alert) => alert.status !== 'active');
+    }, [manualAlerts, tab]);
+
+    const handleSaved = () => {
+        setShowForm(false);
+        load();
+    };
 
     return (
-        <div className="w-full h-full p-4 md:p-8 max-w-[1600px] mx-auto">
-            {/* Header */}
-            <div className="flex justify-between items-center mb-8">
-                <h1 className="text-[32px] font-bold text-gray-600 tracking-tight">Alerts</h1>
-                <div className="flex items-center gap-4">
-                    <button onClick={() => setIsModalOpen(true)} className="px-6 py-2 bg-[#FFA200] hover:bg-orange-400 text-white text-[13px] font-bold rounded-full shadow-sm transition-colors tracking-wide">
-                        New Alert
-                    </button>
-                    <button className="flex items-center gap-2 px-5 py-2 bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 text-[13px] font-bold rounded-full shadow-sm transition-colors tracking-wide">
-                        <div className="w-[18px] h-[18px] rounded-full border-[1.5px] border-gray-400 flex items-center justify-center text-[11px] font-bold">?</div>
-                        HELP
-                    </button>
-                </div>
-            </div>
-
-            {/* Tabs */}
-            <div className="flex px-1 z-10 relative">
-                <button className="px-5 py-2.5 border border-gray-200 bg-white text-gray-500 font-semibold text-[13px] relative rounded-t-[4px]">
-                    Timetable
-                    <div className="absolute -bottom-[2px] left-0 w-full h-[3px] bg-white"></div>
+        <CrmShell
+            title={SEG.label}
+            segmentKey="alerts"
+            subtitle={META.description}
+            actions={
+                <button
+                    type="button"
+                    onClick={() => setShowForm((open) => !open)}
+                    className="inline-flex items-center gap-2 rounded-full bg-orange-500 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-600"
+                >
+                    <CrmIcon name="add" className="text-lg" />
+                    {showForm ? 'Zavřít formulář' : 'Nový alert'}
                 </button>
+            }
+        >
+            {showForm && (
+                <div className="mb-6 rounded-2xl border border-orange-200 bg-orange-50/50 p-5 dark:border-orange-900/50 dark:bg-orange-950/20">
+                    <h3 className="mb-4 font-semibold text-gray-900 dark:text-white">Vlastní upozornění</h3>
+                    <PushAlertForm
+                        compact
+                        onSaved={handleSaved}
+                        onCancel={() => setShowForm(false)}
+                    />
+                </div>
+            )}
+
+            <div className="mb-4 flex gap-2">
+                {[
+                    { key: 'active', label: 'Aktivní' },
+                    { key: 'history', label: 'Historie' },
+                ].map((item) => (
+                    <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => setTab(item.key)}
+                        className={`rounded-full px-4 py-1.5 text-xs font-medium ${
+                            tab === item.key
+                                ? 'bg-orange-500 text-white'
+                                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                        }`}
+                    >
+                        {item.label}
+                    </button>
+                ))}
             </div>
 
-            {/* Calendar Component */}
-            <div className="bg-white border border-gray-200 flex flex-col flex-1 min-h-[600px] relative z-0 rounded-b-md rounded-tr-md">
-                {/* Calendar Toolbar */}
-                <div className="flex justify-between items-center px-4 py-4 border-b border-gray-100">
-                    <div className="flex items-center gap-2">
-                        <button className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-400 transition-colors">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                                <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
-                            </svg>
-                        </button>
-                        <button className="px-4 py-1.5 rounded-md bg-[#E2E6EC] hover:bg-gray-300 text-[13px] font-semibold text-gray-700 transition-colors tracking-wide">
-                            May 27 - June 2, 2024
-                        </button>
-                        <button className="w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-400 transition-colors">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                                <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
-                            </svg>
-                        </button>
+            <div className="space-y-3">
+                {loading ? (
+                    <div className="rounded-2xl border border-gray-200 p-8 text-center text-sm text-gray-500 dark:border-gray-600">
+                        Načítám…
                     </div>
-                    
-                    <div className="text-[#3B384A] font-bold text-[15px] tracking-wide pr-2">
-                        May 27 - June 2, 2024
+                ) : error ? (
+                    <div className="rounded-2xl border border-red-200 p-8 text-center text-sm text-red-600 dark:border-red-800">
+                        {error}
                     </div>
-                </div>
-
-                {/* Calendar Grid */}
-                <div className="flex-1 flex overflow-hidden">
-                    <div className="flex-1 grid grid-cols-7 min-w-[800px]">
-                        {[
-                            { day: 'MONDAY', date: '27' },
-                            { day: 'TUESDAY', date: '28' },
-                            { day: 'WEDNESDAY', date: '29', active: true },
-                            { day: 'THURSDAY', date: '30' },
-                            { day: 'FRIDAY', date: '31' },
-                            { day: 'SATURDAY', date: '1' },
-                            { day: 'SUNDAY', date: '2' },
-                        ].map((col, i) => (
-                            <div key={i} className={`flex flex-col border-r border-gray-200 last:border-r-0 ${col.active ? 'bg-[#DDEBFA]' : 'bg-white'}`}>
-                                <div className="text-center pt-5 pb-4 border-b border-gray-200 bg-white">
-                                    <div className="text-[10px] font-bold text-gray-600 tracking-[0.05em] mb-1.5 uppercase">{col.day}</div>
-                                    <div className="text-[22px] font-bold text-[#3B384A]">{col.date}</div>
+                ) : visibleAlerts.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500 dark:border-gray-600">
+                        {tab === 'active' ? 'Žádné aktivní alerty.' : 'Žádná historie.'}
+                    </div>
+                ) : (
+                    visibleAlerts.map((alert) => {
+                        const severity = ALERT_SEVERITY[alert.severity] ?? ALERT_SEVERITY.info;
+                        return (
+                            <article
+                                key={alert.id}
+                                className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:flex-row sm:items-start sm:justify-between dark:border-gray-600 dark:bg-gray-800/90"
+                            >
+                                <div className="min-w-0 flex-1">
+                                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                                        <span
+                                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${severity.className}`}
+                                        >
+                                            {severity.label}
+                                        </span>
+                                        <span className="text-xs text-gray-400">
+                                            {formatDateTime(alert.created_at)}
+                                        </span>
+                                        {alert.status !== 'active' && (
+                                            <span className="text-xs font-medium text-gray-500">
+                                                {alert.status}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                                        {alert.title}
+                                    </h3>
+                                    {alert.body && (
+                                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                                            {alert.body}
+                                        </p>
+                                    )}
+                                    {alert.guest_key && (
+                                        <p className="mt-2 text-xs text-gray-500">
+                                            Host: <code>{alert.guest_key}</code>
+                                        </p>
+                                    )}
                                 </div>
-                                <div className="flex-1 relative">
-                                    {/* Empty cells for events */}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
+                                {alert.status === 'active' && (
+                                    <button
+                                        type="button"
+                                        onClick={() => dismiss(alert.id)}
+                                        className="shrink-0 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                                    >
+                                        Zavřít
+                                    </button>
+                                )}
+                            </article>
+                        );
+                    })
+                )}
             </div>
-
-            {/* Modal */}
-            <NewAlertModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
-        </div>
+        </CrmShell>
     );
 }

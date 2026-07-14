@@ -195,6 +195,9 @@ Route::prefix('api')->group(function () {
     Route::get('/crm/alerts', [CrmController::class, 'alerts']);
     Route::post('/crm/alerts', [CrmController::class, 'storeAlert']);
     Route::post('/crm/alerts/{id}/dismiss', [CrmController::class, 'dismissAlert']);
+    Route::get('/crm/push/audience', [CrmController::class, 'pushAudience']);
+    Route::get('/crm/push/audience-options', [CrmController::class, 'pushAudienceOptions']);
+    Route::post('/crm/push', [CrmController::class, 'sendPush']);
     Route::get('/crm/promotions', [CrmController::class, 'promotions']);
     Route::post('/crm/promotions', [CrmController::class, 'storePromotion']);
     Route::put('/crm/promotions/{id}', [CrmController::class, 'updatePromotion']);

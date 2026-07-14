@@ -19,6 +19,8 @@ class NotificationService
         'browser_notifications' => true,
         'sound_enabled' => false,
         'poll_interval_seconds' => 15,
+        'guest_push_enabled' => true,
+        'guest_push_on_status_change' => true,
     ];
 
     private const SYNC_CACHE_SECONDS = 30;
@@ -357,6 +359,8 @@ class NotificationService
             'browser_notifications' => (bool) ($prefs['browser_notifications'] ?? true),
             'sound_enabled' => (bool) ($prefs['sound_enabled'] ?? false),
             'poll_interval_seconds' => $interval,
+            'guest_push_enabled' => (bool) ($prefs['guest_push_enabled'] ?? true),
+            'guest_push_on_status_change' => (bool) ($prefs['guest_push_on_status_change'] ?? true),
         ];
     }
 }

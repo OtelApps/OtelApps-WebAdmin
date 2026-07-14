@@ -241,48 +241,9 @@ from public.hotel_concierge_messages m;
 grant select on public.v_hotel_concierge_messages_guest to anon, authenticated;
 
 -- -----------------------------------------------------------------------------
--- Seed ukázkových konverzací (WebAdmin demo)
+-- Seed ukázkových konverzací: nepoužívat — hosté vznikají z mobilní app.
+-- Pro vyčištění DB spusť reset_demo_guests.sql
 -- -----------------------------------------------------------------------------
-with h as (select id from public.hotels where slug = 'default')
-insert into public.hotel_concierge_conversations (
-  hotel_id, guest_external_id, guest_display_name, room_number, guest_locale,
-  status, created_at, updated_at
-)
-select
-  h.id, v.guest_external_id, v.guest_name, v.room, v.locale,
-  v.status, v.created_at, v.updated_at
-from h
-cross join (
-  values
-    ('guest-marc-201', 'Marc Dubois', '201', 'fr', 'open', now() - interval '2 days', now()),
-    ('guest-sara-522', 'Sara', '522', 'en', 'open', now() - interval '1 day', now()),
-    ('guest-james-118', 'James Miller', '118', 'de', 'open', now() - interval '3 days', now()),
-    ('guest-elena-304', 'Elena Rossi', '304', 'pl', 'closed', now() - interval '5 days', now()),
-    ('guest-anna-415', 'Anna K.', '415', 'cs', 'open', now() - interval '6 hours', now())
-) as v(guest_external_id, guest_name, room, locale, status, created_at, updated_at)
-where not exists (
-  select 1 from public.hotel_concierge_conversations c
-  where c.guest_external_id = v.guest_external_id
-);
-
-insert into public.hotel_concierge_messages (conversation_id, sender_type, body, locale, created_at)
-select c.id, m.sender, m.body, m.locale, m.created_at
-from public.hotel_concierge_conversations c
-join (
-  values
-    ('guest-marc-201', 'guest', 'Bonjour, une question sur le spa.', 'fr', now() - interval '2 hours'),
-    ('guest-marc-201', 'staff', 'Bonjour, le spa est ouvert de 9h à 21h.', 'fr', now() - interval '1 hour 50 minutes'),
-    ('guest-marc-201', 'guest', 'Pourriez-vous réserver une table pour deux ce soir ?', 'fr', now() - interval '15 minutes'),
-    ('guest-sara-522', 'guest', 'Is the pool open until 10 p.m.?', 'en', now() - interval '1 hour'),
-    ('guest-james-118', 'guest', 'Können Sie mir extra Handtücher schicken?', 'de', now() - interval '3 hours'),
-    ('guest-james-118', 'staff', 'Selbstverständlich, wir senden Handtücher sofort.', 'de', now() - interval '2 hours 45 minutes'),
-    ('guest-elena-304', 'guest', 'Dziękuję za pomoc!', 'pl', now() - interval '1 day'),
-    ('guest-elena-304', 'staff', 'Proszę bardzo, miłego pobytu!', 'pl', now() - interval '23 hours'),
-    ('guest-anna-415', 'guest', 'Dobrý den, prosím o pozdní checkout zítra.', 'cs', now() - interval '30 minutes')
-) as m(guest_ext, sender, body, locale, created_at) on c.guest_external_id = m.guest_ext
-where not exists (
-  select 1 from public.hotel_concierge_messages msg where msg.conversation_id = c.id
-);
 
 -- =============================================================================
 -- Kontrakt pro mobilní app (Supabase)

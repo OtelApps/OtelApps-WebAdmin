@@ -155,6 +155,24 @@ export function NotificationSettingsModal() {
                         </div>
 
                         <div className="border-b border-gray-100 dark:border-gray-700">
+                            <p className="pt-4 text-xs font-semibold uppercase tracking-wide text-orange-500">
+                                Mobilní app (hosté)
+                            </p>
+                            <Toggle
+                                checked={form.guest_push_enabled}
+                                onChange={() => toggleStatus('guest_push_enabled')}
+                                label="Push notifikace do aplikace"
+                                description="Umožní odesílání push z CRM a při změně stavu objednávky"
+                            />
+                            <Toggle
+                                checked={form.guest_push_on_status_change}
+                                onChange={() => toggleStatus('guest_push_on_status_change')}
+                                label="Push při změně stavu objednávky"
+                                description="Host dostane systémové upozornění, když recepce změní stav požadavku"
+                            />
+                        </div>
+
+                        <div className="border-b border-gray-100 dark:border-gray-700">
                             <p className="pt-4 text-xs font-semibold uppercase tracking-wide text-orange-500">Zobrazení</p>
                             <Toggle
                                 checked={form.toast_enabled}

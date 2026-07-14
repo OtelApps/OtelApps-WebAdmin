@@ -12,7 +12,9 @@ create table if not exists public.hotel_admin_notification_settings (
     "toast_enabled": true,
     "browser_notifications": true,
     "sound_enabled": false,
-    "poll_interval_seconds": 15
+    "poll_interval_seconds": 15,
+    "guest_push_enabled": true,
+    "guest_push_on_status_change": true
   }'::jsonb,
   updated_at timestamptz not null default now()
 );

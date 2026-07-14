@@ -53,39 +53,4 @@ create table if not exists public.hotel_crm_interactions (
 create index if not exists idx_hcrm_interactions_hotel_created
   on public.hotel_crm_interactions (hotel_id, created_at desc);
 
--- Demo úkol + interakce
-with h as (select id from public.hotels where slug = 'default')
-insert into public.hotel_crm_tasks (
-  hotel_id, guest_key, title, description, status, priority, task_type, assigned_staff_name, due_at
-)
-select h.id, 'ext:guest-marc-201', v.title, v.description, v.status, v.priority, v.task_type, v.assigned, v.due_at::timestamptz
-from h
-cross join (
-  values
-    ('Zavolat ohledně rezervace stolu', 'Potvrdit večeři v 20:00', 'open', 'high', 'call', 'Recepce', now() + interval '2 hours'),
-    ('VIP welcome amenity', 'Připravit welcome drink do pokoje 201', 'open', 'normal', 'vip_service', 'Concierge', now() + interval '1 day')
-) as v(title, description, status, priority, task_type, assigned, due_at)
-where not exists (select 1 from public.hotel_crm_tasks t where t.title = v.title);
-
-with h as (select id from public.hotels where slug = 'default')
-insert into public.hotel_crm_interactions (hotel_id, guest_key, channel, direction, subject, body, staff_name)
-select h.id, v.guest_key, v.channel, v.direction, v.subject, v.body, v.staff
-from h
-cross join (
-  values
-    ('ext:guest-anna-415', 'phone', 'inbound', 'Dotaz na tenisový kurt', 'Host chtěl rezervovat kurt na zítra 10:00', 'Recepce'),
-    ('ext:guest-marc-201', 'reception', 'inbound', 'Dotaz na spa', 'Informace o otevírací době wellness', 'Recepce')
-) as v(guest_key, channel, direction, subject, body, staff)
-where not exists (select 1 from public.hotel_crm_interactions i where i.subject = v.subject);
-
-update public.hotel_crm_guest_profiles
-set
-  check_in_at = coalesce(check_in_at, now() - interval '1 day'),
-  check_out_at = coalesce(check_out_at, now() + interval '2 days'),
-  marketing_consent = true,
-  marketing_consent_at = coalesce(marketing_consent_at, now()),
-  loyalty_points = case when segment = 'vip' then 120 else 40 end,
-  stay_count = case when segment = 'returning' then 3 else 1 end,
-  assigned_staff_name = 'Recepce',
-  preferences = '{"diet":"vegetarian","pillow":"extra soft"}'::jsonb
-where guest_key in ('ext:guest-marc-201', 'ext:guest-anna-415');
+-- Demo úkoly a interakce: spusť reset_demo_guests.sql a vytvoř je ručně v CRM, pokud potřebuješ.

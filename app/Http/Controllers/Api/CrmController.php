@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Hotel;
 use App\Services\CrmService;
+use App\Services\GuestPushAudienceResolver;
+use App\Services\GuestPushService;
 use App\Services\ModuleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,6 +16,7 @@ class CrmController extends Controller
 {
     public function __construct(
         private readonly CrmService $crmService,
+        private readonly GuestPushService $guestPushService,
     ) {}
 
     public function overview(Request $request): JsonResponse
@@ -121,7 +124,143 @@ class CrmController extends Controller
 
         $alert = $this->crmService->createAlert($hotel, $data);
 
-        return response()->json(['alert' => $alert], 201);
+        return response()->json(['alert' => $alert]);
+    }
+
+    public function pushAudience(Request $request): JsonResponse
+    {
+        if (! ModuleService::isEnabled('crm')) {
+            return response()->json(['message' => 'Modul CRM není zapnutý.'], 403);
+        }
+
+        $hotel = $this->resolveHotel($request);
+        $data = $request->validate([
+            'audience' => ['required', Rule::in(['all', 'segment', 'cohort', 'guest'])],
+            'segment' => ['nullable', Rule::in(GuestPushAudienceResolver::CRM_SEGMENTS)],
+            'cohort' => ['nullable', Rule::in(array_keys(GuestPushAudienceResolver::COHORTS))],
+            'guest_key' => ['nullable', 'string', 'max:200'],
+        ]);
+
+        if ($data['audience'] === 'segment' && empty($data['segment'])) {
+            return response()->json(['message' => 'Vyberte CRM segment.'], 422);
+        }
+
+        if ($data['audience'] === 'cohort' && empty($data['cohort'])) {
+            return response()->json(['message' => 'Vyberte cílovou kategorii hostů.'], 422);
+        }
+
+        if ($data['audience'] === 'guest' && empty($data['guest_key'])) {
+            return response()->json(['message' => 'Vyberte hosta.'], 422);
+        }
+
+        return response()->json($this->guestPushService->audienceStats(
+            $hotel,
+            $data['audience'],
+            $data['segment'] ?? null,
+            $data['cohort'] ?? null,
+            $data['guest_key'] ?? null,
+        ));
+    }
+
+    public function pushAudienceOptions(Request $request): JsonResponse
+    {
+        if (! ModuleService::isEnabled('crm')) {
+            return response()->json(['message' => 'Modul CRM není zapnutý.'], 403);
+        }
+
+        $hotel = $this->resolveHotel($request);
+
+        return response()->json([
+            'options' => $this->guestPushService->audienceOptions($hotel),
+        ]);
+    }
+
+    public function sendPush(Request $request): JsonResponse
+    {
+        if (! ModuleService::isEnabled('crm')) {
+            return response()->json(['message' => 'Modul CRM není zapnutý.'], 403);
+        }
+
+        $hotel = $this->resolveHotel($request);
+        $data = $request->validate([
+            'title' => ['required', 'string', 'max:160'],
+            'body' => ['nullable', 'string', 'max:2000'],
+            'severity' => ['nullable', Rule::in(['info', 'warning', 'critical'])],
+            'audience' => ['required', Rule::in(['all', 'segment', 'cohort', 'guest'])],
+            'segment' => ['nullable', Rule::in(GuestPushAudienceResolver::CRM_SEGMENTS)],
+            'cohort' => ['nullable', Rule::in(array_keys(GuestPushAudienceResolver::COHORTS))],
+            'guest_key' => ['nullable', 'string', 'max:200'],
+        ]);
+
+        if ($data['audience'] === 'segment' && empty($data['segment'])) {
+            return response()->json(['message' => 'Pro cílení na segment vyberte segment.'], 422);
+        }
+
+        if ($data['audience'] === 'cohort' && empty($data['cohort'])) {
+            return response()->json(['message' => 'Vyberte cílovou kategorii hostů.'], 422);
+        }
+
+        if ($data['audience'] === 'guest' && empty($data['guest_key'])) {
+            return response()->json(['message' => 'Pro cílení na hosta vyberte hosta.'], 422);
+        }
+
+        if (! $this->guestPushService->isEnabled($hotel)) {
+            return response()->json([
+                'message' => 'Push notifikace jsou v nastavení hotelu vypnuté.',
+            ], 422);
+        }
+
+        $stats = $this->guestPushService->audienceStats(
+            $hotel,
+            $data['audience'],
+            $data['segment'] ?? null,
+            $data['cohort'] ?? null,
+            $data['guest_key'] ?? null,
+        );
+
+        if ($stats['device_count'] === 0) {
+            return response()->json([
+                'message' => 'Ve vybrané skupině není žádné zařízení s push tokenem. Host se musí přihlásit v mobilní app a povolit notifikace.',
+                'audience' => $stats,
+            ], 422);
+        }
+
+        $alert = $this->crmService->createAlert($hotel, [
+            'title' => $data['title'],
+            'body' => $data['body'] ?? null,
+            'severity' => $data['severity'] ?? 'info',
+            'guest_key' => $data['audience'] === 'guest' ? ($data['guest_key'] ?? null) : null,
+        ]);
+
+        $push = $this->guestPushService->sendToAudience(
+            $hotel,
+            $data['title'],
+            $data['body'] ?? '',
+            $data['audience'],
+            $data['segment'] ?? null,
+            $data['cohort'] ?? null,
+            $data['guest_key'] ?? null,
+            [
+                'alertId' => $alert['id'] ?? null,
+                'cohort' => $data['cohort'] ?? null,
+                'segment' => $data['segment'] ?? null,
+            ],
+            $data['severity'] ?? 'info',
+        );
+
+        if (! ($push['delivered'] ?? false)) {
+            return response()->json([
+                'message' => 'Push se nepodařilo odeslat na žádné zařízení. Zkuste to znovu nebo zkontrolujte Expo credentials.',
+                'alert' => $alert,
+                'push' => $push,
+            ], 502);
+        }
+
+        return response()->json([
+            'alert' => $alert,
+            'push' => $push,
+            'message' => "Push odeslána na {$push['device_count']} zařízení.",
+        ], 201);
     }
 
     public function dismissAlert(Request $request, string $id): JsonResponse
