@@ -9,6 +9,7 @@ import { Parking } from '../content/other/parking/Parking';
 import { OtherFacilities } from '../content/facilities/other_facilities/OtherFacilities';
 import { HotelInfo } from '../content/other/hotel_info/HotelInfo';
 import { HotelRooms } from '../content/other/hotel_rooms/HotelRooms';
+import { PlacesOfInterest } from '../content/other/places_of_interest/PlacesOfInterest';
 
 import { RoomService } from '../content/services/room_service/RoomService';
 import { Amenities } from '../content/services/amenities/Amenities';
@@ -59,6 +60,7 @@ const OTHER_PAGES = {
     hotel_info: HotelInfo,
     hotel_rooms: HotelRooms,
     parking: Parking,
+    places_of_interest: PlacesOfInterest,
     generic_other: Other,
 };
 

@@ -1,4 +1,5 @@
 import React from 'react';
+import { WidgetBodySkeleton } from '../ui/PageSkeleton';
 
 function TrendBadge({ trend }) {
     if (trend === null || trend === undefined) {
@@ -52,7 +53,7 @@ export function HotelOverviewCard({ data, loading, error, onManageRooms, onViewG
 
             <div className="space-y-3 flex-1">
                 {loading ? (
-                    <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">Načítání…</p>
+                    <WidgetBodySkeleton rows={4} />
                 ) : error ? (
                     <p className="py-2 text-sm text-red-600 dark:text-red-400">{error}</p>
                 ) : data ? (

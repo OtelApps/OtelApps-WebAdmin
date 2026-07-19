@@ -90,6 +90,17 @@ export function DashboardSkeleton() {
     );
 }
 
+/** Pulse skeleton uvnitř widgetu (shell-first dashboard). */
+export function WidgetBodySkeleton({ rows = 3 }) {
+    return (
+        <div className="space-y-3 py-1" aria-hidden>
+            {Array.from({ length: rows }).map((_, i) => (
+                <SkeletonBlock key={i} className={`h-4 ${i === 0 ? 'w-3/4' : i === rows - 1 ? 'w-1/2' : 'w-full'}`} />
+            ))}
+        </div>
+    );
+}
+
 export function PageLoadError({ message, onRetry }) {
     return (
         <div className="p-6 max-w-xl">

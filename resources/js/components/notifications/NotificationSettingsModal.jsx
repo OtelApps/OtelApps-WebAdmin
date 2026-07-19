@@ -1,5 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { useNotifications } from '../../context/NotificationContext';
+import {
+    DEFAULT_NOTIFICATION_PREFS,
+    playNotificationSound,
+    unlockNotificationAudio,
+    useNotifications,
+} from '../../context/NotificationContext';
 
 const ACTIVITY_STATUSES = [
     { key: 'new', label: 'Nové' },
@@ -8,51 +13,55 @@ const ACTIVITY_STATUSES = [
 ];
 
 const POLL_OPTIONS = [
-    { value: 10, label: 'Každých 10 s (nejrychlejší)' },
+    { value: 10, label: 'Každých 10 s' },
     { value: 15, label: 'Každých 15 s (doporučeno)' },
     { value: 30, label: 'Každých 30 s' },
     { value: 60, label: 'Každou 1 min' },
 ];
 
-function Toggle({ checked, onChange, label, description, disabled = false }) {
+function Toggle({ checked, onChange, label, description }) {
     return (
-        <label
-            className={`flex items-start justify-between gap-4 py-3 ${
-                disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
-            }`}
-        >
-            <div className="min-w-0">
-                <span className="block text-sm font-medium text-gray-900 dark:text-white">{label}</span>
-                {description && <span className="mt-0.5 block text-xs leading-relaxed text-gray-500">{description}</span>}
+        <div className="flex items-start justify-between gap-4 border-b border-gray-100 py-4 last:border-0 dark:border-gray-700">
+            <div className="min-w-0 pr-4">
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">{label}</p>
+                {description && (
+                    <p className="mt-1 text-sm leading-relaxed text-gray-500">{description}</p>
+                )}
             </div>
             <button
                 type="button"
                 role="switch"
                 aria-checked={checked}
-                disabled={disabled}
-                onClick={() => !disabled && onChange(!checked)}
-                className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors ${
+                onClick={() => {
+                    unlockNotificationAudio();
+                    onChange(!checked);
+                }}
+                className={`relative mt-0.5 h-7 w-12 shrink-0 rounded-full transition-colors ${
                     checked ? 'bg-orange-500' : 'bg-gray-300 dark:bg-gray-600'
                 }`}
             >
                 <span
-                    className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                    className={`absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${
                         checked ? 'translate-x-5' : 'translate-x-0'
                     }`}
                 />
             </button>
-        </label>
+        </div>
     );
 }
 
 function Section({ title, icon, children, hint }) {
     return (
-        <section className="border-b border-gray-100 px-1 py-1 dark:border-gray-700">
-            <div className="flex items-center gap-2 pt-3 pb-1">
-                <span className="material-symbols-outlined text-[18px] text-orange-500">{icon}</span>
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-orange-500">{title}</h3>
+        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800/80">
+            <div className="mb-3 flex items-center gap-2">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-300">
+                    <span className="material-symbols-outlined text-[22px]">{icon}</span>
+                </span>
+                <div>
+                    <h3 className="text-base font-bold text-gray-900 dark:text-white">{title}</h3>
+                    {hint && <p className="text-xs text-gray-500">{hint}</p>}
+                </div>
             </div>
-            {hint && <p className="mb-1 text-xs text-gray-500">{hint}</p>}
             {children}
         </section>
     );
@@ -60,10 +69,22 @@ function Section({ title, icon, children, hint }) {
 
 function PermissionBadge({ status }) {
     const map = {
-        granted: { label: 'Povoleno', className: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' },
-        denied: { label: 'Zakázáno', className: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200' },
-        default: { label: 'Čeká na povolení', className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200' },
-        unsupported: { label: 'Nepodporováno', className: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' },
+        granted: {
+            label: 'Povoleno',
+            className: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200',
+        },
+        denied: {
+            label: 'Zakázáno v prohlížeči',
+            className: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200',
+        },
+        default: {
+            label: 'Čeká na povolení',
+            className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
+        },
+        unsupported: {
+            label: 'Nepodporováno',
+            className: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+        },
     };
     const meta = map[status] ?? map.default;
     return (
@@ -73,32 +94,49 @@ function PermissionBadge({ status }) {
     );
 }
 
-export function NotificationSettingsModal() {
+/**
+ * Velký modal nastavení oznámení.
+ * open/onClose řídí Layout (spolehlivé otevření mimo dropdown stacking context).
+ */
+export function NotificationSettingsModal({ open, onClose }) {
     const {
-        settingsOpen,
-        setSettingsOpen,
         preferences,
         saveSettings,
         requestBrowserPermission,
         browserPermission,
+        testNotification,
     } = useNotifications();
 
-    const [form, setForm] = useState(null);
+    const [form, setForm] = useState({ ...DEFAULT_NOTIFICATION_PREFS });
     const [saving, setSaving] = useState(false);
-    const [testing, setTesting] = useState(false);
+    const [savedFlash, setSavedFlash] = useState(false);
+    const [error, setError] = useState(null);
     const [perm, setPerm] = useState(browserPermission);
 
     useEffect(() => {
-        if (preferences) {
-            setForm({ ...preferences });
-        }
-    }, [preferences, settingsOpen]);
+        if (!open) return;
+        setForm({ ...DEFAULT_NOTIFICATION_PREFS, ...(preferences ?? {}) });
+        setPerm(browserPermission);
+        setError(null);
+        setSavedFlash(false);
+        unlockNotificationAudio();
+    }, [open, preferences, browserPermission]);
 
     useEffect(() => {
-        setPerm(browserPermission);
-    }, [browserPermission, settingsOpen]);
+        if (!open) return undefined;
+        const onKey = (e) => {
+            if (e.key === 'Escape') onClose?.();
+        };
+        document.addEventListener('keydown', onKey);
+        const prev = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.removeEventListener('keydown', onKey);
+            document.body.style.overflow = prev;
+        };
+    }, [open, onClose]);
 
-    if (!settingsOpen || !form) return null;
+    if (!open) return null;
 
     const setKey = (key, value) => setForm((f) => ({ ...f, [key]: value }));
 
@@ -114,11 +152,23 @@ export function NotificationSettingsModal() {
 
     const handleSave = async () => {
         setSaving(true);
+        setError(null);
+        setSavedFlash(false);
         try {
             await saveSettings(form);
-            setSettingsOpen(false);
+            setSavedFlash(true);
+            setTimeout(() => setSavedFlash(false), 3000);
         } catch (err) {
-            window.alert(err.response?.data?.message || 'Uložení nastavení se nezdařilo.');
+            const timedOut = err.code === 'ECONNABORTED' || /timeout/i.test(err.message || '');
+            const message = timedOut
+                ? 'Uložení trvalo příliš dlouho (databáze neodpovídá). Zkus to znovu za chvíli.'
+                : err.response?.data?.message ||
+                  (err.response?.data?.errors
+                      ? Object.values(err.response.data.errors).flat().join(' ')
+                      : null) ||
+                  err.message ||
+                  'Uložení nastavení se nezdařilo.';
+            setError(message);
         } finally {
             setSaving(false);
         }
@@ -132,216 +182,205 @@ export function NotificationSettingsModal() {
         }
     };
 
-    const handleTestDesktop = async () => {
-        setTesting(true);
-        try {
-            let status = perm;
-            if (status !== 'granted') {
-                status = await requestBrowserPermission();
-                setPerm(status);
-            }
-            if (status !== 'granted' || typeof Notification === 'undefined') {
-                window.alert('Nejdřív povolte systémové notifikace v prohlížeči.');
-                return;
-            }
-            const notif = new Notification('Test · Otel Apps Hotel', {
-                body: 'Desktop upozornění fungují. Nové požadavky a zprávy uvidíte i mimo otevřenou stránku (dokud je WebAdmin v prohlížeči spuštěný).',
-                icon: '/logo.png',
-                tag: 'otelapps-test',
-                requireInteraction: true,
-            });
-            notif.onclick = () => {
-                window.focus();
-                notif.close();
-            };
-            setKey('browser_notifications', true);
-        } finally {
-            setTesting(false);
-        }
-    };
-
     return (
-        <>
-            <div
-                className="fixed inset-0 z-[10000] bg-black/35"
-                onClick={() => setSettingsOpen(false)}
-            />
+        <div className="fixed inset-0 z-[200000] flex items-center justify-center p-4 sm:p-6">
+            <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden />
+
             <div
                 role="dialog"
                 aria-modal="true"
-                aria-label="Nastavení notifikací"
-                className="fixed inset-0 z-[10001] flex items-start justify-center px-4 pt-12 sm:pt-16"
-                onClick={() => setSettingsOpen(false)}
+                aria-labelledby="notification-settings-title"
+                className="relative z-10 flex max-h-[min(920px,92vh)] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-gray-50 shadow-2xl dark:bg-gray-900"
+                onClick={(e) => e.stopPropagation()}
             >
-                <div
-                    className="w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-800"
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    <div className="border-b border-gray-200 bg-gradient-to-r from-orange-500/10 via-transparent to-amber-400/10 px-6 py-5 dark:border-gray-700">
-                        <div className="flex items-start justify-between gap-3">
-                            <div>
-                                <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-                                    Nastavení oznámení
-                                </h2>
-                                <p className="mt-1 text-sm text-gray-500">
-                                    Obdoba push notifikací pro recepci — toast, zvuk a systémová upozornění v prohlížeči.
-                                </p>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => setSettingsOpen(false)}
-                                className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700"
-                                aria-label="Zavřít"
+                <header className="shrink-0 border-b border-gray-200 bg-white px-6 py-5 dark:border-gray-700 dark:bg-gray-800">
+                    <div className="flex items-start justify-between gap-4">
+                        <div>
+                            <p className="text-xs font-semibold uppercase tracking-widest text-orange-500">
+                                Nastavení
+                            </p>
+                            <h2
+                                id="notification-settings-title"
+                                className="mt-1 text-2xl font-bold text-gray-900 dark:text-white"
                             >
-                                <span className="material-symbols-outlined">close</span>
-                            </button>
+                                Oznámení
+                            </h2>
+                            <p className="mt-2 max-w-xl text-sm text-gray-500">
+                                Komplexní nastavení zvuku, toastů a desktop notifikací pro nové
+                                objednávky, změny stavů a zprávy od hostů.
+                            </p>
                         </div>
-                    </div>
-
-                    <div className="max-h-[65vh] overflow-y-auto px-5 py-2 sm:px-6">
-                        <Section
-                            title="Desktop upozornění"
-                            icon="notifications_active"
-                            hint="Fungují jako push, dokud máte WebAdmin otevřený v prohlížeči (i na pozadí)."
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="rounded-xl p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700"
+                            aria-label="Zavřít"
                         >
-                            <div className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 dark:border-gray-600 dark:bg-gray-900/40">
-                                <PermissionBadge status={perm} />
-                                <span className="text-xs text-gray-500">Systémová oprávnění prohlížeče</span>
-                                <div className="ml-auto flex flex-wrap gap-2">
-                                    {perm !== 'granted' && perm !== 'unsupported' && (
-                                        <button
-                                            type="button"
-                                            onClick={handleBrowserPermission}
-                                            className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600"
-                                        >
-                                            Povolit
-                                        </button>
-                                    )}
+                            <span className="material-symbols-outlined text-[28px]">close</span>
+                        </button>
+                    </div>
+                </header>
+
+                <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
+                    <Section
+                        title="Zvuk a zobrazení"
+                        icon="volume_up"
+                        hint="Jak vás WebAdmin upozorní na nové události"
+                    >
+                        <div className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-600 dark:bg-gray-900/50">
+                            <PermissionBadge status={perm} />
+                            <span className="text-xs text-gray-500">Desktop oprávnění prohlížeče</span>
+                            <div className="ml-auto flex flex-wrap gap-2">
+                                {perm !== 'granted' && perm !== 'unsupported' && (
                                     <button
                                         type="button"
-                                        onClick={handleTestDesktop}
-                                        disabled={testing || perm === 'unsupported'}
-                                        className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-white disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+                                        onClick={handleBrowserPermission}
+                                        className="rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-600"
                                     >
-                                        {testing ? 'Test…' : 'Otestovat'}
+                                        Povolit desktop
                                     </button>
-                                </div>
-                            </div>
-
-                            <Toggle
-                                checked={form.browser_notifications}
-                                onChange={(v) => setKey('browser_notifications', v)}
-                                label="Systémové notifikace (desktop)"
-                                description="Upozornění ve stylu push — i když máte jinou záložku aktivní"
-                            />
-                            <Toggle
-                                checked={form.toast_enabled}
-                                onChange={(v) => setKey('toast_enabled', v)}
-                                label="Toast ve WebAdminu"
-                                description="Vyskakovací karta vpravo dole přímo v aplikaci"
-                            />
-                            <Toggle
-                                checked={form.sound_enabled}
-                                onChange={(v) => setKey('sound_enabled', v)}
-                                label="Zvuk při nové události"
-                                description="Krátký tón jako u mobilního push"
-                            />
-                        </Section>
-
-                        <Section title="Zdroje pro recepci" icon="inbox">
-                            <Toggle
-                                checked={form.activity_enabled}
-                                onChange={(v) => setKey('activity_enabled', v)}
-                                label="Activity — nové požadavky"
-                                description="Hostovské požadavky ze služeb"
-                            />
-                            {form.activity_enabled && (
-                                <div className="pb-3 pl-1">
-                                    <p className="mb-2 text-xs text-gray-500">Upozornit na stavy:</p>
-                                    <div className="flex flex-wrap gap-2">
-                                        {ACTIVITY_STATUSES.map((s) => (
-                                            <button
-                                                key={s.key}
-                                                type="button"
-                                                onClick={() => toggleActivityStatus(s.key)}
-                                                className={`rounded-full px-3 py-1 text-xs font-medium transition ${
-                                                    (form.activity_statuses ?? []).includes(s.key)
-                                                        ? 'bg-orange-500 text-white'
-                                                        : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
-                                                }`}
-                                            >
-                                                {s.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                            <Toggle
-                                checked={form.concierge_enabled}
-                                onChange={(v) => setKey('concierge_enabled', v)}
-                                label="Concierge — nové zprávy"
-                                description="Nepřečtené chaty od hostů"
-                            />
-                        </Section>
-
-                        <Section
-                            title="Mobilní app (hosté)"
-                            icon="smartphone"
-                            hint="Expo push do telefonu hosta — oddělené od desktop upozornění recepce."
-                        >
-                            <Toggle
-                                checked={form.guest_push_enabled}
-                                onChange={(v) => setKey('guest_push_enabled', v)}
-                                label="Push notifikace hostům"
-                                description="CRM a systémové zprávy do mobilní aplikace"
-                            />
-                            <Toggle
-                                checked={form.guest_push_on_status_change}
-                                onChange={(v) => setKey('guest_push_on_status_change', v)}
-                                label="Push při změně stavu objednávky"
-                                description="Host dostane upozornění, když recepce změní stav požadavku"
-                            />
-                        </Section>
-
-                        <Section title="Frekvence kontroly" icon="schedule">
-                            <div className="py-3">
-                                <select
-                                    value={form.poll_interval_seconds}
-                                    onChange={(e) => setKey('poll_interval_seconds', Number(e.target.value))}
-                                    className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => testNotification()}
+                                    className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
                                 >
-                                    {POLL_OPTIONS.map((o) => (
-                                        <option key={o.value} value={o.value}>
-                                            {o.label}
-                                        </option>
-                                    ))}
-                                </select>
-                                <p className="mt-2 text-xs text-gray-500">
-                                    WebAdmin pravidelně kontroluje nové události a zobrazí je jako toast / desktop notifikaci.
-                                </p>
+                                    Vyzkoušet oznámení
+                                </button>
                             </div>
-                        </Section>
-                    </div>
+                        </div>
 
-                    <div className="flex justify-end gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-700">
-                        <button
-                            type="button"
-                            onClick={() => setSettingsOpen(false)}
-                            className="rounded-xl px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                        <Toggle
+                            checked={Boolean(form.sound_enabled)}
+                            onChange={(v) => {
+                                setKey('sound_enabled', v);
+                                if (v) playNotificationSound();
+                            }}
+                            label="Zvukové upozornění"
+                            description="Pípnutí při nové objednávce, změně stavu nebo zprávě od hosta"
+                        />
+                        <Toggle
+                            checked={Boolean(form.toast_enabled)}
+                            onChange={(v) => setKey('toast_enabled', v)}
+                            label="Toast ve WebAdminu"
+                            description="Vyskakovací karta vpravo dole přímo v aplikaci"
+                        />
+                        <Toggle
+                            checked={Boolean(form.browser_notifications)}
+                            onChange={(v) => setKey('browser_notifications', v)}
+                            label="Systémové (desktop) notifikace"
+                            description="Upozornění jako na telefonu — i když máte jinou záložku aktivní"
+                        />
+                    </Section>
+
+                    <Section
+                        title="Co hlídat"
+                        icon="inbox"
+                        hint="Zdroje událostí pro recepci"
+                    >
+                        <Toggle
+                            checked={Boolean(form.activity_enabled)}
+                            onChange={(v) => setKey('activity_enabled', v)}
+                            label="Activity — objednávky a požadavky"
+                            description="Nové požadavky i změny jejich stavu"
+                        />
+                        {form.activity_enabled && (
+                            <div className="mb-3 rounded-xl bg-gray-50 px-3 py-3 dark:bg-gray-900/40">
+                                <p className="mb-2 text-xs font-medium text-gray-500">
+                                    Stavy, na které upozornit:
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                    {ACTIVITY_STATUSES.map((s) => (
+                                        <button
+                                            key={s.key}
+                                            type="button"
+                                            onClick={() => toggleActivityStatus(s.key)}
+                                            className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
+                                                (form.activity_statuses ?? []).includes(s.key)
+                                                    ? 'bg-orange-500 text-white'
+                                                    : 'bg-white text-gray-600 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-600'
+                                            }`}
+                                        >
+                                            {s.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        <Toggle
+                            checked={Boolean(form.concierge_enabled)}
+                            onChange={(v) => setKey('concierge_enabled', v)}
+                            label="Concierge — zprávy od hostů"
+                            description="Nová nebo nepřečtená zpráva v chatu"
+                        />
+                    </Section>
+
+                    <Section
+                        title="Mobilní app (hosté)"
+                        icon="smartphone"
+                        hint="Oddělené od oznámení recepce — push do telefonu hosta"
+                    >
+                        <Toggle
+                            checked={Boolean(form.guest_push_enabled)}
+                            onChange={(v) => setKey('guest_push_enabled', v)}
+                            label="Push notifikace hostům"
+                            description="CRM a systémové zprávy do mobilní aplikace"
+                        />
+                        <Toggle
+                            checked={Boolean(form.guest_push_on_status_change)}
+                            onChange={(v) => setKey('guest_push_on_status_change', v)}
+                            label="Push při změně stavu objednávky"
+                            description="Host dostane upozornění, když recepce změní stav požadavku"
+                        />
+                    </Section>
+
+                    <Section title="Frekvence kontroly" icon="schedule">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Jak často kontrolovat nové události
+                        </label>
+                        <select
+                            value={form.poll_interval_seconds}
+                            onChange={(e) => setKey('poll_interval_seconds', Number(e.target.value))}
+                            className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-3 py-3 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-white"
                         >
-                            Zrušit
-                        </button>
-                        <button
-                            type="button"
-                            onClick={handleSave}
-                            disabled={saving}
-                            className="rounded-xl bg-orange-500 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50"
-                        >
-                            {saving ? 'Ukládání…' : 'Uložit nastavení'}
-                        </button>
-                    </div>
+                            {POLL_OPTIONS.map((o) => (
+                                <option key={o.value} value={o.value}>
+                                    {o.label}
+                                </option>
+                            ))}
+                        </select>
+                    </Section>
+
+                    {error && (
+                        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
+                            {error}
+                        </div>
+                    )}
+                    {savedFlash && (
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-200">
+                            Nastavení oznámení bylo uloženo.
+                        </div>
+                    )}
                 </div>
+
+                <footer className="flex shrink-0 items-center justify-end gap-3 border-t border-gray-200 bg-white px-6 py-4 dark:border-gray-700 dark:bg-gray-800">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="rounded-xl px-5 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                    >
+                        Zavřít
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleSave}
+                        disabled={saving}
+                        className="rounded-xl bg-orange-500 px-6 py-2.5 text-sm font-bold text-white hover:bg-orange-600 disabled:opacity-50"
+                    >
+                        {saving ? 'Ukládání…' : 'Uložit nastavení'}
+                    </button>
+                </footer>
             </div>
-        </>
+        </div>
     );
 }

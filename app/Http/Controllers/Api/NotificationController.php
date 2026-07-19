@@ -33,6 +33,28 @@ class NotificationController extends Controller
     public function updateSettings(Request $request): JsonResponse
     {
         $hotel = $this->resolveHotel($request);
+
+        $boolKeys = [
+            'activity_enabled',
+            'concierge_enabled',
+            'toast_enabled',
+            'browser_notifications',
+            'sound_enabled',
+            'guest_push_enabled',
+            'guest_push_on_status_change',
+        ];
+
+        $input = $request->all();
+        foreach ($boolKeys as $key) {
+            if (array_key_exists($key, $input)) {
+                $input[$key] = filter_var($input[$key], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                if ($input[$key] === null) {
+                    $input[$key] = (bool) $request->input($key);
+                }
+            }
+        }
+        $request->merge($input);
+
         $data = $request->validate([
             'activity_enabled' => ['sometimes', 'boolean'],
             'activity_statuses' => ['sometimes', 'array'],

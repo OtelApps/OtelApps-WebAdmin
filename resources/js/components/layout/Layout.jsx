@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Outlet, useLocation } from 'react-router-dom';
 import { MainNavigation } from './MainNavigation';
 import { Sidebar } from './Sidebar';
@@ -10,71 +11,78 @@ import { NotificationSettingsModal } from '../notifications/NotificationSettings
 export function Layout() {
     const location = useLocation();
     const [settingsOpen, setSettingsOpen] = useState(false);
-    const showSidebar = location.pathname !== '/dashboard' && 
-                        location.pathname !== '/' && 
-                        !location.pathname.startsWith('/concierge') &&
-                        !location.pathname.startsWith('/activity');
+    const [notificationSettingsOpen, setNotificationSettingsOpen] = useState(false);
+
+    const showSidebar =
+        location.pathname !== '/dashboard' &&
+        location.pathname !== '/' &&
+        !location.pathname.startsWith('/concierge') &&
+        !location.pathname.startsWith('/activity');
 
     useEffect(() => {
         const handleSettingsToggle = (e) => {
-            setSettingsOpen(e.detail);
+            setSettingsOpen(Boolean(e.detail));
         };
-        
         const handleSettingsClose = () => {
             setSettingsOpen(false);
+        };
+        const handleOpenNotificationSettings = () => {
+            setSettingsOpen(false);
+            setNotificationSettingsOpen(true);
         };
 
         window.addEventListener('settings-toggle', handleSettingsToggle);
         window.addEventListener('settings-close', handleSettingsClose);
+        window.addEventListener('open-notification-settings', handleOpenNotificationSettings);
 
         return () => {
             window.removeEventListener('settings-toggle', handleSettingsToggle);
             window.removeEventListener('settings-close', handleSettingsClose);
+            window.removeEventListener('open-notification-settings', handleOpenNotificationSettings);
         };
     }, []);
 
+    const openNotificationSettings = () => {
+        setSettingsOpen(false);
+        setNotificationSettingsOpen(true);
+    };
+
     return (
         <NotificationProvider>
-            <div className="h-screen flex flex-col overflow-hidden">
-            {/* Global Backdrop for Settings */}
-            {settingsOpen && (
-                <div
-                    onClick={() => {
-                        setSettingsOpen(false);
-                        window.dispatchEvent(new CustomEvent('settings-close'));
-                    }}
-                    className="fixed inset-0 z-[9997] transition-opacity duration-200"
-                    style={{ 
-                        position: 'fixed', 
-                        top: 0, 
-                        left: 0, 
-                        right: 0, 
-                        bottom: 0,
-                        backgroundColor: 'rgba(0, 0, 0, 0.05)'
-                    }}
+            <div className="flex h-screen flex-col overflow-hidden">
+                {/* Backdrop pod navigací (nav má vyšší z-index) */}
+                {settingsOpen && (
+                    <div
+                        onClick={() => setSettingsOpen(false)}
+                        className="fixed inset-0 z-40 bg-black/5"
+                    />
+                )}
+
+                <MainNavigation
+                    settingsOpen={settingsOpen}
+                    setSettingsOpen={setSettingsOpen}
+                    onOpenNotificationSettings={openNotificationSettings}
                 />
-            )}
 
-            {/* Top Navigation */}
-            <MainNavigation settingsOpen={settingsOpen} setSettingsOpen={setSettingsOpen} />
+                <div className="flex flex-1 overflow-hidden">
+                    {showSidebar && <Sidebar />}
+                    <main className="flex-1 overflow-y-auto bg-gray-100 dark:bg-gray-900">
+                        <Outlet />
+                    </main>
+                </div>
 
-            <div className="flex flex-1 overflow-hidden">
-                {/* Sidebar */}
-                {showSidebar && <Sidebar />}
+                <FloatingHelp />
+                <NotificationToasts />
 
-                {/* Main Content */}
-                <main className="flex-1 overflow-y-auto bg-gray-100 dark:bg-gray-900">
-                    <Outlet />
-                </main>
+                {typeof document !== 'undefined' &&
+                    createPortal(
+                        <NotificationSettingsModal
+                            open={notificationSettingsOpen}
+                            onClose={() => setNotificationSettingsOpen(false)}
+                        />,
+                        document.body,
+                    )}
             </div>
-
-            {/* Floating Help Button */}
-            <FloatingHelp />
-
-            <NotificationToasts />
-            <NotificationSettingsModal />
-        </div>
         </NotificationProvider>
     );
 }
-

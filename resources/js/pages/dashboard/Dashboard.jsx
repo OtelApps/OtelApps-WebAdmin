@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import http from '../../lib/http';
 import { useModules } from '../../context/ModulesContext';
 import { NotFound } from '../shared/NotFound';
-import { DashboardSkeleton } from '../../components/ui/PageSkeleton';
 import { STATUS_CELL } from '../activity/activityStatus';
 import { DEFAULT_LAYOUT, reorderWidgets } from './dashboardWidgetConfig';
 import { DashboardCustomizeBar, DashboardWidgetShell } from './DashboardCustomizeBar';
@@ -34,6 +33,12 @@ export function Dashboard() {
     const { isEnabled } = useModules();
     const enabled = isEnabled('dashboard');
 
+    // Moduly sync z bootstrapu — nemusíme čekat na /api/dashboard/bootstrap.
+    const activityEnabled = isEnabled('activity');
+    const conciergeEnabled = isEnabled('concierge');
+    const crmEnabled = isEnabled('crm');
+    const insightsEnabled = isEnabled('insights');
+
     const [layout, setLayout] = useState(DEFAULT_LAYOUT);
     const [draftLayout, setDraftLayout] = useState(DEFAULT_LAYOUT);
     const [catalog, setCatalog] = useState([]);
@@ -42,18 +47,13 @@ export function Dashboard() {
     const [dragId, setDragId] = useState(null);
     const [bootstrapLoading, setBootstrapLoading] = useState(true);
 
-    const [activityEnabled, setActivityEnabled] = useState(false);
-    const [conciergeEnabled, setConciergeEnabled] = useState(false);
-    const [crmEnabled, setCrmEnabled] = useState(false);
-    const [insightsEnabled, setInsightsEnabled] = useState(false);
-
     const [guestRequests, setGuestRequests] = useState([]);
     const [openCount, setOpenCount] = useState(0);
-    const [requestsLoading, setRequestsLoading] = useState(false);
+    const [requestsLoading, setRequestsLoading] = useState(activityEnabled);
     const [requestsError, setRequestsError] = useState(null);
 
     const [revenueData, setRevenueData] = useState(null);
-    const [revenueLoading, setRevenueLoading] = useState(false);
+    const [revenueLoading, setRevenueLoading] = useState(activityEnabled);
     const [revenueError, setRevenueError] = useState(null);
 
     const [weekRevenueData, setWeekRevenueData] = useState(null);
@@ -78,14 +78,9 @@ export function Dashboard() {
         if (!enabled) return;
 
         setBootstrapLoading(true);
+        setOverviewLoading(true);
         http.get('/api/dashboard/bootstrap')
             .then((res) => {
-                const modules = res.data.modules ?? {};
-                setActivityEnabled(Boolean(modules.activity));
-                setConciergeEnabled(Boolean(modules.concierge));
-                setCrmEnabled(Boolean(modules.crm));
-                setInsightsEnabled(Boolean(modules.insights));
-
                 const layoutData = res.data.layout ?? {};
                 const widgets = layoutData.widgets ?? DEFAULT_LAYOUT;
                 setLayout(widgets);
@@ -111,6 +106,7 @@ export function Dashboard() {
         if (!activityEnabled) {
             setGuestRequests([]);
             setOpenCount(0);
+            setRequestsLoading(false);
             return;
         }
         setRequestsLoading(true);
@@ -120,6 +116,7 @@ export function Dashboard() {
                 const counts = res.data.status_counts ?? {};
                 setGuestRequests(list);
                 setOpenCount(OPEN_STATUSES.reduce((sum, key) => sum + (Number(counts[key]) || 0), 0));
+                setRequestsError(null);
             })
             .catch((err) => {
                 setGuestRequests([]);
@@ -132,11 +129,15 @@ export function Dashboard() {
     useEffect(() => {
         if (!activityEnabled) {
             setRevenueData(null);
+            setRevenueLoading(false);
             return;
         }
         setRevenueLoading(true);
         http.get('/api/activity/revenue-summary', { params: { period: 'today' } })
-            .then((res) => setRevenueData(res.data))
+            .then((res) => {
+                setRevenueData(res.data);
+                setRevenueError(null);
+            })
             .catch((err) => setRevenueError(err.response?.data?.message || 'Tržby se nepodařilo načíst.'))
             .finally(() => setRevenueLoading(false));
     }, [activityEnabled]);
@@ -144,11 +145,15 @@ export function Dashboard() {
     useEffect(() => {
         if (!activityEnabled || !activeWidgets.includes('insights_revenue')) {
             setWeekRevenueData(null);
+            setWeekRevenueLoading(false);
             return;
         }
         setWeekRevenueLoading(true);
         http.get('/api/activity/revenue-summary', { params: { period: 'week' } })
-            .then((res) => setWeekRevenueData(res.data))
+            .then((res) => {
+                setWeekRevenueData(res.data);
+                setWeekRevenueError(null);
+            })
             .catch((err) => setWeekRevenueError(err.response?.data?.message || 'Tržby se nepodařilo načíst.'))
             .finally(() => setWeekRevenueLoading(false));
     }, [activityEnabled, activeWidgets]);
@@ -156,11 +161,15 @@ export function Dashboard() {
     useEffect(() => {
         if (!conciergeEnabled || !activeWidgets.includes('concierge_inbox')) {
             setConciergeUnread(0);
+            setConciergeLoading(false);
             return;
         }
         setConciergeLoading(true);
         http.get('/api/concierge/conversations')
-            .then((res) => setConciergeUnread(res.data.unread_total ?? 0))
+            .then((res) => {
+                setConciergeUnread(res.data.unread_total ?? 0);
+                setConciergeError(null);
+            })
             .catch((err) => setConciergeError(err.response?.data?.message || 'Concierge data se nepodařilo načíst.'))
             .finally(() => setConciergeLoading(false));
     }, [conciergeEnabled, activeWidgets]);
@@ -168,11 +177,15 @@ export function Dashboard() {
     useEffect(() => {
         if (!crmEnabled || !activeWidgets.includes('crm_snapshot')) {
             setCrmKpis(null);
+            setCrmLoading(false);
             return;
         }
         setCrmLoading(true);
         http.get('/api/crm/overview')
-            .then((res) => setCrmKpis(res.data.kpis ?? null))
+            .then((res) => {
+                setCrmKpis(res.data.kpis ?? null);
+                setCrmError(null);
+            })
             .catch((err) => setCrmError(err.response?.data?.message || 'CRM data se nepodařilo načíst.'))
             .finally(() => setCrmLoading(false));
     }, [crmEnabled, activeWidgets]);
@@ -266,10 +279,7 @@ export function Dashboard() {
         return <NotFound />;
     }
 
-    if (bootstrapLoading) {
-        return <DashboardSkeleton />;
-    }
-
+    // Shell-first: nadpis + widgety hned, data/skeletony uvnitř widgetů.
     return (
         <div className="mx-auto max-w-screen-2xl px-0.5 py-8 sm:px-1 lg:px-1.5">
             <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">

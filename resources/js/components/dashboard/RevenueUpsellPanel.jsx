@@ -1,4 +1,5 @@
 import React from 'react';
+import { WidgetBodySkeleton } from '../ui/PageSkeleton';
 import { formatMoney, CATEGORY_BAR_COLORS } from '../../utils/formatMoney';
 
 /**
@@ -21,7 +22,7 @@ export function RevenueUpsellPanel({
     }
 
     if (loading) {
-        return <p className="text-sm text-gray-500 dark:text-gray-400 py-4 text-center">Načítání tržeb…</p>;
+        return <WidgetBodySkeleton rows={compact ? 3 : 5} />;
     }
 
     if (error) {

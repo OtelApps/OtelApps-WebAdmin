@@ -111,6 +111,10 @@ return [
             'prefix_indexes' => true,
             'search_path' => 'public',
             'sslmode' => 'require',
+            // Rychlejší fail při zahlcení pooleru (místo 30s max_execution_time).
+            'options' => extension_loaded('pdo_pgsql') ? [
+                \PDO::ATTR_TIMEOUT => 8,
+            ] : [],
         ],
 
         'sqlsrv' => [

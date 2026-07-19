@@ -13,7 +13,7 @@ class NotificationService
 {
     public const DEFAULT_PREFERENCES = [
         'activity_enabled' => true,
-        'activity_statuses' => ['new'],
+        'activity_statuses' => ['new', 'pending', 'in_progress'],
         'concierge_enabled' => true,
         'toast_enabled' => true,
         'browser_notifications' => true,
@@ -23,7 +23,7 @@ class NotificationService
         'guest_push_on_status_change' => true,
     ];
 
-    private const SYNC_CACHE_SECONDS = 30;
+    private const SYNC_CACHE_SECONDS = 10;
 
     public function settings(Hotel $hotel): array
     {
@@ -39,17 +39,38 @@ class NotificationService
     public function updateSettings(Hotel $hotel, array $data): array
     {
         $current = $this->settings($hotel)['preferences'];
+
+        foreach ([
+            'activity_enabled',
+            'concierge_enabled',
+            'toast_enabled',
+            'browser_notifications',
+            'sound_enabled',
+            'guest_push_enabled',
+            'guest_push_on_status_change',
+        ] as $boolKey) {
+            if (array_key_exists($boolKey, $data)) {
+                $data[$boolKey] = filter_var($data[$boolKey], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? (bool) $data[$boolKey];
+            }
+        }
+
         $merged = array_merge($current, array_intersect_key($data, array_flip(array_keys(self::DEFAULT_PREFERENCES))));
         $normalized = $this->normalizePreferences($merged);
 
         HotelAdminNotificationSetting::query()->updateOrCreate(
             ['hotel_id' => $hotel->id],
-            ['preferences' => $normalized],
+            [
+                'preferences' => $normalized,
+                'updated_at' => now(),
+            ],
         );
 
         Cache::forget($this->syncCacheKey($hotel));
 
-        return $this->settings($hotel);
+        return [
+            'preferences' => $normalized,
+            'updated_at' => now()->toIso8601String(),
+        ];
     }
 
     public function summary(Hotel $hotel, bool $withSync = false): array
@@ -178,13 +199,20 @@ class NotificationService
         $requests = HotelServiceRequest::query()
             ->where('hotel_id', $hotel->id)
             ->whereIn('status', $statuses)
+            ->orderByDesc('updated_at')
             ->orderByDesc('created_at')
-            ->take(25)
-            ->get(['id', 'service_label', 'guest_display_name', 'room_number']);
+            ->take(40)
+            ->get(['id', 'service_label', 'guest_display_name', 'room_number', 'status', 'updated_at']);
 
         if ($requests->isEmpty()) {
             return;
         }
+
+        $statusLabels = [
+            'new' => 'Nový požadavek',
+            'pending' => 'Čekající požadavek',
+            'in_progress' => 'Požadavek v řešení',
+        ];
 
         $existing = HotelAdminNotification::query()
             ->where('hotel_id', $hotel->id)
@@ -194,19 +222,21 @@ class NotificationService
             ->keyBy('source_id');
 
         foreach ($requests as $request) {
-            $title = 'Nový požadavek · '.$request->service_label;
+            $statusKey = (string) $request->status;
+            $statusLabel = $statusLabels[$statusKey] ?? 'Požadavek';
+            $title = $statusLabel.' · '.$request->service_label;
             $body = $request->guest_display_name.' · pokoj '.$request->room_number;
             $row = $existing->get($request->id);
 
             if ($row) {
                 $changed = $row->title !== $title || $row->body !== $body;
                 if ($changed) {
-                    $row->update([
+                    $row->forceFill([
                         'title' => $title,
                         'body' => $body,
                         'link_path' => '/activity',
                         'read_at' => null,
-                    ]);
+                    ])->save();
                 }
 
                 continue;
@@ -258,12 +288,12 @@ class NotificationService
             if ($row) {
                 $changed = $row->title !== $title || $row->body !== $body;
                 if ($changed) {
-                    $row->update([
+                    $row->forceFill([
                         'title' => $title,
                         'body' => $body,
                         'link_path' => '/concierge',
                         'read_at' => null,
-                    ]);
+                    ])->save();
                 }
 
                 continue;

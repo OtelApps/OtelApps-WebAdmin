@@ -4,10 +4,22 @@ import http from '../lib/http';
 
 const NotificationContext = createContext(null);
 
-const SEEN_KEY = 'otelapps_seen_notification_ids';
+const SEEN_KEY = 'otelapps_seen_notification_fps';
 const BASE_TITLE = typeof document !== 'undefined' ? document.title : 'Otel Apps Hotel';
 
-function loadSeenIds() {
+export const DEFAULT_NOTIFICATION_PREFS = {
+    activity_enabled: true,
+    activity_statuses: ['new', 'pending', 'in_progress'],
+    concierge_enabled: true,
+    toast_enabled: true,
+    browser_notifications: true,
+    sound_enabled: true,
+    poll_interval_seconds: 15,
+    guest_push_enabled: true,
+    guest_push_on_status_change: true,
+};
+
+function loadSeenFingerprints() {
     try {
         const raw = sessionStorage.getItem(SEEN_KEY);
         return raw ? JSON.parse(raw) : [];
@@ -16,12 +28,16 @@ function loadSeenIds() {
     }
 }
 
-function saveSeenIds(ids) {
+function saveSeenFingerprints(ids) {
     try {
-        sessionStorage.setItem(SEEN_KEY, JSON.stringify(ids.slice(-200)));
+        sessionStorage.setItem(SEEN_KEY, JSON.stringify(ids.slice(-300)));
     } catch {
         // ignore
     }
+}
+
+function fingerprint(n) {
+    return `${n.id}|${n.title}|${n.body || ''}`;
 }
 
 function getBrowserPermission() {
@@ -29,24 +45,48 @@ function getBrowserPermission() {
     return Notification.permission;
 }
 
-function playNotificationSound() {
+let audioCtx = null;
+
+function ensureAudioContext() {
     try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return null;
+        if (!audioCtx) {
+            audioCtx = new Ctx();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume().catch(() => {});
+        }
+        return audioCtx;
+    } catch {
+        return null;
+    }
+}
+
+export function unlockNotificationAudio() {
+    ensureAudioContext();
+}
+
+export function playNotificationSound() {
+    try {
+        const ctx = ensureAudioContext();
+        if (!ctx) return;
         const now = ctx.currentTime;
         const playTone = (freq, start, duration) => {
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.connect(gain);
             gain.connect(ctx.destination);
+            osc.type = 'sine';
             osc.frequency.value = freq;
             gain.gain.setValueAtTime(0.0001, start);
-            gain.gain.exponentialRampToValueAtTime(0.1, start + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.12, start + 0.02);
             gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
             osc.start(start);
             osc.stop(start + duration);
         };
         playTone(880, now, 0.14);
-        playTone(1175, now + 0.16, 0.18);
+        playTone(1175, now + 0.15, 0.2);
     } catch {
         // ignore
     }
@@ -58,19 +98,16 @@ function showDesktopNotification(item, { navigate, markRead }) {
     }
 
     const tabHidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
-    const options = {
-        body: item.body || undefined,
-        tag: `otelapps-${item.id}`,
-        renotify: true,
-        icon: '/logo.png',
-        badge: '/logo.png',
-        lang: 'cs',
-        requireInteraction: tabHidden,
-        data: { link_path: item.link_path, id: item.id },
-    };
-
     try {
-        const notif = new Notification(item.title, options);
+        const notif = new Notification(item.title, {
+            body: item.body || undefined,
+            tag: `otelapps-${item.id}`,
+            renotify: true,
+            icon: '/logo.png',
+            badge: '/logo.png',
+            lang: 'cs',
+            requireInteraction: tabHidden,
+        });
         notif.onclick = () => {
             window.focus();
             if (item.id && markRead) {
@@ -82,7 +119,7 @@ function showDesktopNotification(item, { navigate, markRead }) {
             notif.close();
         };
     } catch {
-        // ignore (např. insecure context)
+        // ignore
     }
 }
 
@@ -98,13 +135,15 @@ export function NotificationProvider({ children }) {
     const [unreadCount, setUnreadCount] = useState(0);
     const [preferences, setPreferences] = useState(null);
     const [toasts, setToasts] = useState([]);
-    const [settingsOpen, setSettingsOpen] = useState(false);
+    const [notificationSettingsOpen, setNotificationSettingsOpen] = useState(false);
     const [loading, setLoading] = useState(true);
     const [browserPermission, setBrowserPermission] = useState(getBrowserPermission);
-    const seenRef = useRef(loadSeenIds());
+    const seenRef = useRef(loadSeenFingerprints());
     const pollRef = useRef(null);
+    const summaryInFlightRef = useRef(false);
     const prefsRef = useRef(null);
     const markReadRef = useRef(null);
+    const primedRef = useRef(false);
 
     useEffect(() => {
         prefsRef.current = preferences;
@@ -115,26 +154,49 @@ export function NotificationProvider({ children }) {
         return () => updateDocumentTitle(0);
     }, [unreadCount]);
 
-    const pushToast = useCallback((notification) => {
-        const id = `toast-${notification.id}-${Date.now()}`;
-        setToasts((prev) => [...prev, { ...notification, toastId: id }]);
-        setTimeout(() => {
-            setToasts((prev) => prev.filter((t) => t.toastId !== id));
-        }, 8000);
+    // Prohlížeče vyžadují user gesture pro zvuk — odemkneme při první interakci.
+    useEffect(() => {
+        const unlock = () => unlockNotificationAudio();
+        document.addEventListener('click', unlock, { once: true });
+        document.addEventListener('keydown', unlock, { once: true });
+        return () => {
+            document.removeEventListener('click', unlock);
+            document.removeEventListener('keydown', unlock);
+        };
     }, []);
 
-    const notifyNewItems = useCallback((items, prefs) => {
-        const unseen = items.filter(
-            (n) => !n.read_at && !seenRef.current.includes(n.id),
-        );
+    const pushToast = useCallback((notification) => {
+        const id = `toast-${notification.id}-${Date.now()}`;
+        setToasts((prev) => [...prev.slice(-4), { ...notification, toastId: id }]);
+        setTimeout(() => {
+            setToasts((prev) => prev.filter((t) => t.toastId !== id));
+        }, 10000);
+    }, []);
+
+    const notifyNewItems = useCallback((items, prefs, { silent = false } = {}) => {
+        const list = Array.isArray(items) ? items : [];
+
+        if (silent || !primedRef.current) {
+            list.forEach((n) => {
+                const fp = fingerprint(n);
+                if (!seenRef.current.includes(fp)) {
+                    seenRef.current.push(fp);
+                }
+            });
+            saveSeenFingerprints(seenRef.current);
+            primedRef.current = true;
+            return;
+        }
+
+        const unseen = list.filter((n) => !n.read_at && !seenRef.current.includes(fingerprint(n)));
         if (unseen.length === 0) return;
 
         unseen.forEach((n) => {
-            seenRef.current.push(n.id);
-            if (prefs.toast_enabled) {
+            seenRef.current.push(fingerprint(n));
+            if (prefs.toast_enabled !== false) {
                 pushToast(n);
             }
-            if (prefs.browser_notifications) {
+            if (prefs.browser_notifications !== false) {
                 showDesktopNotification(n, {
                     navigate,
                     markRead: (payload) => markReadRef.current?.(payload),
@@ -142,32 +204,43 @@ export function NotificationProvider({ children }) {
             }
         });
 
-        if (prefs.sound_enabled) {
+        if (prefs.sound_enabled !== false) {
             playNotificationSound();
         }
 
-        saveSeenIds(seenRef.current);
+        saveSeenFingerprints(seenRef.current);
     }, [navigate, pushToast]);
 
-    const fetchSummary = useCallback(async (withSync = true) => {
+    const fetchSummary = useCallback(async (withSync = true, { silent = false } = {}) => {
+        // php artisan serve je jednovláknový — nepřekládat requesty přes sebe (jinak PUT settings čeká 30s).
+        if (summaryInFlightRef.current) return;
+        summaryInFlightRef.current = true;
         try {
             const params = withSync ? { sync: 1 } : undefined;
-            const { data } = await http.get('/api/notifications/summary', { params });
+            const { data } = await http.get('/api/notifications/summary', {
+                params,
+                timeout: 20000,
+            });
             setBadges(data.badges ?? { activity: 0, concierge: 0, total: 0 });
             setNotifications(data.notifications ?? []);
             setUnreadCount(data.unread_count ?? 0);
-            setPreferences(data.preferences ?? null);
-            notifyNewItems(data.notifications ?? [], data.preferences ?? {});
+            const prefs = { ...DEFAULT_NOTIFICATION_PREFS, ...(data.preferences ?? {}) };
+            setPreferences(prefs);
+            notifyNewItems(data.notifications ?? [], prefs, { silent: silent || !primedRef.current });
             setBrowserPermission(getBrowserPermission());
-        } catch {
-            // tabulky nemusí existovat — tichý fallback
+        } catch (err) {
+            console.warn('[notifications] summary failed', err);
+            if (!prefsRef.current) {
+                setPreferences({ ...DEFAULT_NOTIFICATION_PREFS });
+            }
         } finally {
+            summaryInFlightRef.current = false;
             setLoading(false);
         }
     }, [notifyNewItems]);
 
     useEffect(() => {
-        fetchSummary(true);
+        fetchSummary(true, { silent: true });
     }, [fetchSummary]);
 
     useEffect(() => {
@@ -175,7 +248,6 @@ export function NotificationProvider({ children }) {
         if (!preferences) return undefined;
 
         const intervalMs = (preferences.poll_interval_seconds ?? 15) * 1000;
-        // Sync je na backendu throttlený (30 s) — vždy posíláme sync=1, ať toasty/desktop notifs fungují.
         pollRef.current = setInterval(() => fetchSummary(true), intervalMs);
         return () => {
             if (pollRef.current) clearInterval(pollRef.current);
@@ -216,34 +288,72 @@ export function NotificationProvider({ children }) {
 
     const openNotification = useCallback(async (notification) => {
         await markRead({ id: notification.id });
-        navigate(notification.link_path);
+        if (notification.link_path) {
+            navigate(notification.link_path);
+        }
     }, [markRead, navigate]);
 
     const saveSettings = useCallback(async (nextPrefs) => {
-        const { data } = await http.put('/api/notifications/settings', nextPrefs);
-        setPreferences(data.preferences ?? nextPrefs);
-        await fetchSummary(true);
-        return data.preferences;
-    }, [fetchSummary]);
+        const payload = { ...DEFAULT_NOTIFICATION_PREFS, ...nextPrefs };
+        const { data } = await http.put('/api/notifications/settings', payload, {
+            timeout: 20000,
+        });
+        const saved = { ...DEFAULT_NOTIFICATION_PREFS, ...(data.preferences ?? payload) };
+        setPreferences(saved);
+        // Nečekat na sync/summary — to jen zbytečně blokuje „Ukládání…“
+        return saved;
+    }, []);
 
     const togglePreference = useCallback(async (key) => {
-        const current = prefsRef.current;
-        if (!current || !(key in current)) return null;
+        const current = prefsRef.current ?? DEFAULT_NOTIFICATION_PREFS;
         return saveSettings({ ...current, [key]: !current[key] });
     }, [saveSettings]);
 
     const requestBrowserPermission = useCallback(async () => {
+        unlockNotificationAudio();
         if (typeof Notification === 'undefined') {
             setBrowserPermission('unsupported');
             return 'unsupported';
         }
         const result = await Notification.requestPermission();
         setBrowserPermission(result);
-        if (result === 'granted' && prefsRef.current) {
-            await saveSettings({ ...prefsRef.current, browser_notifications: true });
+        if (result === 'granted') {
+            const current = prefsRef.current ?? DEFAULT_NOTIFICATION_PREFS;
+            await saveSettings({ ...current, browser_notifications: true });
         }
         return result;
     }, [saveSettings]);
+
+    const testNotification = useCallback(async () => {
+        unlockNotificationAudio();
+        const prefs = prefsRef.current ?? DEFAULT_NOTIFICATION_PREFS;
+
+        if (prefs.sound_enabled !== false) {
+            playNotificationSound();
+        }
+
+        const sample = {
+            id: `test-${Date.now()}`,
+            source: 'activity',
+            title: 'Test oznámení · Otel Apps',
+            body: 'Takto uvidíte nový požadavek nebo zprávu od hosta.',
+            link_path: '/activity',
+        };
+
+        if (prefs.toast_enabled !== false) {
+            pushToast(sample);
+        }
+
+        if (prefs.browser_notifications !== false) {
+            let perm = getBrowserPermission();
+            if (perm === 'default') {
+                perm = await requestBrowserPermission();
+            }
+            if (perm === 'granted') {
+                showDesktopNotification(sample, { navigate, markRead: () => {} });
+            }
+        }
+    }, [navigate, pushToast, requestBrowserPermission]);
 
     const value = {
         badges,
@@ -252,8 +362,10 @@ export function NotificationProvider({ children }) {
         preferences,
         toasts,
         loading,
-        settingsOpen,
-        setSettingsOpen,
+        notificationSettingsOpen,
+        setNotificationSettingsOpen,
+        settingsOpen: notificationSettingsOpen,
+        setSettingsOpen: setNotificationSettingsOpen,
         browserPermission,
         fetchSummary,
         markRead,
@@ -262,6 +374,8 @@ export function NotificationProvider({ children }) {
         saveSettings,
         togglePreference,
         requestBrowserPermission,
+        testNotification,
+        playNotificationSound,
         dismissToast: (toastId) => setToasts((prev) => prev.filter((t) => t.toastId !== toastId)),
     };
 

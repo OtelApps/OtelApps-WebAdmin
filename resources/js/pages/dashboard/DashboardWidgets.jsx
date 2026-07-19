@@ -1,6 +1,7 @@
 import React from 'react';
 import { HotelOverviewCard } from '../../components/dashboard/HotelOverviewCard';
 import { RevenueUpsellPanel } from '../../components/dashboard/RevenueUpsellPanel';
+import { WidgetBodySkeleton } from '../../components/ui/PageSkeleton';
 import { formatMoney } from '../../utils/formatMoney';
 
 function ShortcutCard({ icon, title, description, primaryLabel, onPrimary, disabled = false, badge = null }) {
@@ -51,7 +52,7 @@ export function GuestRequestsWidget({
                 {!activityEnabled ? (
                     <p className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">Modul Activity není zapnutý.</p>
                 ) : loading ? (
-                    <p className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">Načítání…</p>
+                    <WidgetBodySkeleton rows={3} />
                 ) : error ? (
                     <p className="py-2 text-sm text-red-600 dark:text-red-400">{error}</p>
                 ) : guestRequests.length === 0 ? (
@@ -145,7 +146,9 @@ export function ConciergeInboxWidget({ enabled, unread, loading, error, onNaviga
             {!enabled ? (
                 <p className="flex-1 text-sm text-gray-500">Modul Concierge není zapnutý.</p>
             ) : loading ? (
-                <p className="flex-1 text-sm text-gray-500">Načítání…</p>
+                <div className="flex-1">
+                    <WidgetBodySkeleton rows={2} />
+                </div>
             ) : error ? (
                 <p className="flex-1 text-sm text-red-500">{error}</p>
             ) : (
@@ -174,7 +177,9 @@ export function CrmSnapshotWidget({ enabled, kpis, loading, error, onNavigate })
             {!enabled ? (
                 <p className="flex-1 text-sm text-gray-500">Modul CRM není zapnutý.</p>
             ) : loading ? (
-                <p className="flex-1 text-sm text-gray-500">Načítání…</p>
+                <div className="flex-1">
+                    <WidgetBodySkeleton rows={4} />
+                </div>
             ) : error ? (
                 <p className="flex-1 text-sm text-red-500">{error}</p>
             ) : (
@@ -214,7 +219,9 @@ export function InsightsRevenueWidget({ enabled, data, loading, error, onNavigat
             {!enabled ? (
                 <p className="flex-1 text-sm text-gray-500">Modul Insights není zapnutý.</p>
             ) : loading ? (
-                <p className="flex-1 text-sm text-gray-500">Načítání…</p>
+                <div className="flex-1">
+                    <WidgetBodySkeleton rows={3} />
+                </div>
             ) : error ? (
                 <p className="flex-1 text-sm text-red-500">{error}</p>
             ) : (

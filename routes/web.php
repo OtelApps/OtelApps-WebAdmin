@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\HotelInfoController;
 use App\Http\Controllers\Api\HotelParkingController;
+use App\Http\Controllers\Api\HotelPlaceController;
 use App\Http\Controllers\Api\HotelHousekeepingController;
 use App\Http\Controllers\Api\FitnessController;
 use App\Http\Controllers\Api\HotelRoomServiceController;
@@ -120,6 +121,13 @@ Route::prefix('api')->group(function () {
     Route::get('/hotel-parking/topics/{slug}', [HotelParkingController::class, 'show']);
     Route::put('/hotel-parking/topics/{slug}', [HotelParkingController::class, 'update']);
     Route::delete('/hotel-parking/topics/{slug}', [HotelParkingController::class, 'destroy']);
+
+    // Památky a místa — mapa + trip planner
+    Route::get('/hotel-places', [HotelPlaceController::class, 'index']);
+    Route::post('/hotel-places', [HotelPlaceController::class, 'store']);
+    Route::post('/hotel-places/geocode', [HotelPlaceController::class, 'geocode']);
+    Route::put('/hotel-places/{id}', [HotelPlaceController::class, 'update']);
+    Route::delete('/hotel-places/{id}', [HotelPlaceController::class, 'destroy']);
 
     // Doplňky (Amenities) — Supabase schema (hotel_supplies, …)
     Route::get('/hotel-supplies', [HotelSuppliesController::class, 'index']);

@@ -4,14 +4,14 @@ import { useNotifications } from "../../context/NotificationContext";
 import { useModules } from "../../context/ModulesContext";
 import { NotificationBell, NavBadge } from '../notifications/NotificationBell';
 
-export function MainNavigation({ settingsOpen, setSettingsOpen }) {
+export function MainNavigation({ settingsOpen, setSettingsOpen, onOpenNotificationSettings }) {
     const location = useLocation();
     const { mainModules: modules, labels, moduleMap } = useModules();
     const [languageOpen, setLanguageOpen] = useState(false);
     const [currentLanguage, setCurrentLanguage] = useState("English");
     const [editLanguagesOpen, setEditLanguagesOpen] = useState(false);
     const languageButtonRef = useRef(null);
-    const { badges, setSettingsOpen: setNotificationSettingsOpen, preferences, togglePreference, browserPermission, requestBrowserPermission } = useNotifications();
+    const { badges } = useNotifications();
 
     useEffect(() => {
         const handleDocumentClick = (event) => {
@@ -78,7 +78,7 @@ export function MainNavigation({ settingsOpen, setSettingsOpen }) {
     };
 
     return (
-        <nav className="bg-gray-800 text-white shadow-lg relative z-50">
+        <nav className="relative z-50 bg-gray-800 text-white shadow-lg">
             <div className="max-w-screen-2xl mx-auto px-0.5 sm:px-1 lg:px-1.5">
                 <div className="flex items-center justify-between h-16">
                     {/* Logo */}
@@ -136,8 +136,9 @@ export function MainNavigation({ settingsOpen, setSettingsOpen }) {
                         {/* Settings Button */}
                         <div className="relative">
                             <button
+                                type="button"
                                 onClick={handleSettingsClick}
-                                className="text-gray-300 hover:text-white relative z-9999"
+                                className="relative text-gray-300 hover:text-white"
                             >
                                 <svg
                                     className="w-6 h-6"
@@ -160,97 +161,45 @@ export function MainNavigation({ settingsOpen, setSettingsOpen }) {
                                 </svg>
                             </button>
 
-                            {/* Settings Dropdown Menu */}
+                            {/* Settings Dropdown Menu — nad backdropem (nav z-50, backdrop z-40) */}
                             {settingsOpen && (
                                 <div
-                                    className="absolute right-0 top-full mt-2 w-80 rounded-xl border border-gray-200 bg-white py-2 z-9999"
+                                    className="absolute right-0 top-full z-50 mt-2 w-56 rounded-lg border border-gray-200 bg-white py-2"
                                     style={{
+                                        minWidth: "14rem",
                                         boxShadow:
                                             "0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2)",
                                     }}
                                     onClick={(e) => e.stopPropagation()}
                                 >
-                                    <div className="border-b border-gray-100 px-4 pb-3 pt-2">
-                                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-orange-500">
-                                            Oznámení
-                                        </p>
-                                        <div className="space-y-2">
-                                            {[
-                                                {
-                                                    key: "browser_notifications",
-                                                    label: "Desktop notifikace",
-                                                    hint: browserPermission === "granted"
-                                                        ? "Systémová upozornění"
-                                                        : "Vyžaduje povolení prohlížeče",
-                                                },
-                                                {
-                                                    key: "toast_enabled",
-                                                    label: "Toast ve WebAdminu",
-                                                    hint: "Karty vpravo dole",
-                                                },
-                                                {
-                                                    key: "sound_enabled",
-                                                    label: "Zvuk",
-                                                    hint: "Tón při nové události",
-                                                },
-                                            ].map((item) => {
-                                                const on = Boolean(preferences?.[item.key]);
-                                                return (
-                                                    <button
-                                                        key={item.key}
-                                                        type="button"
-                                                        disabled={!preferences}
-                                                        onClick={async () => {
-                                                            if (
-                                                                item.key === "browser_notifications" &&
-                                                                !on &&
-                                                                browserPermission !== "granted"
-                                                            ) {
-                                                                const result = await requestBrowserPermission();
-                                                                // requestBrowserPermission už zapne browser_notifications
-                                                                if (result === "granted") return;
-                                                                return;
-                                                            }
-                                                            await togglePreference(item.key);
-                                                        }}
-                                                        className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-gray-50 disabled:opacity-50"
-                                                    >
-                                                        <span>
-                                                            <span className="block text-sm font-medium text-gray-800">
-                                                                {item.label}
-                                                            </span>
-                                                            <span className="block text-[11px] text-gray-400">
-                                                                {item.hint}
-                                                            </span>
-                                                        </span>
-                                                        <span
-                                                            className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
-                                                                on ? "bg-orange-500" : "bg-gray-300"
-                                                            }`}
-                                                        >
-                                                            <span
-                                                                className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
-                                                                    on ? "translate-x-4" : "translate-x-0"
-                                                                }`}
-                                                            />
-                                                        </span>
-                                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            if (typeof onOpenNotificationSettings === "function") {
+                                                onOpenNotificationSettings();
+                                            } else {
+                                                window.dispatchEvent(
+                                                    new CustomEvent("open-notification-settings"),
                                                 );
-                                            })}
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setSettingsOpen(false);
-                                                setNotificationSettingsOpen(true);
-                                            }}
-                                            className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-orange-50 px-3 py-2 text-xs font-semibold text-orange-600 hover:bg-orange-100"
-                                        >
-                                            <span className="material-symbols-outlined text-[16px]">tune</span>
-                                            Všechna nastavení oznámení
-                                        </button>
-                                    </div>
-
+                                            }
+                                        }}
+                                        className="flex w-full items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50"
+                                    >
+                                        <span className="material-symbols-outlined mr-3 text-[20px] text-orange-500">
+                                            notifications_active
+                                        </span>
+                                        <span className="flex-1 text-left">
+                                            <span className="block font-medium">Oznámení</span>
+                                            <span className="block text-[11px] text-gray-400">
+                                                Zvuk, toast, desktop…
+                                            </span>
+                                        </span>
+                                        <span className="material-symbols-outlined text-[18px] text-gray-400">
+                                            chevron_right
+                                        </span>
+                                    </button>
                                     <a
                                         href="#"
                                         className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
@@ -385,7 +334,7 @@ export function MainNavigation({ settingsOpen, setSettingsOpen }) {
                                                 strokeLinecap="round"
                                                 strokeLinejoin="round"
                                                 strokeWidth="2"
-                                                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                                                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
                                             />
                                         </svg>
                                         Uptime Stats
@@ -409,10 +358,10 @@ export function MainNavigation({ settingsOpen, setSettingsOpen }) {
                                         </svg>
                                         Product updates
                                     </a>
-                                    <div className="border-t border-gray-200 my-1"></div>
+                                    <div className="my-1 border-t border-gray-200"></div>
                                     <a
                                         href="#"
-                                        className="flex items-center px-4 py-2 text-sm text-gray-900 hover:bg-gray-100 font-medium"
+                                        className="flex items-center px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-100"
                                     >
                                         <svg
                                             className="w-5 h-5 mr-3 text-gray-900"
