@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useParams } from 'react-router-dom';
-import axios from 'axios';
+import { useModules } from '../../context/ModulesContext';
 import { NotFound } from './NotFound';
 import { RestaurantsBars } from '../content/facilities/restaurants_bars/RestaurantsBars';
 import { WellnessSpa } from '../content/facilities/wellness_spa/WellnessSpa';
@@ -63,45 +63,16 @@ const OTHER_PAGES = {
 };
 
 export function DynamicModulePage() {
-    const { type, module, area } = useParams();
-    const [isEnabled, setIsEnabled] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const { type, module } = useParams();
+    const { isModuleRouteEnabled } = useModules();
 
-    useEffect(() => {
-        if (!type || !module) {
-            setLoading(false);
-            setIsEnabled(false);
-            return;
-        }
-
-        axios.get(`/api/modules/check/${type}/${module}`)
-            .then(response => {
-                setIsEnabled(response.data.enabled);
-                setLoading(false);
-            })
-            .catch(() => {
-                setIsEnabled(false);
-                setLoading(false);
-            });
-    }, [type, module]);
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-screen">
-                <p className="text-gray-600">Loading...</p>
-            </div>
-        );
-    }
-
-    if (!isEnabled) {
+    if (!isModuleRouteEnabled(type, module)) {
         return <NotFound />;
     }
 
     if (type === module && (type === 'facilities' || type === 'services' || type === 'other')) {
         return <ModuleSectionHub />;
     }
-
-
 
     if (type === 'facilities' && FACILITIES_PAGES[module]) {
         const Page = FACILITIES_PAGES[module];
@@ -195,7 +166,6 @@ export function DynamicModulePage() {
         return <FeedbackStats />;
     }
 
-    // Default module page
     return (
         <div className="p-6">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
@@ -207,6 +177,3 @@ export function DynamicModulePage() {
         </div>
     );
 }
-
-
-

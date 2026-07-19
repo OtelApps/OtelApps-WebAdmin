@@ -27,50 +27,20 @@ Route::prefix('api')->group(function () {
     Route::get('/csrf', fn () => response()->json(['token' => csrf_token()]));
 
     Route::get('/modules/main-navigation', function () {
-        $modules = ModuleService::getMainNavigation();
-        $labels = [];
-        foreach ($modules as $module) {
-            $labels[$module] = ModuleService::getLabel($module);
-        }
-        
+        $bootstrap = ModuleService::getClientBootstrap();
+
         return response()->json([
-            'modules' => array_values($modules), // Ensure it's a numeric array
-            'labels' => $labels,
-            'map' => ModuleService::getFlatMap(),
+            'modules' => $bootstrap['mainNavigation']['modules'],
+            'labels' => $bootstrap['mainNavigation']['labels'],
+            'map' => $bootstrap['map'],
         ]);
     });
 
     Route::get('/modules/sidebar', function (Request $request) {
         $sectionParam = $request->query('section');
         $section = is_string($sectionParam) ? $sectionParam : null;
-        $resolvedSection = ModuleService::resolveSection($section);
-        $sidebarModules = ModuleService::getSidebarModules($section);
-        $result = [];
-        
-        foreach ($sidebarModules as $key => $value) {
-            if (is_array($value)) {
-                // Section with submodules
-                $result[] = [
-                    'key' => $key,
-                    'label' => ModuleService::getLabel($key),
-                    'submodules' => array_map(fn($m) => [
-                        'key' => $m,
-                        'label' => ModuleService::getLabel($m),
-                    ], $value),
-                ];
-            } else {
-                // Simple module
-                $result[] = [
-                    'key' => $value,
-                    'label' => ModuleService::getLabel($value),
-                ];
-            }
-        }
-        
-        return response()->json([
-            'modules' => $result,
-            'resolvedSection' => $resolvedSection
-        ]);
+
+        return response()->json(ModuleService::formatSidebarForClient($section));
     });
 
     Route::get('/modules/check/{module}', function ($module) {

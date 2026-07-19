@@ -1,55 +1,38 @@
-import React, { useEffect, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import axios from 'axios';
 import { NotFound } from './NotFound';
 import { isModuleUnavailable } from '../../config/unavailableModules';
+import { useModules } from '../../context/ModulesContext';
 
 /**
  * Přehled podmodulů (dlaždice) — např. /module/facilities/facilities
  */
 export function ModuleSectionHub() {
     const { type } = useParams();
-    const [loading, setLoading] = useState(true);
-    const [sectionLabel, setSectionLabel] = useState('');
-    const [submodules, setSubmodules] = useState([]);
-    const [error, setError] = useState(null);
+    const { getSidebar } = useModules();
 
-    useEffect(() => {
+    const { sectionLabel, submodules, error } = useMemo(() => {
         if (!type) {
-            setLoading(false);
-            return;
+            return { sectionLabel: '', submodules: [], error: null };
         }
 
-        setLoading(true);
-        setError(null);
+        const modules = getSidebar('content').modules;
+        const group = modules.find((m) => m.key === type);
 
-        axios
-            .get('/api/modules/sidebar?section=content')
-            .then((response) => {
-                const modules = response.data?.modules ?? [];
-                const group = modules.find((m) => m.key === type);
+        if (!group?.submodules?.length) {
+            return {
+                sectionLabel: '',
+                submodules: [],
+                error: 'Pro tuto sekci nejsou k dispozici žádné podmoduly.',
+            };
+        }
 
-                if (!group?.submodules?.length) {
-                    setError('Pro tuto sekci nejsou k dispozici žádné podmoduly.');
-                    setSubmodules([]);
-                } else {
-                    setSectionLabel(group.label || type);
-                    setSubmodules(group.submodules);
-                }
-            })
-            .catch(() => {
-                setError('Nepodařilo se načíst seznam modulů.');
-            })
-            .finally(() => setLoading(false));
-    }, [type]);
-
-    if (loading) {
-        return (
-            <div className="p-6 flex items-center justify-center min-h-[40vh]">
-                <p className="text-gray-600 dark:text-gray-400">Načítání…</p>
-            </div>
-        );
-    }
+        return {
+            sectionLabel: group.label || type,
+            submodules: group.submodules,
+            error: null,
+        };
+    }, [type, getSidebar]);
 
     if (error) {
         return (

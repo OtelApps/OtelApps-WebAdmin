@@ -206,4 +206,64 @@ class ModuleService
         }
         return $map;
     }
+
+    /**
+     * Formát sidebaru pro klienta (stejný tvar jako /api/modules/sidebar).
+     */
+    public static function formatSidebarForClient(?string $section): array
+    {
+        $resolvedSection = self::resolveSection($section);
+        $sidebarModules = self::getSidebarModules($section);
+        $result = [];
+
+        foreach ($sidebarModules as $key => $value) {
+            if (is_array($value)) {
+                $result[] = [
+                    'key' => $key,
+                    'label' => self::getLabel($key),
+                    'submodules' => array_map(fn ($m) => [
+                        'key' => $m,
+                        'label' => self::getLabel($m),
+                    ], $value),
+                ];
+            } else {
+                $result[] = [
+                    'key' => $value,
+                    'label' => self::getLabel($value),
+                ];
+            }
+        }
+
+        return [
+            'modules' => $result,
+            'resolvedSection' => $resolvedSection,
+        ];
+    }
+
+    /**
+     * Bootstrap pro SPA — bez dalšího HTTP round-tripu na module checky / navigaci.
+     */
+    public static function getClientBootstrap(): array
+    {
+        $mainModules = array_values(self::getMainNavigation());
+        $labels = [];
+        foreach ($mainModules as $module) {
+            $labels[$module] = self::getLabel($module);
+        }
+
+        $sidebars = [];
+        foreach (array_keys(self::$sidebarMap) as $section) {
+            $sidebars[$section] = self::formatSidebarForClient($section);
+        }
+
+        return [
+            'enabled' => config_array('modules.enabled'),
+            'mainNavigation' => [
+                'modules' => $mainModules,
+                'labels' => $labels,
+            ],
+            'map' => self::getFlatMap(),
+            'sidebars' => $sidebars,
+        ];
+    }
 }

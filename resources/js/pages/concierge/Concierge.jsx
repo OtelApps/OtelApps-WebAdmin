@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import http from '../../lib/http';
+import { useModules } from '../../context/ModulesContext';
 import { NotFound } from '../shared/NotFound';
 import { GuestLocaleFlag } from './GuestLocaleFlag';
 import { GUEST_LOCALES, localeMeta } from './conciergeLocales';
@@ -401,8 +402,8 @@ function ConversationThread({ conversationId, onListRefresh, realtimeMode, pollT
 }
 
 export function Concierge() {
-    const [isEnabled, setIsEnabled] = useState(null);
-    const [moduleLoading, setModuleLoading] = useState(true);
+    const { isEnabled: checkEnabled } = useModules();
+    const isEnabled = checkEnabled('concierge');
     const [conversations, setConversations] = useState([]);
     const [unreadTotal, setUnreadTotal] = useState(0);
     const [listLoading, setListLoading] = useState(true);
@@ -417,14 +418,6 @@ export function Concierge() {
         const t = setTimeout(() => setDebouncedQ(searchQ), 400);
         return () => clearTimeout(t);
     }, [searchQ]);
-
-    useEffect(() => {
-        http
-            .get('/api/modules/check/concierge')
-            .then((res) => setIsEnabled(res.data.enabled))
-            .catch(() => setIsEnabled(false))
-            .finally(() => setModuleLoading(false));
-    }, []);
 
     const loadConversations = useCallback((options = {}) => {
         const silent = options.silent === true;
@@ -475,14 +468,6 @@ export function Concierge() {
     useEffect(() => {
         if (isEnabled) loadConversations();
     }, [isEnabled, loadConversations]);
-
-    if (moduleLoading) {
-        return (
-            <div className="flex min-h-screen items-center justify-center">
-                <p className="text-gray-600">Načítání…</p>
-            </div>
-        );
-    }
 
     if (!isEnabled) {
         return <NotFound />;

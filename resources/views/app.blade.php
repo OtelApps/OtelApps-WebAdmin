@@ -20,8 +20,7 @@
         </div>
     </div>
     <script>
-        // Debug: Check if React root exists
-        console.log('React root element:', document.getElementById('react-root'));
+        window.__OTELAPPS_BOOTSTRAP__ = @json(\App\Services\ModuleService::getClientBootstrap());
     </script>
 </body>
 </html>

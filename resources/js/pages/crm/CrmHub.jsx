@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
-import http from '../../lib/http';
 import { NotFound } from '../shared/NotFound';
+import { useModules } from '../../context/ModulesContext';
+import { useHttpQuery } from '../../hooks/useHttpQuery';
+import { HubPageSkeleton } from '../../components/ui/PageSkeleton';
 import { CRM_SEGMENTS, SECTION_META } from './crmHubConfig';
 import { CrmIcon, CrmNav, StatCard } from './CrmShell';
 
@@ -48,40 +50,20 @@ function SectionCard({ segmentKey, label, preview }) {
 }
 
 export function CrmHub() {
-    const [isEnabled, setIsEnabled] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [data, setData] = useState(null);
-    const [error, setError] = useState(null);
+    const { isEnabled } = useModules();
+    const enabled = isEnabled('crm');
+    const query = useHttpQuery(['crm', 'overview'], '/api/crm/overview', { enabled });
 
-    useEffect(() => {
-        http.get('/api/modules/check/crm')
-            .then((res) => setIsEnabled(res.data.enabled))
-            .catch(() => setIsEnabled(false));
-    }, []);
+    if (!enabled) return <NotFound />;
 
-    useEffect(() => {
-        if (!isEnabled) {
-            setLoading(false);
-            return;
-        }
-        http.get('/api/crm/overview')
-            .then((res) => setData(res.data))
-            .catch((err) => {
-                setError(err.response?.data?.message || 'CRM data se nepodařilo načíst.');
-            })
-            .finally(() => setLoading(false));
-    }, [isEnabled]);
-
-    if (isEnabled === null || loading) {
-        return (
-            <div className="flex min-h-[60vh] items-center justify-center">
-                <div className="h-10 w-10 animate-spin rounded-full border-4 border-orange-500 border-t-transparent" />
-            </div>
-        );
+    if (query.isPending) {
+        return <HubPageSkeleton />;
     }
 
-    if (!isEnabled) return <NotFound />;
-
+    const data = query.data;
+    const error = query.isError
+        ? query.error?.response?.data?.message || 'CRM data se nepodařilo načíst.'
+        : null;
     const kpis = data?.kpis ?? {};
 
     return (

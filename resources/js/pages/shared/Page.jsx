@@ -1,43 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useLocation } from 'react-router-dom';
-import axios from 'axios';
+import { useModules } from '../../context/ModulesContext';
 import { NotFound } from './NotFound';
 
 export function Page({ title, children }) {
     const location = useLocation();
-    const [isEnabled, setIsEnabled] = useState(null);
-    const [loading, setLoading] = useState(true);
-
-    // Získej název modulu z URL (např. /activity -> activity)
+    const { isEnabled } = useModules();
     const moduleName = location.pathname.split('/').filter(Boolean)[0];
 
-    useEffect(() => {
-        if (!moduleName) {
-            setLoading(false);
-            setIsEnabled(true);
-            return;
-        }
-
-        axios.get(`/api/modules/check/${moduleName}`)
-            .then(response => {
-                setIsEnabled(response.data.enabled);
-                setLoading(false);
-            })
-            .catch(() => {
-                setIsEnabled(false);
-                setLoading(false);
-            });
-    }, [moduleName]);
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-screen">
-                <p className="text-gray-600">Loading...</p>
-            </div>
-        );
-    }
-
-    if (!isEnabled) {
+    if (moduleName && !isEnabled(moduleName)) {
         return <NotFound />;
     }
 
@@ -48,4 +19,3 @@ export function Page({ title, children }) {
         </div>
     );
 }
-

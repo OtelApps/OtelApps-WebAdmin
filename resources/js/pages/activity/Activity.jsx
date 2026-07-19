@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import http from '../../lib/http';
+import { useModules } from '../../context/ModulesContext';
 import { NotFound } from '../shared/NotFound';
 import { RequestAddModal } from './RequestAddModal';
 import { RequestEditModal } from './RequestEditModal';
@@ -10,8 +11,8 @@ const PRIMARY_ORANGE = '#FF9F00';
 const GUEST_NAME_BLUE = '#4A90E2';
 
 export function Activity() {
-    const [isEnabled, setIsEnabled] = useState(null);
-    const [moduleLoading, setModuleLoading] = useState(true);
+    const { isEnabled } = useModules();
+    const enabled = isEnabled('activity');
     const [rows, setRows] = useState([]);
     const [serviceTypes, setServiceTypes] = useState([]);
     const [statusCounts, setStatusCounts] = useState({});
@@ -33,16 +34,6 @@ export function Activity() {
     const [editId, setEditId] = useState(null);
     const [statusRow, setStatusRow] = useState(null);
     const [showAdd, setShowAdd] = useState(false);
-
-    useEffect(() => {
-        http
-            .get('/api/modules/check/activity')
-            .then((response) => {
-                setIsEnabled(response.data.enabled);
-            })
-            .catch(() => setIsEnabled(false))
-            .finally(() => setModuleLoading(false));
-    }, []);
 
     const loadRequests = useCallback(() => {
         setListLoading(true);
@@ -81,10 +72,10 @@ export function Activity() {
     }, [statusFilter, serviceModule, debouncedQ, dateFrom, dateTo]);
 
     useEffect(() => {
-        if (isEnabled) {
+        if (enabled) {
             loadRequests();
         }
-    }, [isEnabled, loadRequests]);
+    }, [enabled, loadRequests]);
 
     const toggleStatusFilter = (key) => {
         setStatusFilter((prev) =>
@@ -104,15 +95,7 @@ export function Activity() {
 
     const selectedTypeLabel = serviceTypes.find((t) => t.module_key === serviceModule);
 
-    if (moduleLoading) {
-        return (
-            <div className="flex min-h-screen items-center justify-center">
-                <p className="text-gray-600">Načítání…</p>
-            </div>
-        );
-    }
-
-    if (!isEnabled) {
+    if (!enabled) {
         return <NotFound />;
     }
 

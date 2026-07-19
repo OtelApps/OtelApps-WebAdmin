@@ -1,47 +1,17 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import axios from "axios";
 import { useNotifications } from "../../context/NotificationContext";
+import { useModules } from "../../context/ModulesContext";
 import { NotificationBell, NavBadge } from '../notifications/NotificationBell';
 
 export function MainNavigation({ settingsOpen, setSettingsOpen }) {
     const location = useLocation();
-    const [modules, setModules] = useState([]);
-    const [labels, setLabels] = useState({});
-    const [moduleMap, setModuleMap] = useState({});
+    const { mainModules: modules, labels, moduleMap } = useModules();
     const [languageOpen, setLanguageOpen] = useState(false);
     const [currentLanguage, setCurrentLanguage] = useState("English");
     const [editLanguagesOpen, setEditLanguagesOpen] = useState(false);
     const languageButtonRef = useRef(null);
-    const { badges, setSettingsOpen: setNotificationSettingsOpen } = useNotifications();
-
-    useEffect(() => {
-        axios
-            .get("/api/modules/main-navigation")
-            .then((response) => {
-                console.log("Main navigation API response:", response.data);
-                const modulesData = response.data?.modules || [];
-                const labelsData = response.data?.labels || {};
-                const mapData = response.data?.map || {};
-                const modulesArray = Array.isArray(modulesData)
-                    ? modulesData
-                    : [];
-                console.log("Setting modules:", modulesArray);
-                setModules(modulesArray);
-                setLabels(labelsData);
-                setModuleMap(mapData);
-            })
-            .catch((error) => {
-                console.error("Error loading modules:", error);
-                console.error(
-                    "Error details:",
-                    error.response?.data || error.message,
-                );
-                setModules([]);
-                setLabels({});
-                setModuleMap({});
-            });
-    }, []);
+    const { badges, setSettingsOpen: setNotificationSettingsOpen, preferences, togglePreference, browserPermission, requestBrowserPermission } = useNotifications();
 
     useEffect(() => {
         const handleDocumentClick = (event) => {
@@ -156,11 +126,7 @@ export function MainNavigation({ settingsOpen, setSettingsOpen }) {
                                     </div>
                                 </Link>
                             ))
-                        ) : (
-                            <div className="px-4 py-2 text-sm text-gray-400">
-                                Loading...
-                            </div>
-                        )}
+                        ) : null}
                     </div>
 
                     {/* Notifications, Settings & Language */}
@@ -197,37 +163,94 @@ export function MainNavigation({ settingsOpen, setSettingsOpen }) {
                             {/* Settings Dropdown Menu */}
                             {settingsOpen && (
                                 <div
-                                    className="absolute right-0 top-full mt-2 w-56 bg-white rounded-lg border border-gray-200 py-2 z-9999"
+                                    className="absolute right-0 top-full mt-2 w-80 rounded-xl border border-gray-200 bg-white py-2 z-9999"
                                     style={{
-                                        minWidth: "14rem",
                                         boxShadow:
                                             "0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2)",
                                     }}
                                     onClick={(e) => e.stopPropagation()}
                                 >
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setSettingsOpen(false);
-                                            setNotificationSettingsOpen(true);
-                                        }}
-                                        className="flex w-full items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                    >
-                                        <svg
-                                            className="w-5 h-5 mr-3 text-gray-400"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            viewBox="0 0 24 24"
+                                    <div className="border-b border-gray-100 px-4 pb-3 pt-2">
+                                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-orange-500">
+                                            Oznámení
+                                        </p>
+                                        <div className="space-y-2">
+                                            {[
+                                                {
+                                                    key: "browser_notifications",
+                                                    label: "Desktop notifikace",
+                                                    hint: browserPermission === "granted"
+                                                        ? "Systémová upozornění"
+                                                        : "Vyžaduje povolení prohlížeče",
+                                                },
+                                                {
+                                                    key: "toast_enabled",
+                                                    label: "Toast ve WebAdminu",
+                                                    hint: "Karty vpravo dole",
+                                                },
+                                                {
+                                                    key: "sound_enabled",
+                                                    label: "Zvuk",
+                                                    hint: "Tón při nové události",
+                                                },
+                                            ].map((item) => {
+                                                const on = Boolean(preferences?.[item.key]);
+                                                return (
+                                                    <button
+                                                        key={item.key}
+                                                        type="button"
+                                                        disabled={!preferences}
+                                                        onClick={async () => {
+                                                            if (
+                                                                item.key === "browser_notifications" &&
+                                                                !on &&
+                                                                browserPermission !== "granted"
+                                                            ) {
+                                                                const result = await requestBrowserPermission();
+                                                                // requestBrowserPermission už zapne browser_notifications
+                                                                if (result === "granted") return;
+                                                                return;
+                                                            }
+                                                            await togglePreference(item.key);
+                                                        }}
+                                                        className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-gray-50 disabled:opacity-50"
+                                                    >
+                                                        <span>
+                                                            <span className="block text-sm font-medium text-gray-800">
+                                                                {item.label}
+                                                            </span>
+                                                            <span className="block text-[11px] text-gray-400">
+                                                                {item.hint}
+                                                            </span>
+                                                        </span>
+                                                        <span
+                                                            className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
+                                                                on ? "bg-orange-500" : "bg-gray-300"
+                                                            }`}
+                                                        >
+                                                            <span
+                                                                className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                                                                    on ? "translate-x-4" : "translate-x-0"
+                                                                }`}
+                                                            />
+                                                        </span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setSettingsOpen(false);
+                                                setNotificationSettingsOpen(true);
+                                            }}
+                                            className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-orange-50 px-3 py-2 text-xs font-semibold text-orange-600 hover:bg-orange-100"
                                         >
-                                            <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth="2"
-                                                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-                                            />
-                                        </svg>
-                                        Nastavení notifikací
-                                    </button>
+                                            <span className="material-symbols-outlined text-[16px]">tune</span>
+                                            Všechna nastavení oznámení
+                                        </button>
+                                    </div>
+
                                     <a
                                         href="#"
                                         className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"

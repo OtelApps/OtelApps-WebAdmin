@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import http from '../../lib/http';
 import { NotFound } from '../shared/NotFound';
+import { useModules } from '../../context/ModulesContext';
 import { isModuleUnavailable } from '../../config/unavailableModules';
 import {
     modulePath,
@@ -133,26 +133,9 @@ function GalleryBanner() {
 }
 
 export function Content() {
-    const [isEnabled, setIsEnabled] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [modules, setModules] = useState([]);
-
-    useEffect(() => {
-        http.get('/api/modules/check/content')
-            .then((res) => setIsEnabled(res.data.enabled))
-            .catch(() => setIsEnabled(false));
-    }, []);
-
-    useEffect(() => {
-        if (!isEnabled) {
-            setLoading(false);
-            return;
-        }
-        http.get('/api/modules/sidebar?section=content')
-            .then((res) => setModules(res.data?.modules ?? []))
-            .catch(() => setModules([]))
-            .finally(() => setLoading(false));
-    }, [isEnabled]);
+    const { isEnabled, getSidebar } = useModules();
+    const enabled = isEnabled('content');
+    const modules = useMemo(() => getSidebar('content').modules, [getSidebar]);
 
     const stats = useMemo(() => {
         let sections = 0;
@@ -164,18 +147,7 @@ export function Content() {
         return { sections, submodules };
     }, [modules]);
 
-    if (isEnabled === null || (isEnabled && loading)) {
-        return (
-            <div className="flex min-h-[60vh] items-center justify-center">
-                <div className="flex flex-col items-center gap-3">
-                    <div className="h-10 w-10 animate-spin rounded-full border-4 border-orange-500 border-t-transparent" />
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Načítání obsahu…</p>
-                </div>
-            </div>
-        );
-    }
-
-    if (!isEnabled) {
+    if (!enabled) {
         return <NotFound />;
     }
 

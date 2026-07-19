@@ -1,73 +1,43 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import axios from 'axios';
 import { isModuleUnavailable } from '../../config/unavailableModules';
+import { useModules } from '../../context/ModulesContext';
 
 export function Sidebar() {
     const location = useLocation();
-    const [modules, setModules] = useState([]);
+    const { getSidebar } = useModules();
     const [expandedSections, setExpandedSections] = useState([]);
-    const [resolvedSection, setResolvedSection] = useState('');
-    
-    // Detect current section from URL for icons and logic
+
     const pathParts = location.pathname.split('/').filter(Boolean);
     const currentSection = pathParts[0] === 'module' ? pathParts[1] : pathParts[0];
 
-    useEffect(() => {
-        // Detect current section from URL (path segment after / or after /module/)
-        const pathParts = location.pathname.split('/').filter(Boolean);
-        let currentSection = '';
-        
-        if (pathParts[0] === 'module') {
-            currentSection = pathParts[1];
-        } else {
-            currentSection = pathParts[0];
-        }
-
+    const sidebarData = useMemo(() => {
         if (!currentSection || currentSection === 'dashboard') {
-            setModules([]);
-            return;
+            return { modules: [], resolvedSection: '' };
         }
+        return getSidebar(currentSection);
+    }, [currentSection, getSidebar]);
 
-        axios.get(`/api/modules/sidebar?section=${currentSection}`)
-            .then(response => {
-                const modulesData = response.data?.modules;
-                // Convert to array format
-                let modulesArray = [];
-                if (Array.isArray(modulesData)) {
-                    modulesArray = modulesData;
-                } else if (modulesData && typeof modulesData === 'object') {
-                    modulesArray = Object.entries(modulesData).map(([key, value]) => ({
-                        key,
-                        ...(typeof value === 'object' ? value : {}),
-                    }));
+    const modules = sidebarData.modules;
+    const resolvedSection = sidebarData.resolvedSection || currentSection;
+
+    useEffect(() => {
+        const currentPath = location.pathname;
+        const sectionsToExpand = [];
+        modules.forEach((module, index) => {
+            if (module && module.submodules && Array.isArray(module.submodules)) {
+                const moduleKey = module.key || `module-${index}`;
+                const hasActiveSubmodule = module.submodules.some(sub =>
+                    sub && sub.key && (currentPath === `/module/${moduleKey}/${sub.key}` || currentPath === `/module/${moduleKey}/${moduleKey}`)
+                );
+                const isSectionActive = currentPath === `/module/${moduleKey}/${moduleKey}`;
+                if (hasActiveSubmodule || isSectionActive) {
+                    sectionsToExpand.push(moduleKey);
                 }
-                setModules(modulesArray);
-                setResolvedSection(response.data?.resolvedSection || currentSection);
-                
-                // Auto-expand sections that contain the current route
-                const currentPath = location.pathname;
-                const sectionsToExpand = [];
-                modulesArray.forEach((module, index) => {
-                    if (module && module.submodules && Array.isArray(module.submodules)) {
-                        const moduleKey = module.key || `module-${index}`;
-                        const hasActiveSubmodule = module.submodules.some(sub => 
-                            sub && sub.key && (currentPath === `/module/${moduleKey}/${sub.key}` || currentPath === `/module/${moduleKey}/${moduleKey}`)
-                        );
-                        // Also check if the section itself is active
-                        const isSectionActive = currentPath === `/module/${moduleKey}/${moduleKey}`;
-                        if (hasActiveSubmodule || isSectionActive) {
-                            sectionsToExpand.push(moduleKey);
-                        }
-                    }
-                });
-                setExpandedSections(sectionsToExpand);
-            })
-            .catch(error => {
-                console.error('Error loading sidebar modules:', error);
-                setModules([]);
-            });
-    }, [location.pathname]);
+            }
+        });
+        setExpandedSections(sectionsToExpand);
+    }, [location.pathname, modules]);
 
     const toggleSection = (key) => {
         setExpandedSections(prev => 
@@ -425,7 +395,7 @@ export function Sidebar() {
                     }
                 })
                 ) : (
-                    <div className="text-sm text-gray-500">Loading...</div>
+                    <div className="text-sm text-gray-500">Žádné moduly</div>
                 )}
             </div>
 

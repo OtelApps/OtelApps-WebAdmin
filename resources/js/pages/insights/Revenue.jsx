@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import http from '../../lib/http';
+import { useModules } from '../../context/ModulesContext';
 import { RevenueUpsellPanel } from '../../components/dashboard/RevenueUpsellPanel';
 import { formatMoney } from '../../utils/formatMoney';
 import { STATUS_CELL } from '../activity/activityStatus';
@@ -13,18 +14,13 @@ const SEG = INSIGHT_SEGMENTS.find((s) => s.key === 'revenue');
 
 export function Revenue() {
     const navigate = useNavigate();
-    const [activityEnabled, setActivityEnabled] = useState(false);
+    const { isEnabled } = useModules();
+    const activityEnabled = isEnabled('activity');
     const [revenueData, setRevenueData] = useState(null);
     const [revenueLoading, setRevenueLoading] = useState(true);
     const [revenueError, setRevenueError] = useState(null);
 
     const { data: txData, loading: txLoading, error: txError, period, setPeriod } = useInsightsData('transactions');
-
-    useEffect(() => {
-        http.get('/api/modules/check/activity')
-            .then((res) => setActivityEnabled(Boolean(res.data.enabled)))
-            .catch(() => setActivityEnabled(false));
-    }, []);
 
     useEffect(() => {
         if (!activityEnabled) {

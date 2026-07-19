@@ -10,10 +10,11 @@ import {
     getAddConfig,
 } from '../../utils/contentListActions';
 import { ContentCard } from '../ui/ContentCard';
+import { ContentListSkeleton, PageLoadError } from '../ui/PageSkeleton';
 
 export function ContentCardsLayout({
     title,
-    sections,
+    sections = [],
     moduleKey,
     moduleArea,
     moduleType = 'facilities',
@@ -22,6 +23,9 @@ export function ContentCardsLayout({
     editTab,
     onReload,
     listMeta,
+    loading = false,
+    error = null,
+    onRetry,
 }) {
     const navigate = useNavigate();
     const [archivedState, setArchivedState] = useState({});
@@ -29,6 +33,14 @@ export function ContentCardsLayout({
     const [addSubmitting, setAddSubmitting] = useState(false);
     const [addError, setAddError] = useState(null);
     const [actionError, setActionError] = useState(null);
+
+    if (loading) {
+        return <ContentListSkeleton title={title} />;
+    }
+
+    if (error) {
+        return <PageLoadError message={error} onRetry={onRetry || onReload} />;
+    }
 
     const showAdd = canAddItem(moduleKey) && onReload;
     const showDelete = canDeleteItem(moduleKey) && onReload;

@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import http from '../../lib/http';
+import { useModules } from '../../context/ModulesContext';
 import { NotFound } from '../shared/NotFound';
+import { DashboardSkeleton } from '../../components/ui/PageSkeleton';
 import { STATUS_CELL } from '../activity/activityStatus';
 import { DEFAULT_LAYOUT, reorderWidgets } from './dashboardWidgetConfig';
 import { DashboardCustomizeBar, DashboardWidgetShell } from './DashboardCustomizeBar';
@@ -29,9 +31,8 @@ function RequestStatusBadge({ status }) {
 
 export function Dashboard() {
     const navigate = useNavigate();
-    const [isEnabled, setIsEnabled] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [bootstrapLoading, setBootstrapLoading] = useState(false);
+    const { isEnabled } = useModules();
+    const enabled = isEnabled('dashboard');
 
     const [layout, setLayout] = useState(DEFAULT_LAYOUT);
     const [draftLayout, setDraftLayout] = useState(DEFAULT_LAYOUT);
@@ -39,6 +40,7 @@ export function Dashboard() {
     const [isEditing, setIsEditing] = useState(false);
     const [layoutSaving, setLayoutSaving] = useState(false);
     const [dragId, setDragId] = useState(null);
+    const [bootstrapLoading, setBootstrapLoading] = useState(true);
 
     const [activityEnabled, setActivityEnabled] = useState(false);
     const [conciergeEnabled, setConciergeEnabled] = useState(false);
@@ -73,18 +75,7 @@ export function Dashboard() {
     const activeWidgets = isEditing ? draftLayout : layout;
 
     useEffect(() => {
-        http.get('/api/modules/check/dashboard')
-            .then((response) => {
-                setIsEnabled(response.data.enabled);
-            })
-            .catch(() => {
-                setIsEnabled(false);
-            })
-            .finally(() => setLoading(false));
-    }, []);
-
-    useEffect(() => {
-        if (!isEnabled) return;
+        if (!enabled) return;
 
         setBootstrapLoading(true);
         http.get('/api/dashboard/bootstrap')
@@ -114,7 +105,7 @@ export function Dashboard() {
                 setBootstrapLoading(false);
                 setOverviewLoading(false);
             });
-    }, [isEnabled]);
+    }, [enabled]);
 
     useEffect(() => {
         if (!activityEnabled) {
@@ -190,7 +181,7 @@ export function Dashboard() {
         () => ({
             onNavigate: navigate,
             overviewData,
-            overviewLoading,
+            overviewLoading: overviewLoading || bootstrapLoading,
             overviewError,
             activityEnabled,
             revenueData,
@@ -222,6 +213,7 @@ export function Dashboard() {
             navigate,
             overviewData,
             overviewLoading,
+            bootstrapLoading,
             overviewError,
             activityEnabled,
             revenueData,
@@ -270,16 +262,12 @@ export function Dashboard() {
         [dragId],
     );
 
-    if (loading || bootstrapLoading) {
-        return (
-            <div className="flex min-h-screen items-center justify-center">
-                <p className="text-gray-600">Loading...</p>
-            </div>
-        );
+    if (!enabled) {
+        return <NotFound />;
     }
 
-    if (!isEnabled) {
-        return <NotFound />;
+    if (bootstrapLoading) {
+        return <DashboardSkeleton />;
     }
 
     return (

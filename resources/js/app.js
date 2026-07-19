@@ -2,15 +2,16 @@ import './bootstrap';
 import '../css/app.css';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { App } from './components/layout/App';
+import { ModulesProvider } from './context/ModulesContext';
+import { queryClient } from './lib/queryClient';
 import Alpine from 'alpinejs';
 import React from 'react';
 
-// Initialize Alpine.js for simple interactions
 window.Alpine = Alpine;
 Alpine.start();
 
-// Initialize React Router
 function initReact() {
     const rootElement = document.getElementById('react-root');
     if (!rootElement) {
@@ -21,18 +22,23 @@ function initReact() {
     try {
         const root = createRoot(rootElement);
         root.render(
-            React.createElement(BrowserRouter, null, React.createElement(App))
+            React.createElement(
+                QueryClientProvider,
+                { client: queryClient },
+                React.createElement(
+                    ModulesProvider,
+                    null,
+                    React.createElement(BrowserRouter, null, React.createElement(App)),
+                ),
+            ),
         );
-        console.log('React app initialized successfully');
     } catch (error) {
         console.error('Error initializing React app:', error);
     }
 }
 
-// Try to initialize immediately if DOM is ready
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initReact);
 } else {
-    // DOM is already ready
     initReact();
 }

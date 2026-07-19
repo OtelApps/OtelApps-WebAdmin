@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
 import { NotFound } from '../shared/NotFound';
+import { useModules } from '../../context/ModulesContext';
 
 const FeedbackIcon = ({ name, className = '' }) => (
     <span className={`material-symbols-rounded ${className}`}>{name}</span>
@@ -35,30 +35,9 @@ function SectionCard({ title, description, icon, path, gradient }) {
 }
 
 export function FeedbackHub() {
-    const [isEnabled, setIsEnabled] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const { isEnabled } = useModules();
 
-    useEffect(() => {
-        axios.get('/api/modules/check/feedback')
-            .then((res) => {
-                setIsEnabled(res.data.enabled);
-                setLoading(false);
-            })
-            .catch(() => {
-                setIsEnabled(false);
-                setLoading(false);
-            });
-    }, []);
-
-    if (loading) {
-        return (
-            <div className="flex min-h-[60vh] items-center justify-center">
-                <div className="h-10 w-10 animate-spin rounded-full border-4 border-yellow-500 border-t-transparent" />
-            </div>
-        );
-    }
-
-    if (!isEnabled) return <NotFound />;
+    if (!isEnabled('feedback')) return <NotFound />;
 
     return (
         <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6 lg:px-8">

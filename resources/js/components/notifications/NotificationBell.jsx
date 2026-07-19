@@ -59,16 +59,23 @@ export function NotificationBell() {
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-gray-700">
-                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Notifikace</h3>
-                        {unreadCount > 0 && (
-                            <button
-                                type="button"
-                                onClick={() => markAllRead()}
-                                className="text-xs font-medium text-orange-500 hover:text-orange-600"
-                            >
-                                Označit vše jako přečtené
-                            </button>
-                        )}
+                        <div>
+                            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Oznámení</h3>
+                            {unreadCount > 0 && (
+                                <p className="text-[11px] text-gray-400">{unreadCount} nepřečtených</p>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {unreadCount > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => markAllRead()}
+                                    className="text-xs font-medium text-orange-500 hover:text-orange-600"
+                                >
+                                    Přečíst vše
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                     <div className="max-h-96 overflow-y-auto">
