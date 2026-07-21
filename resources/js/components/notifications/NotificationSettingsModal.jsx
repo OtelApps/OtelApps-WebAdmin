@@ -310,8 +310,8 @@ export function NotificationSettingsModal({ open, onClose }) {
                         <Toggle
                             checked={Boolean(form.concierge_enabled)}
                             onChange={(v) => setKey('concierge_enabled', v)}
-                            label="Concierge — zprávy od hostů"
-                            description="Nová nebo nepřečtená zpráva v chatu"
+                            label="Concierge — chaty hostů"
+                            description="AI chat, žádost o člověka i nové zprávy v Concierge"
                         />
                     </Section>
 
@@ -331,6 +331,12 @@ export function NotificationSettingsModal({ open, onClose }) {
                             onChange={(v) => setKey('guest_push_on_status_change', v)}
                             label="Push při změně stavu objednávky"
                             description="Host dostane upozornění, když recepce změní stav požadavku"
+                        />
+                        <Toggle
+                            checked={Boolean(form.guest_push_on_concierge)}
+                            onChange={(v) => setKey('guest_push_on_concierge', v)}
+                            label="Push při zprávě Concierge"
+                            description="Host dostane push, když odpoví AI chatbot nebo recepce"
                         />
                     </Section>
 

@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\VenueController;
 use App\Http\Controllers\Api\WellnessController;
 use App\Http\Controllers\Api\ActivityRevenueController;
 use App\Http\Controllers\Api\InsightsController;
+use App\Http\Controllers\Api\ConciergeBotController;
 use App\Http\Controllers\Api\ConciergeChatController;
 use App\Http\Controllers\Api\CrmController;
 use App\Http\Controllers\Api\DashboardController;
@@ -206,12 +207,24 @@ Route::prefix('api')->group(function () {
     Route::put('/activity/requests/{id}', [HotelServiceRequestController::class, 'update']);
     Route::delete('/activity/requests/{id}', [HotelServiceRequestController::class, 'destroy']);
 
+    // Concierge — chat host ↔ recepce / AI bot (volá mobilní app, bez CSRF session)
+    Route::post('/concierge/guest/on-message', [ConciergeBotController::class, 'onGuestMessage']);
+    Route::post('/concierge/guest/ensure-reply', [ConciergeBotController::class, 'ensureReply']);
+    Route::post('/concierge/guest/escalate', [ConciergeBotController::class, 'escalate']);
+    Route::post('/concierge/guest/satisfaction', [ConciergeBotController::class, 'satisfaction']);
+    Route::post('/concierge/guest/presence', [ConciergeBotController::class, 'presence']);
+
     // Concierge — chat host ↔ recepce
     Route::get('/concierge/realtime-config', [ConciergeChatController::class, 'realtimeConfig']);
     Route::get('/concierge/conversations', [ConciergeChatController::class, 'index']);
     Route::get('/concierge/conversations/{id}', [ConciergeChatController::class, 'show']);
     Route::post('/concierge/conversations/{id}/messages', [ConciergeChatController::class, 'storeMessage']);
     Route::post('/concierge/conversations/{id}/read', [ConciergeChatController::class, 'markRead']);
+    Route::post('/concierge/conversations/{id}/take-over', [ConciergeChatController::class, 'takeOver']);
+    Route::post('/concierge/conversations/{id}/satisfaction-check', [ConciergeChatController::class, 'sendSatisfactionCheck']);
+    Route::get('/concierge/conversations/{id}/guest-card', [ConciergeChatController::class, 'guestCard']);
+    Route::post('/concierge/conversations/{id}/guest-ops', [ConciergeChatController::class, 'guestOps']);
+    Route::post('/concierge/conversations/{id}/presence', [ConciergeChatController::class, 'presence']);
     Route::put('/concierge/conversations/{id}', [ConciergeChatController::class, 'update']);
 });
 

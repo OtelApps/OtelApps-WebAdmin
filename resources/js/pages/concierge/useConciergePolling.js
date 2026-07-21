@@ -38,7 +38,14 @@ export function useVisibilityPolling(callback, intervalMs, enabled = true) {
 export function messagesFingerprint(messages) {
     if (!messages?.length) return '';
     const last = messages[messages.length - 1];
-    return `${messages.length}:${last.id}:${last.created_at ?? ''}`;
+    // Musí zahrnout překlady a stav kontroly spokojenosti (Ano/Ne).
+    const translationSig = messages
+        .map(
+            (m) =>
+                `${m.id}:${m.body_translated ? String(m.body_translated).length : 0}:${m.satisfaction_answer ?? ''}:${m.staff_display_name ?? ''}`,
+        )
+        .join('|');
+    return `${messages.length}:${last.id}:${last.created_at ?? ''}:${translationSig}`;
 }
 
 export function isNearBottom(el, threshold = 120) {

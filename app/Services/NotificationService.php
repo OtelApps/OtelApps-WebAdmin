@@ -21,6 +21,7 @@ class NotificationService
         'poll_interval_seconds' => 15,
         'guest_push_enabled' => true,
         'guest_push_on_status_change' => true,
+        'guest_push_on_concierge' => true,
     ];
 
     private const SYNC_CACHE_SECONDS = 10;
@@ -48,6 +49,7 @@ class NotificationService
             'sound_enabled',
             'guest_push_enabled',
             'guest_push_on_status_change',
+            'guest_push_on_concierge',
         ] as $boolKey) {
             if (array_key_exists($boolKey, $data)) {
                 $data[$boolKey] = filter_var($data[$boolKey], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? (bool) $data[$boolKey];
@@ -175,10 +177,33 @@ class NotificationService
         }
 
         if ($prefs['concierge_enabled'] && ModuleService::isEnabled('concierge')) {
-            $concierge = (int) HotelConciergeConversation::query()
+            $unread = (int) HotelConciergeConversation::query()
                 ->where('hotel_id', $hotel->id)
                 ->where('status', '!=', 'archived')
+                ->where(function ($q) {
+                    $q->where('metadata->mode', 'staff')
+                        ->orWhere('metadata->mode', 'waiting');
+                })
                 ->sum('unread_staff_count');
+
+            $botChats = (int) HotelConciergeConversation::query()
+                ->where('hotel_id', $hotel->id)
+                ->where('status', 'open')
+                ->where(function ($q) {
+                    $q->whereNull('metadata->mode')
+                        ->orWhere('metadata->mode', 'bot')
+                        ->orWhere('metadata->mode', '');
+                })
+                ->count();
+
+            $waitingZeroUnread = (int) HotelConciergeConversation::query()
+                ->where('hotel_id', $hotel->id)
+                ->where('status', '!=', 'archived')
+                ->where('metadata->mode', 'waiting')
+                ->where('unread_staff_count', 0)
+                ->count();
+
+            $concierge = $unread + $botChats + $waitingZeroUnread;
         }
 
         return [
@@ -263,10 +288,25 @@ class NotificationService
         $conversations = HotelConciergeConversation::query()
             ->where('hotel_id', $hotel->id)
             ->where('status', '!=', 'archived')
-            ->where('unread_staff_count', '>', 0)
+            ->where(function ($q) {
+                $q->where(function ($attention) {
+                    $attention->where('metadata->mode', 'waiting')
+                        ->orWhere(function ($staff) {
+                            $staff->where('metadata->mode', 'staff')
+                                ->where('unread_staff_count', '>', 0);
+                        });
+                })->orWhere(function ($bot) {
+                    $bot->where('status', 'open')
+                        ->where(function ($modes) {
+                            $modes->whereNull('metadata->mode')
+                                ->orWhere('metadata->mode', 'bot')
+                                ->orWhere('metadata->mode', '');
+                        });
+                });
+            })
             ->orderByDesc('last_message_at')
-            ->take(25)
-            ->get(['id', 'guest_display_name', 'room_number', 'unread_staff_count']);
+            ->take(40)
+            ->get(['id', 'guest_display_name', 'room_number', 'unread_staff_count', 'metadata']);
 
         if ($conversations->isEmpty()) {
             return;
@@ -280,9 +320,23 @@ class NotificationService
             ->keyBy('source_id');
 
         foreach ($conversations as $conv) {
+            $mode = data_get($conv->metadata, 'mode', 'bot');
             $count = (int) $conv->unread_staff_count;
-            $title = 'Nová zpráva · '.$conv->guest_display_name;
-            $body = 'Pokoj '.$conv->room_number.' · '.$count.' nepřečten'.($count === 1 ? 'á' : 'ých');
+
+            if ($mode === 'waiting') {
+                $title = 'Žádá člověka · '.$conv->guest_display_name;
+                $body = ($conv->room_number ? 'Pokoj '.$conv->room_number.' · ' : '')
+                    .'Host chce živou recepci';
+            } elseif ($mode === 'staff') {
+                $title = 'Nová zpráva · '.$conv->guest_display_name;
+                $body = ($conv->room_number ? 'Pokoj '.$conv->room_number.' · ' : '')
+                    .$count.' nepřečten'.($count === 1 ? 'á' : 'ých');
+            } else {
+                $title = 'Chat s AI · '.$conv->guest_display_name;
+                $body = ($conv->room_number ? 'Pokoj '.$conv->room_number.' · ' : '')
+                    .'Host řeší s chatbotem';
+            }
+
             $row = $existing->get($conv->id);
 
             if ($row) {
@@ -335,7 +389,22 @@ class NotificationService
         if ($prefs['concierge_enabled'] && ModuleService::isEnabled('concierge')) {
             $activeIds = HotelConciergeConversation::query()
                 ->where('hotel_id', $hotel->id)
-                ->where('unread_staff_count', '>', 0)
+                ->where('status', '!=', 'archived')
+                ->where(function ($q) {
+                    $q->where('metadata->mode', 'waiting')
+                        ->orWhere(function ($staff) {
+                            $staff->where('metadata->mode', 'staff')
+                                ->where('unread_staff_count', '>', 0);
+                        })
+                        ->orWhere(function ($bot) {
+                            $bot->where('status', 'open')
+                                ->where(function ($modes) {
+                                    $modes->whereNull('metadata->mode')
+                                        ->orWhere('metadata->mode', 'bot')
+                                        ->orWhere('metadata->mode', '');
+                                });
+                        });
+                })
                 ->pluck('id');
 
             HotelAdminNotification::query()
@@ -391,6 +460,73 @@ class NotificationService
             'poll_interval_seconds' => $interval,
             'guest_push_enabled' => (bool) ($prefs['guest_push_enabled'] ?? true),
             'guest_push_on_status_change' => (bool) ($prefs['guest_push_on_status_change'] ?? true),
+            'guest_push_on_concierge' => (bool) ($prefs['guest_push_on_concierge'] ?? true),
         ];
+    }
+
+    /**
+     * Jednorázová / upsert admin notifikace pro Concierge (AI start, žádost o člověka, …).
+     *
+     * @param  'bot_started'|'waiting'|'staff_unread'  $kind
+     */
+    public function upsertConciergeAdminNotice(HotelConciergeConversation $conversation, string $kind): void
+    {
+        $hotel = Hotel::query()->find($conversation->hotel_id);
+        if (! $hotel || ! ModuleService::isEnabled('concierge')) {
+            return;
+        }
+
+        $prefs = $this->settings($hotel)['preferences'];
+        if (! ($prefs['concierge_enabled'] ?? true)) {
+            return;
+        }
+
+        [$title, $body] = match ($kind) {
+            'bot_started' => [
+                'Chat s AI · '.$conversation->guest_display_name,
+                ($conversation->room_number ? 'Pokoj '.$conversation->room_number.' · ' : '')
+                    .'Host začal řešení s chatbotem',
+            ],
+            'waiting' => [
+                'Žádá člověka · '.$conversation->guest_display_name,
+                ($conversation->room_number ? 'Pokoj '.$conversation->room_number.' · ' : '')
+                    .'Host chce živou recepci',
+            ],
+            default => [
+                'Nová zpráva · '.$conversation->guest_display_name,
+                ($conversation->room_number ? 'Pokoj '.$conversation->room_number.' · ' : '')
+                    .'Nepřečtená zpráva v Concierge',
+            ],
+        };
+
+        $existing = HotelAdminNotification::query()
+            ->where('hotel_id', $hotel->id)
+            ->where('source', 'concierge')
+            ->where('source_id', $conversation->id)
+            ->first();
+
+        if ($existing) {
+            $existing->forceFill([
+                'title' => $title,
+                'body' => $body,
+                'link_path' => '/concierge',
+                'read_at' => null,
+                'created_at' => now(),
+            ])->save();
+
+            return;
+        }
+
+        HotelAdminNotification::create([
+            'hotel_id' => $hotel->id,
+            'source' => 'concierge',
+            'source_id' => $conversation->id,
+            'title' => $title,
+            'body' => $body,
+            'link_path' => '/concierge',
+            'created_at' => now(),
+        ]);
+
+        Cache::forget($this->syncCacheKey($hotel));
     }
 }

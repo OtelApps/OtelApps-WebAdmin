@@ -777,6 +777,10 @@ class CrmService
         if (ModuleService::isEnabled('concierge')) {
             $unread = HotelConciergeConversation::query()
                 ->where('hotel_id', $hotel->id)
+                ->where(function ($q) {
+                    $q->where('metadata->mode', 'staff')
+                        ->orWhere('metadata->mode', 'waiting');
+                })
                 ->where('unread_staff_count', '>', 0)
                 ->get();
 
@@ -817,6 +821,10 @@ class CrmService
 
         return (int) HotelConciergeConversation::query()
             ->where('hotel_id', $hotel->id)
+            ->where(function ($q) {
+                $q->where('metadata->mode', 'staff')
+                    ->orWhere('metadata->mode', 'waiting');
+            })
             ->sum('unread_staff_count');
     }
 

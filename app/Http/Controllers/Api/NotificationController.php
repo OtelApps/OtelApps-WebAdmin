@@ -42,6 +42,7 @@ class NotificationController extends Controller
             'sound_enabled',
             'guest_push_enabled',
             'guest_push_on_status_change',
+            'guest_push_on_concierge',
         ];
 
         $input = $request->all();
@@ -66,6 +67,7 @@ class NotificationController extends Controller
             'poll_interval_seconds' => ['sometimes', 'integer', Rule::in([10, 15, 30, 60])],
             'guest_push_enabled' => ['sometimes', 'boolean'],
             'guest_push_on_status_change' => ['sometimes', 'boolean'],
+            'guest_push_on_concierge' => ['sometimes', 'boolean'],
         ]);
 
         $result = $this->notificationService->updateSettings($hotel, $data);

@@ -111,9 +111,11 @@ return [
             'prefix_indexes' => true,
             'search_path' => 'public',
             'sslmode' => 'require',
-            // Rychlejší fail při zahlcení pooleru (místo 30s max_execution_time).
+            // Transaction pooler (port 6543) nepodporuje server-side prepared statements.
+            // Bez EMULATE_PREPARES padají INSERT/SELECT → bot eskaluje „bot_error“ po každé zprávě.
             'options' => extension_loaded('pdo_pgsql') ? [
                 \PDO::ATTR_TIMEOUT => 8,
+                \PDO::ATTR_EMULATE_PREPARES => true,
             ] : [],
         ],
 

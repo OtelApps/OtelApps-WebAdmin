@@ -6,6 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Hotel;
 use App\Models\HotelConciergeConversation;
 use App\Models\HotelConciergeMessage;
+use App\Services\ConciergeBotService;
+use App\Services\ConciergeGuestOpsService;
+use App\Services\ConciergePresenceService;
 use App\Services\SupabaseStaffTokenService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,6 +18,9 @@ class ConciergeChatController extends Controller
 {
     public function __construct(
         private readonly SupabaseStaffTokenService $staffTokenService,
+        private readonly ConciergeBotService $botService,
+        private readonly ConciergeGuestOpsService $guestOpsService,
+        private readonly ConciergePresenceService $presenceService,
     ) {}
 
     private const LOCALES = ['cs', 'en', 'de', 'fr', 'pl'];
@@ -29,7 +35,11 @@ class ConciergeChatController extends Controller
             ->where('status', '!=', 'archived');
 
         if ($request->boolean('unread_only')) {
-            $query->where('unread_staff_count', '>', 0);
+            $query->where('unread_staff_count', '>', 0)
+                ->where(function ($q) {
+                    $q->where('metadata->mode', ConciergeBotService::MODE_STAFF)
+                        ->orWhere('metadata->mode', ConciergeBotService::MODE_WAITING);
+                });
         }
 
         if ($request->filled('status')) {
@@ -63,6 +73,10 @@ class ConciergeChatController extends Controller
         $unreadTotal = HotelConciergeConversation::query()
             ->where('hotel_id', $hotel->id)
             ->where('status', '!=', 'archived')
+            ->where(function ($q) {
+                $q->where('metadata->mode', ConciergeBotService::MODE_STAFF)
+                    ->orWhere('metadata->mode', ConciergeBotService::MODE_WAITING);
+            })
             ->sum('unread_staff_count');
 
         return response()->json([
@@ -74,6 +88,21 @@ class ConciergeChatController extends Controller
     public function show(string $id): JsonResponse
     {
         $conversation = $this->findConversation($id);
+        $mode = $this->botService->conversationMode($conversation);
+
+        if (ConciergeBotService::needsStaffAttention($mode)
+            && ($conversation->guest_locale ?: 'cs') !== 'cs') {
+            // Jen afterResponse — sync LLM v show() zabíjí artisan serve (max_execution_time 30s).
+            $conversationId = (string) $conversation->id;
+            dispatch(function () use ($conversationId) {
+                set_time_limit(180);
+                $c = HotelConciergeConversation::query()->find($conversationId);
+                if ($c) {
+                    app(ConciergeBotService::class)->ensureGuestTranslationsForStaff($c, 10);
+                }
+            })->afterResponse();
+        }
+
         $conversation->load('messages');
 
         return response()->json([
@@ -92,6 +121,24 @@ class ConciergeChatController extends Controller
 
         $body = trim($data['body']);
 
+        $mode = $this->botService->conversationMode($conversation);
+        if ($mode === ConciergeBotService::MODE_BOT) {
+            return response()->json([
+                'message' => 'Chat teď řeší AI. Nejdřív klikni „Převzít kontrolu“.',
+            ], 409);
+        }
+
+        // Překlad až afterResponse — dlouhé zprávy + LM Studio by jinak timeoutly request / zabily serve.
+        $metadata = $conversation->metadata ?? [];
+        if (! is_array($metadata)) {
+            $metadata = [];
+        }
+        if (($metadata['mode'] ?? null) !== ConciergeBotService::MODE_STAFF) {
+            $metadata['mode'] = ConciergeBotService::MODE_STAFF;
+            $metadata['taken_over_at'] = now()->toIso8601String();
+            $conversation->update(['metadata' => $metadata]);
+        }
+
         $message = HotelConciergeMessage::create([
             'conversation_id' => $conversation->id,
             'sender_type' => 'staff',
@@ -103,11 +150,72 @@ class ConciergeChatController extends Controller
             'created_at' => now(),
         ]);
 
+        $messageId = (string) $message->id;
+        $conversationId = (string) $conversation->id;
+        if (($conversation->guest_locale ?: 'cs') !== 'cs') {
+            dispatch(function () use ($conversationId, $messageId) {
+                set_time_limit(180);
+                $c = HotelConciergeConversation::query()->find($conversationId);
+                $m = HotelConciergeMessage::query()->find($messageId);
+                if (! $c || ! $m) {
+                    return;
+                }
+                $bot = app(ConciergeBotService::class);
+                if (! filled($m->body_translated)) {
+                    $translated = $bot->translateStaffReply($c, $m->body);
+                    if (! filled($translated)) {
+                        // Bez překladu host zprávu neuvidí — neposílej push s češtinou.
+                        return;
+                    }
+                    $m->update(['body_translated' => $translated]);
+                    $m->refresh();
+                }
+                $bot->pushGuestConcierge($c, (string) $m->body_translated, 'staff');
+            })->afterResponse();
+        } else {
+            dispatch(function () use ($conversationId, $messageId) {
+                $c = HotelConciergeConversation::query()->find($conversationId);
+                $m = HotelConciergeMessage::query()->find($messageId);
+                if (! $c || ! $m) {
+                    return;
+                }
+                app(ConciergeBotService::class)->pushGuestConcierge($c, $m->body, 'staff');
+            })->afterResponse();
+        }
+
         $conversation->refresh()->load('messages');
 
         return response()->json([
             'conversation' => $this->detailPayload($conversation),
-            'message' => $this->messagePayload($message),
+            'message' => $this->messagePayload($message->fresh()),
+        ], 201);
+    }
+
+    public function takeOver(string $id): JsonResponse
+    {
+        $conversation = $this->findConversation($id);
+        $this->botService->takeOverByStaff($conversation);
+        $conversation->refresh()->load('messages');
+
+        return response()->json([
+            'conversation' => $this->detailPayload($conversation),
+        ]);
+    }
+
+    public function sendSatisfactionCheck(string $id): JsonResponse
+    {
+        $conversation = $this->findConversation($id);
+
+        try {
+            $this->botService->sendSatisfactionCheck($conversation);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 409);
+        }
+
+        $conversation->refresh()->load('messages');
+
+        return response()->json([
+            'conversation' => $this->detailPayload($conversation),
         ], 201);
     }
 
@@ -143,6 +251,87 @@ class ConciergeChatController extends Controller
 
         return response()->json([
             'conversation' => $this->detailPayload($conversation),
+        ]);
+    }
+
+    public function guestCard(Request $request, string $id): JsonResponse
+    {
+        $hotel = $this->resolveHotel($request);
+        $conversation = $this->findConversation($id);
+
+        if ($conversation->hotel_id !== $hotel->id) {
+            abort(404);
+        }
+
+        return response()->json(
+            $this->guestOpsService->guestCard($hotel, $conversation)
+        );
+    }
+
+    public function guestOps(Request $request, string $id): JsonResponse
+    {
+        $hotel = $this->resolveHotel($request);
+        $conversation = $this->findConversation($id);
+
+        if ($conversation->hotel_id !== $hotel->id) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'action' => ['required', 'string', Rule::in([
+                'change_room',
+                'extend_checkout',
+                'add_charge',
+                'set_segment',
+                'add_note',
+            ])],
+            'room_number' => ['nullable', 'string', 'max:32'],
+            'days' => ['nullable', 'integer', 'min:1', 'max:30'],
+            'amount' => ['nullable', 'numeric', 'min:0'],
+            'charge_label' => ['nullable', 'string', 'max:200'],
+            'label' => ['nullable', 'string', 'max:200'],
+            'category' => ['nullable', 'string', 'max:64'],
+            'note' => ['nullable', 'string', 'max:2000'],
+            'segment' => ['nullable', 'string', 'max:32'],
+        ]);
+
+        $card = $this->guestOpsService->runAction($hotel, $conversation, $validated);
+
+        return response()->json([
+            ...$card,
+            'conversation' => $this->listItem($conversation->fresh()),
+        ]);
+    }
+
+    /**
+     * Heartbeat presence recepce + snapshot stavu hosta.
+     */
+    public function presence(Request $request, string $id): JsonResponse
+    {
+        $hotel = $this->resolveHotel($request);
+        $conversation = $this->findConversation($id);
+
+        if ($conversation->hotel_id !== $hotel->id) {
+            abort(404);
+        }
+
+        $data = $request->validate([
+            'status' => ['required', Rule::in([
+                ConciergePresenceService::STATUS_IN_CHAT,
+                ConciergePresenceService::STATUS_BUSY,
+                ConciergePresenceService::STATUS_TYPING,
+            ])],
+        ]);
+
+        $conversation = $this->presenceService->touch($conversation, 'staff', $data['status']);
+        $guest = $this->presenceService->peerSnapshot($conversation, 'guest');
+
+        return response()->json([
+            'ok' => true,
+            'peer' => $guest,
+            // Pro admin UI: „online“ = host je opravdu v chatu (ne busy/pryč).
+            'guest_online' => $guest['in_chat'],
+            'guest_typing' => $guest['typing'],
         ]);
     }
 
@@ -186,36 +375,56 @@ class ConciergeChatController extends Controller
 
     private function listItem(HotelConciergeConversation $c): array
     {
+        $mode = data_get($c->metadata, 'mode', ConciergeBotService::MODE_BOT);
+        if ($mode !== ConciergeBotService::MODE_STAFF && $mode !== ConciergeBotService::MODE_WAITING) {
+            $mode = ConciergeBotService::MODE_BOT;
+        }
+        $needsAttention = ConciergeBotService::needsStaffAttention($mode);
+        $guestPresence = $this->presenceService->peerSnapshot($c, 'guest');
+
         return [
             'id' => $c->id,
             'guest_name' => $c->guest_display_name,
             'guest_room' => $c->room_number,
             'guest_locale' => $c->guest_locale,
             'status' => $c->status,
+            'handler_mode' => $mode,
             'preview' => $c->last_message_preview,
             'last_message_at' => $this->formatRelativeTime($c->last_message_at),
             'last_message_iso' => $c->last_message_at?->toIso8601String(),
-            'unread_count' => (int) $c->unread_staff_count,
+            'unread_count' => $needsAttention ? (int) $c->unread_staff_count : 0,
             'assigned_staff_name' => $c->assigned_staff_name,
+            'guest_online' => $guestPresence['in_chat'],
+            'guest_typing' => $guestPresence['typing'],
         ];
     }
 
     private function detailPayload(HotelConciergeConversation $c): array
     {
+        $mode = data_get($c->metadata, 'mode', ConciergeBotService::MODE_BOT);
+        $guestLocale = $c->guest_locale ?: 'cs';
+
         return [
             ...$this->listItem($c),
             'guest_external_id' => $c->guest_external_id,
             'messages' => $c->relationLoaded('messages')
-                ? $c->messages->map(fn ($m) => $this->messagePayload($m))->values()
+                ? $c->messages
+                    ->filter(fn ($m) => ! ConciergeBotService::isGuestOnlyNotice($m))
+                    ->map(fn ($m) => $this->messagePayload($m))
+                    ->values()
                 : [],
-            'translation_note' => 'Automatický překlad odpovědí personálu do jazyka hosta bude dostupný po napojení chatbota.',
+            'translation_enabled' => $guestLocale !== 'cs',
+            'translation_note' => $guestLocale === 'cs'
+                ? null
+                : 'Odpovídáte česky — host uvidí automatický překlad do svého jazyka.',
         ];
     }
 
     private function messagePayload(HotelConciergeMessage $m): array
     {
-        $isStaff = in_array($m->sender_type, ['staff', 'bot'], true);
-        $displayForGuest = $isStaff
+        $isStaffSide = in_array($m->sender_type, ['staff', 'bot'], true);
+        $isSystem = $m->sender_type === 'system';
+        $displayForGuest = $isStaffSide || $isSystem
             ? ($m->body_translated ?: $m->body)
             : $m->body;
 
@@ -228,7 +437,11 @@ class ConciergeChatController extends Controller
             'display_body_guest' => $displayForGuest,
             'locale' => $m->locale,
             'staff_display_name' => $m->staff_display_name,
-            'is_staff' => $isStaff,
+            'is_staff' => $isStaffSide,
+            'is_bot' => $m->sender_type === 'bot',
+            'is_system' => $isSystem,
+            'is_satisfaction_check' => ConciergeBotService::isSatisfactionCheck($m),
+            'satisfaction_answer' => ConciergeBotService::satisfactionAnswer($m),
             'read_by_staff_at' => $m->read_by_staff_at?->toIso8601String(),
             'read_by_guest_at' => $m->read_by_guest_at?->toIso8601String(),
             'created_at' => $m->created_at?->toIso8601String(),

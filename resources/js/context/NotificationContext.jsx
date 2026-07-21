@@ -17,6 +17,7 @@ export const DEFAULT_NOTIFICATION_PREFS = {
     poll_interval_seconds: 15,
     guest_push_enabled: true,
     guest_push_on_status_change: true,
+    guest_push_on_concierge: true,
 };
 
 function loadSeenFingerprints() {

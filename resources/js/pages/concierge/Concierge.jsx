@@ -3,21 +3,66 @@ import http from '../../lib/http';
 import { useModules } from '../../context/ModulesContext';
 import { NotFound } from '../shared/NotFound';
 import { GuestLocaleFlag } from './GuestLocaleFlag';
+import { GuestOpsModal } from './GuestOpsModal';
+import { GuestPresenceBadge, WaitingForGuestEyes } from './GuestPresenceBadge';
 import { GUEST_LOCALES, localeMeta } from './conciergeLocales';
 import {
     isNearBottom,
     messagesFingerprint,
     useVisibilityPolling,
 } from './useConciergePolling';
+import { useConciergeLiveChannel } from './useConciergeLiveChannel';
 import { useConciergeRealtime } from './useConciergeRealtime';
 
 const PRIMARY_ORANGE = '#FF9F00';
-const GUEST_NAME_BLUE = '#4A90E2';
 const THREAD_FALLBACK_POLL_MS = 3000;
 const LIST_FALLBACK_POLL_MS = 6000;
 
+const HANDLER_MODE_META = {
+    bot: {
+        label: 'AI chatbot',
+        short: 'AI',
+        icon: 'smart_toy',
+        border: '#8B5CF6',
+        avatar: '#7C3AED',
+        badge: 'bg-violet-100 text-violet-800 dark:bg-violet-900/50 dark:text-violet-200',
+        row: 'bg-violet-50/50 dark:bg-violet-950/20',
+        active: 'bg-violet-100 dark:bg-violet-950/40',
+        previewPrefix: 'AI',
+    },
+    waiting: {
+        label: 'Žádá člověka',
+        short: 'Čeká',
+        icon: 'person_raised_hand',
+        border: '#F59E0B',
+        avatar: '#D97706',
+        badge: 'bg-amber-100 text-amber-900 dark:bg-amber-900/50 dark:text-amber-100',
+        row: 'bg-amber-50/70 dark:bg-amber-950/25',
+        active: 'bg-amber-100 dark:bg-amber-950/45',
+        previewPrefix: 'Čeká na recepci',
+    },
+    staff: {
+        label: 'Řeší člověk',
+        short: 'Staff',
+        icon: 'support_agent',
+        border: '#F97316',
+        avatar: '#EA580C',
+        badge: 'bg-orange-100 text-orange-900 dark:bg-orange-900/50 dark:text-orange-100',
+        row: 'bg-orange-50/40 dark:bg-orange-950/15',
+        active: 'bg-orange-50 dark:bg-orange-950/35',
+        previewPrefix: 'Staff',
+    },
+};
+
+function resolveHandlerMode(value) {
+    if (value === 'waiting' || value === 'staff') return value;
+    return 'bot';
+}
+
 function ConversationListItem({ item, active, onClick }) {
-    const unread = item.unread_count > 0;
+    const mode = resolveHandlerMode(item.handler_mode);
+    const meta = HANDLER_MODE_META[mode];
+    const unread = mode !== 'bot' && item.unread_count > 0;
     const initials = (item.guest_name || '?')
         .split(' ')
         .map((p) => p[0])
@@ -29,18 +74,26 @@ function ConversationListItem({ item, active, onClick }) {
         <button
             type="button"
             onClick={onClick}
-            className={`flex w-full gap-3 border-b border-gray-100 px-4 py-3.5 text-left transition dark:border-gray-700 ${
-                active
-                    ? 'bg-orange-50/90 dark:bg-orange-950/30'
-                    : 'hover:bg-gray-50 dark:hover:bg-gray-800/60'
-            } ${unread ? 'bg-blue-50/40 dark:bg-blue-950/10' : ''}`}
+            className={`relative flex w-full gap-3 border-b border-gray-100 px-4 py-3.5 text-left transition dark:border-gray-700 ${
+                active ? meta.active : `${meta.row} hover:brightness-[0.98] dark:hover:brightness-110`
+            } ${unread ? 'ring-inset ring-1 ring-red-200/80 dark:ring-red-900/40' : ''}`}
         >
-            <div className="relative shrink-0">
+            <span
+                className="absolute bottom-0 left-0 top-0 w-1.5"
+                style={{ backgroundColor: meta.border }}
+                aria-hidden
+            />
+            <div className="relative shrink-0 pl-1">
                 <div
                     className="flex h-11 w-11 items-center justify-center rounded-full text-sm font-semibold text-white"
-                    style={{ backgroundColor: unread ? GUEST_NAME_BLUE : '#9CA3AF' }}
+                    style={{ backgroundColor: meta.avatar }}
+                    title={meta.label}
                 >
-                    {initials}
+                    {mode === 'staff' ? (
+                        initials
+                    ) : (
+                        <span className="material-symbols-outlined text-[22px]">{meta.icon}</span>
+                    )}
                 </div>
                 {unread ? (
                     <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
@@ -57,20 +110,29 @@ function ConversationListItem({ item, active, onClick }) {
                     </span>
                     <span className="shrink-0 text-xs text-gray-400">{item.last_message_at}</span>
                 </div>
-                <div className="mt-0.5 flex items-center gap-2">
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                    {item.status === 'closed' ? (
+                        <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-600 dark:bg-gray-600 dark:text-gray-300">
+                            Closed
+                        </span>
+                    ) : (
+                        <span
+                            className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold ${meta.badge}`}
+                        >
+                            <span className="material-symbols-outlined text-[14px]">{meta.icon}</span>
+                            {meta.label}
+                        </span>
+                    )}
                     <GuestLocaleFlag locale={item.guest_locale} size="sm" />
                     {item.guest_room ? (
                         <span className="text-xs text-gray-400">pokoj {item.guest_room}</span>
-                    ) : null}
-                    {item.status === 'closed' ? (
-                        <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium uppercase text-gray-600 dark:bg-gray-600 dark:text-gray-300">
-                            Closed
-                        </span>
                     ) : null}
                 </div>
                 <p
                     className={`mt-1 line-clamp-2 text-xs ${unread ? 'font-medium text-gray-700 dark:text-gray-300' : 'text-gray-500 dark:text-gray-400'}`}
                 >
+                    <span className="font-semibold opacity-80">{meta.previewPrefix}</span>
+                    {' · '}
                     {item.preview || '—'}
                 </p>
             </div>
@@ -80,33 +142,93 @@ function ConversationListItem({ item, active, onClick }) {
 
 function MessageBubble({ message, guestLocale }) {
     const isStaff = message.is_staff;
+    const isBot = message.is_bot;
+    const isSystem = message.is_system;
     const guestMeta = localeMeta(guestLocale);
+    const isSatisfaction = Boolean(message.is_satisfaction_check);
+    const satisfactionAnswer = message.satisfaction_answer;
+
+    if (isSystem) {
+        return (
+            <div className="flex justify-center">
+                <div
+                    className={`max-w-[90%] rounded-2xl px-4 py-2 text-center text-xs ${
+                        isSatisfaction
+                            ? 'bg-sky-100 text-sky-900 dark:bg-sky-950/50 dark:text-sky-100'
+                            : 'rounded-full bg-gray-200/90 py-1.5 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                    }`}
+                >
+                    {isSatisfaction ? (
+                        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide opacity-80">
+                            Kontrola spokojenosti
+                        </p>
+                    ) : null}
+                    <p>{message.body}</p>
+                    {message.body_translated && message.body_translated !== message.body ? (
+                        <span className="mt-0.5 block text-[10px] opacity-80">
+                            → {guestMeta.flag} {message.body_translated}
+                        </span>
+                    ) : null}
+                    {isSatisfaction ? (
+                        <p className="mt-1.5 text-[11px] font-medium">
+                            {satisfactionAnswer === 'yes'
+                                ? 'Host: Ano — chat archivován'
+                                : satisfactionAnswer === 'no'
+                                  ? 'Host: Ne — potřebuje další pomoc'
+                                  : 'Čeká se na odpověď Ano / Ne…'}
+                        </p>
+                    ) : null}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className={`flex ${isStaff ? 'justify-end' : 'justify-start'}`}>
             <div
                 className={`max-w-[85%] rounded-2xl px-4 py-2.5 shadow-sm ${
-                    isStaff
-                        ? 'rounded-br-md bg-orange-500 text-white'
-                        : 'rounded-bl-md bg-white text-gray-800 dark:bg-gray-700 dark:text-gray-100'
+                    isBot
+                        ? 'rounded-br-md bg-violet-600 text-white'
+                        : isStaff
+                          ? 'rounded-br-md bg-orange-500 text-white'
+                          : 'rounded-bl-md bg-white text-gray-800 dark:bg-gray-700 dark:text-gray-100'
                 }`}
             >
-                {isStaff && message.staff_display_name ? (
+                {isBot ? (
+                    <p className="mb-0.5 text-[10px] font-semibold uppercase opacity-80">
+                        Concierge AI
+                    </p>
+                ) : isStaff && message.staff_display_name ? (
                     <p className="mb-0.5 text-[10px] font-semibold uppercase opacity-80">
                         {message.staff_display_name}
                     </p>
                 ) : null}
-                <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.body}</p>
+                {/* Staff/bot: CZ text; guest: CS překlad nahoře, originál pod tím */}
+                <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                    {!isStaff && message.body_translated
+                        ? message.body_translated
+                        : message.body}
+                </p>
+                {!isStaff && !message.body_translated && message.locale && message.locale !== 'cs' ? (
+                    <p className="mt-1 text-[10px] italic text-amber-600 dark:text-amber-400">
+                        Překládám do češtiny…
+                    </p>
+                ) : null}
+                {!isStaff && message.body_translated && message.body_translated !== message.body ? (
+                    <p className="mt-2 border-t border-gray-200 pt-2 text-xs italic text-gray-500 dark:border-gray-600 dark:text-gray-400">
+                        Originál ({message.locale || '—'}): {message.body}
+                    </p>
+                ) : null}
                 {isStaff && message.body_translated ? (
                     <p className="mt-2 border-t border-white/30 pt-2 text-xs italic opacity-90">
                         → {guestMeta.flag} {message.body_translated}
                     </p>
-                ) : isStaff ? (
-                    <p className="mt-1.5 text-[10px] italic opacity-70">
-                        Překlad do {guestMeta.label} — po napojení chatbota
-                    </p>
                 ) : null}
-                <p className={`mt-1 text-[10px] ${isStaff ? 'text-white/70' : 'text-gray-400'}`}>
+                <p
+                    className={`mt-1 text-[10px] ${
+                        isStaff ? 'text-white/70' : 'text-gray-400'
+                    }`}
+                >
                     {message.time}
                 </p>
             </div>
@@ -120,11 +242,21 @@ function ConversationThread({ conversationId, onListRefresh, realtimeMode, pollT
     const [error, setError] = useState(null);
     const [reply, setReply] = useState('');
     const [sending, setSending] = useState(false);
+    const [takingOver, setTakingOver] = useState(false);
+    const [sendingCheck, setSendingCheck] = useState(false);
     const [live, setLive] = useState(true);
+    const [guestOpsOpen, setGuestOpsOpen] = useState(false);
+    const { guestOnline, guestTyping, notifyTyping, stopTyping } = useConciergeLiveChannel({
+        conversationId,
+        enabled: Boolean(conversationId),
+        busy: guestOpsOpen,
+    });
     const bottomRef = useRef(null);
     const scrollRef = useRef(null);
     const fingerprintRef = useRef('');
     const markReadPendingRef = useRef(false);
+    const conversationIdRef = useRef(conversationId);
+    conversationIdRef.current = conversationId;
 
     const scrollToBottom = useCallback((smooth = true) => {
         bottomRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
@@ -132,6 +264,10 @@ function ConversationThread({ conversationId, onListRefresh, realtimeMode, pollT
 
     const applyConversation = useCallback(
         (conv, { scrollIfNearBottom = false } = {}) => {
+            if (!conv?.id || conv.id !== conversationIdRef.current) {
+                return;
+            }
+
             const fp = messagesFingerprint(conv.messages);
             const changed = fp !== fingerprintRef.current;
             fingerprintRef.current = fp;
@@ -146,11 +282,16 @@ function ConversationThread({ conversationId, onListRefresh, realtimeMode, pollT
     );
 
     const pollThread = useCallback(async () => {
-        if (!conversationId || sending) return;
+        const id = conversationIdRef.current;
+        if (!id || sending || takingOver) return;
         try {
-            const { data } = await http.get(`/api/concierge/conversations/${conversationId}`);
+            const { data } = await http.get(`/api/concierge/conversations/${id}`);
+            if (id !== conversationIdRef.current) return;
+
             setLive(true);
             const conv = data.conversation;
+            if (!conv || conv.id !== id) return;
+
             const prevFp = fingerprintRef.current;
             const nextFp = messagesFingerprint(conv.messages);
             if (nextFp === prevFp) return;
@@ -159,16 +300,15 @@ function ConversationThread({ conversationId, onListRefresh, realtimeMode, pollT
             const nextCount = conv.messages?.length ?? 0;
             const lastMsg = conv.messages?.[nextCount - 1];
             const newGuestMessage =
-                nextCount > prevCount && lastMsg && !lastMsg.is_staff;
+                nextCount > prevCount && lastMsg && lastMsg.sender_type === 'guest';
 
             applyConversation(conv, { scrollIfNearBottom: true });
 
             if (newGuestMessage && !markReadPendingRef.current) {
                 markReadPendingRef.current = true;
                 try {
-                    const readRes = await http.post(
-                        `/api/concierge/conversations/${conversationId}/read`,
-                    );
+                    const readRes = await http.post(`/api/concierge/conversations/${id}/read`);
+                    if (id !== conversationIdRef.current) return;
                     if (readRes.data?.conversation) {
                         applyConversation(readRes.data.conversation, { scrollIfNearBottom: false });
                     }
@@ -177,10 +317,11 @@ function ConversationThread({ conversationId, onListRefresh, realtimeMode, pollT
                     markReadPendingRef.current = false;
                 }
             }
-        } catch {
-            setLive(false);
+        } catch (err) {
+            if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return;
+            if (id === conversationIdRef.current) setLive(false);
         }
-    }, [conversationId, sending, applyConversation, onListRefresh]);
+    }, [sending, takingOver, applyConversation, onListRefresh]);
 
     useEffect(() => {
         if (pollThreadRef) pollThreadRef.current = pollThread;
@@ -189,77 +330,153 @@ function ConversationThread({ conversationId, onListRefresh, realtimeMode, pollT
         };
     }, [pollThread, pollThreadRef]);
 
+    // Vždy pollovat otevřený thread — realtime INSERT často přijde dřív než
+    // doběhne guest→CS překlad (UPDATE body_translated), a UI by zůstalo na originálu.
     useVisibilityPolling(
         pollThread,
         THREAD_FALLBACK_POLL_MS,
-        Boolean(conversationId) && realtimeMode !== 'realtime',
+        Boolean(conversationId),
     );
 
-    const load = () => {
-        if (!conversationId) return;
+    const load = useCallback(() => {
+        const id = conversationIdRef.current;
+        if (!id) return;
         setLoading(true);
         setError(null);
         http
-            .get(`/api/concierge/conversations/${conversationId}`)
+            .get(`/api/concierge/conversations/${id}`)
             .then((res) => {
+                if (id !== conversationIdRef.current) return;
                 applyConversation(res.data.conversation, { scrollIfNearBottom: false });
                 setLive(true);
             })
             .catch((err) => {
+                if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return;
+                if (id !== conversationIdRef.current) return;
                 setError(err.response?.data?.message || 'Konverzaci se nepodařilo načíst.');
             })
-            .finally(() => setLoading(false));
-    };
+            .finally(() => {
+                if (id === conversationIdRef.current) setLoading(false);
+            });
+    }, [applyConversation]);
 
     useEffect(() => {
+        const id = conversationId;
+        const controller = new AbortController();
+
         setConversation(null);
+        setReply('');
+        setError(null);
+        setTakingOver(false);
+        setGuestOpsOpen(false);
         fingerprintRef.current = '';
-        if (!conversationId) return;
+
+        if (!id) {
+            setLoading(false);
+            return undefined;
+        }
 
         setLoading(true);
-        setError(null);
 
-        http
-            .get(`/api/concierge/conversations/${conversationId}`)
-            .then((res) => {
-                applyConversation(res.data.conversation, { scrollIfNearBottom: false });
+        (async () => {
+            try {
+                const { data } = await http.get(`/api/concierge/conversations/${id}`, {
+                    signal: controller.signal,
+                });
+                if (id !== conversationIdRef.current) return;
+
+                applyConversation(data.conversation, { scrollIfNearBottom: false });
                 setLive(true);
-                return http.post(`/api/concierge/conversations/${conversationId}/read`);
-            })
-            .then((res) => {
-                if (res?.data?.conversation) {
-                    applyConversation(res.data.conversation, { scrollIfNearBottom: false });
+
+                const readRes = await http.post(`/api/concierge/conversations/${id}/read`, null, {
+                    signal: controller.signal,
+                });
+                if (id !== conversationIdRef.current) return;
+
+                if (readRes?.data?.conversation) {
+                    applyConversation(readRes.data.conversation, { scrollIfNearBottom: false });
                     onListRefresh?.({ silent: true });
                 }
-            })
-            .catch((err) => {
+            } catch (err) {
+                if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return;
+                if (id !== conversationIdRef.current) return;
                 setError(err.response?.data?.message || 'Konverzaci se nepodařilo načíst.');
-            })
-            .finally(() => setLoading(false));
+            } finally {
+                if (id === conversationIdRef.current) setLoading(false);
+            }
+        })();
+
+        return () => controller.abort();
     }, [conversationId, applyConversation, onListRefresh]);
 
     useEffect(() => {
-        if (conversation?.messages?.length) {
+        if (conversation?.id === conversationId && conversation?.messages?.length) {
             scrollToBottom(false);
         }
-    }, [conversationId, scrollToBottom]);
+    }, [conversationId, conversation?.id, conversation?.messages?.length, scrollToBottom]);
+
+    const handleTakeOver = async () => {
+        const id = conversationIdRef.current;
+        if (!id || takingOver) return;
+        setTakingOver(true);
+        try {
+            const { data } = await http.post(`/api/concierge/conversations/${id}/take-over`);
+            if (id !== conversationIdRef.current) return;
+            if (data?.conversation) {
+                applyConversation(data.conversation, { scrollIfNearBottom: true });
+                onListRefresh?.({ silent: true });
+            }
+        } catch (err) {
+            if (id === conversationIdRef.current) {
+                window.alert(err.response?.data?.message || 'Předání se nezdařilo.');
+            }
+        } finally {
+            if (id === conversationIdRef.current) setTakingOver(false);
+        }
+    };
+
+    const handleSatisfactionCheck = async () => {
+        const id = conversationIdRef.current;
+        if (!id || sendingCheck) return;
+        setSendingCheck(true);
+        try {
+            const { data } = await http.post(`/api/concierge/conversations/${id}/satisfaction-check`);
+            if (id !== conversationIdRef.current) return;
+            if (data?.conversation) {
+                applyConversation(data.conversation, { scrollIfNearBottom: true });
+                onListRefresh?.({ silent: true });
+            }
+        } catch (err) {
+            if (id === conversationIdRef.current) {
+                window.alert(err.response?.data?.message || 'Kontrolu se nepodařilo odeslat.');
+            }
+        } finally {
+            if (id === conversationIdRef.current) setSendingCheck(false);
+        }
+    };
 
     const handleSend = async (e) => {
         e.preventDefault();
+        const id = conversationIdRef.current;
         const text = reply.trim();
-        if (!text || !conversationId) return;
+        if (!text || !id) return;
+        stopTyping();
         setSending(true);
+        setReply('');
         try {
-            const { data } = await http.post(`/api/concierge/conversations/${conversationId}/messages`, {
+            const { data } = await http.post(`/api/concierge/conversations/${id}/messages`, {
                 body: text,
             });
+            if (id !== conversationIdRef.current) return;
             applyConversation(data.conversation, { scrollIfNearBottom: true });
-            setReply('');
             onListRefresh?.({ silent: true });
         } catch (err) {
-            window.alert(err.response?.data?.message || 'Odeslání se nezdařilo.');
+            if (id === conversationIdRef.current) {
+                setReply(text);
+                window.alert(err.response?.data?.message || 'Odeslání se nezdařilo.');
+            }
         } finally {
-            setSending(false);
+            if (id === conversationIdRef.current) setSending(false);
         }
     };
 
@@ -272,18 +489,21 @@ function ConversationThread({ conversationId, onListRefresh, realtimeMode, pollT
         );
     }
 
-    if (loading && !conversation) {
+    const showingWrongThread = conversation && conversation.id !== conversationId;
+    const stillLoading = loading || showingWrongThread || (!conversation && !error);
+
+    if (stillLoading) {
         return (
-            <div className="flex flex-1 items-center justify-center">
+            <div className="flex flex-1 items-center justify-center bg-gray-50/80 dark:bg-gray-900/50">
                 <p className="text-gray-500">Načítání konverzace…</p>
             </div>
         );
     }
 
-    if (error && !conversation) {
+    if (error || !conversation) {
         return (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8">
-                <p className="text-red-600">{error}</p>
+                <p className="text-red-600">{error || 'Konverzaci se nepodařilo načíst.'}</p>
                 <button type="button" onClick={load} className="text-sm text-orange-600 underline">
                     Zkusit znovu
                 </button>
@@ -291,26 +511,110 @@ function ConversationThread({ conversationId, onListRefresh, realtimeMode, pollT
         );
     }
 
-    if (!conversation) return null;
-
     const guestMeta = localeMeta(conversation.guest_locale);
+    const mode =
+        conversation.handler_mode === 'waiting' || conversation.handler_mode === 'staff'
+            ? conversation.handler_mode
+            : 'bot';
+    const isBotMode = mode === 'bot';
+    const isWaiting = mode === 'waiting';
+    const isStaffMode = mode === 'staff';
+    const isClosed = conversation.status === 'closed' || conversation.status === 'archived';
+    const canCompose = isStaffMode || isWaiting;
+    const hasPendingSatisfaction = (conversation.messages ?? []).some(
+        (m) => m.is_satisfaction_check && !m.satisfaction_answer,
+    );
+    const messages = conversation.messages ?? [];
+    const lastMsg = messages[messages.length - 1];
+    const waitingForGuestReply =
+        canCompose &&
+        !isClosed &&
+        !guestTyping &&
+        Boolean(lastMsg) &&
+        lastMsg.sender_type !== 'guest';
 
     return (
-        <div className="flex min-h-0 flex-1 flex-col">
-            <header className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
+        <div
+            className={`flex min-h-0 flex-1 flex-col ${
+                isBotMode
+                    ? 'bg-violet-50/40 dark:bg-violet-950/10'
+                    : isWaiting
+                      ? 'bg-amber-50/30 dark:bg-amber-950/10'
+                      : 'bg-transparent'
+            }`}
+        >
+            <header
+                className={`flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3 ${
+                    isBotMode
+                        ? 'border-violet-200 bg-violet-50 dark:border-violet-900/50 dark:bg-violet-950/40'
+                        : isWaiting
+                          ? 'border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/40'
+                          : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800'
+                }`}
+            >
                 <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                        <h2 className="truncate text-lg font-semibold text-gray-900 dark:text-white">
-                            {conversation.guest_name}
-                        </h2>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setGuestOpsOpen(true)}
+                            className="group inline-flex max-w-full items-center gap-1 truncate text-left"
+                            title="Otevřít kartu hosta a rychlé akce"
+                        >
+                            <h2 className="truncate text-lg font-semibold text-gray-900 underline-offset-2 group-hover:underline dark:text-white">
+                                {conversation.guest_name}
+                            </h2>
+                            <span className="material-symbols-outlined shrink-0 text-[18px] text-orange-500 opacity-70 group-hover:opacity-100">
+                                open_in_new
+                            </span>
+                        </button>
+                        <GuestPresenceBadge online={guestOnline} typing={guestTyping} />
                         <GuestLocaleFlag locale={conversation.guest_locale} size="lg" showLabel />
+                        {isBotMode ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-violet-600 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">
+                                <span className="material-symbols-outlined text-[14px]">smart_toy</span>
+                                AI chatbot
+                            </span>
+                        ) : isWaiting ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">
+                                <span className="material-symbols-outlined text-[14px]">person_raised_hand</span>
+                                Žádá člověka
+                            </span>
+                        ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-orange-500 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">
+                                <span className="material-symbols-outlined text-[14px]">support_agent</span>
+                                Řeší člověk
+                            </span>
+                        )}
                     </div>
-                    <p className="text-xs text-gray-500">
+                    <button
+                        type="button"
+                        onClick={() => setGuestOpsOpen(true)}
+                        className="text-left text-xs text-gray-500 hover:text-orange-600 dark:text-gray-400 dark:hover:text-orange-400"
+                    >
                         {conversation.guest_room ? `Pokoj ${conversation.guest_room} · ` : ''}
-                        Host preferuje {guestMeta.label}
-                    </p>
+                        Host preferuje {guestMeta.label} · klikni pro kartu hosta
+                    </button>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setGuestOpsOpen(true)}
+                        className="inline-flex items-center gap-1 rounded-lg bg-orange-500 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-orange-600"
+                        title="Karta hosta a rychlé akce"
+                    >
+                        <span className="material-symbols-outlined text-[18px]">badge</span>
+                        <span className="hidden sm:inline">Karta hosta</span>
+                    </button>
+                    {isWaiting && !isClosed ? (
+                        <button
+                            type="button"
+                            onClick={handleTakeOver}
+                            disabled={takingOver}
+                            className="rounded-lg bg-amber-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
+                        >
+                            {takingOver ? 'Přebírám…' : 'Převzít kontrolu'}
+                        </button>
+                    ) : null}
                     <span
                         className={`hidden items-center gap-1 rounded-full px-2 py-1 text-[10px] font-medium sm:inline-flex ${
                             live
@@ -331,7 +635,7 @@ function ConversationThread({ conversationId, onListRefresh, realtimeMode, pollT
                     <button
                         type="button"
                         onClick={load}
-                        className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        className="rounded-lg p-2 text-gray-500 hover:bg-white/70 dark:hover:bg-gray-700"
                         title="Obnovit"
                     >
                         <span className="material-symbols-outlined text-[22px]">refresh</span>
@@ -339,64 +643,206 @@ function ConversationThread({ conversationId, onListRefresh, realtimeMode, pollT
                 </div>
             </header>
 
-            <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
-                <span className="material-symbols-outlined mr-1 align-middle text-base">translate</span>
-                Odpovídáte česky — host uvidí zprávu v jazyce{' '}
-                <strong>
-                    {guestMeta.flag} {guestMeta.label}
-                </strong>{' '}
-                po napojení překladového chatbota.
-            </div>
+            {isBotMode ? (
+                <div className="shrink-0 border-b border-violet-200 bg-violet-100/80 px-4 py-3 text-sm text-violet-950 dark:border-violet-900/50 dark:bg-violet-950/50 dark:text-violet-100">
+                    <p className="mx-auto max-w-2xl text-xs leading-relaxed sm:text-sm">
+                        <span className="material-symbols-outlined mr-1 align-middle text-base">
+                            smart_toy
+                        </span>
+                        Chat teď vede <strong>AI chatbot</strong>. Z adminu zatím nemůžeš psát — nejdřív
+                        převeď kontrolu na sebe. Host dostane notifikaci jen ve své appce.
+                    </p>
+                </div>
+            ) : isWaiting ? (
+                <div className="shrink-0 border-b border-amber-300 bg-amber-100 px-4 py-2.5 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/50 dark:text-amber-100">
+                    <p className="mx-auto max-w-2xl text-xs leading-relaxed sm:text-sm">
+                        <span className="material-symbols-outlined mr-1 align-middle text-base animate-pulse">
+                            person_raised_hand
+                        </span>
+                        Host <strong>žádá živou recepci</strong>. AI už neodpovídá. Můžeš rovnou napsat
+                        odpověď (tím chat převezmeš), nebo kliknout „Převzít kontrolu“.
+                    </p>
+                </div>
+            ) : conversation.translation_enabled ? (
+                <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+                    <span className="material-symbols-outlined mr-1 align-middle text-base">translate</span>
+                    Chat řídíš ty. Hostovy zprávy vidíš v češtině; ty odpovídáš česky — host uvidí překlad do{' '}
+                    <strong>
+                        {guestMeta.flag} {guestMeta.label}
+                    </strong>
+                    .
+                </div>
+            ) : (
+                <div className="shrink-0 border-b border-orange-200 bg-orange-50 px-4 py-2 text-xs text-orange-900 dark:border-orange-900/40 dark:bg-orange-950/30 dark:text-orange-200">
+                    <span className="material-symbols-outlined mr-1 align-middle text-base">support_agent</span>
+                    Chat řídíš ty — AI chatbot je vypnutý.
+                </div>
+            )}
 
             <div
                 ref={scrollRef}
-                className="min-h-0 flex-1 overflow-y-auto bg-gray-100/80 p-4 dark:bg-gray-900/40"
+                className={`min-h-0 flex-1 overflow-y-auto p-4 ${
+                    isBotMode
+                        ? 'bg-violet-50/50 dark:bg-violet-950/20'
+                        : isWaiting
+                          ? 'bg-amber-50/40 dark:bg-amber-950/20'
+                          : 'bg-gray-100/80 dark:bg-gray-900/40'
+                }`}
             >
                 <div className="mx-auto flex max-w-2xl flex-col gap-3">
-                    {(conversation.messages ?? []).map((msg) => (
+                    {messages.map((msg) => (
                         <MessageBubble
                             key={msg.id}
                             message={msg}
                             guestLocale={conversation.guest_locale}
                         />
                     ))}
+                    {guestTyping ? (
+                        <div
+                            className="flex justify-start pl-1"
+                            title="Host píše…"
+                            aria-label="Host píše"
+                        >
+                            <span className="inline-flex items-center gap-1 rounded-2xl rounded-bl-md bg-orange-50 px-3 py-2 text-sm text-orange-800 dark:bg-orange-950/40 dark:text-orange-200">
+                                <span className="animate-pulse">✍️</span>
+                                <span className="text-[11px] font-medium">píše…</span>
+                            </span>
+                        </div>
+                    ) : (
+                        <WaitingForGuestEyes
+                            visible={waitingForGuestReply}
+                            guestOnline={guestOnline}
+                        />
+                    )}
                     <div ref={bottomRef} />
                 </div>
             </div>
 
-            <form
-                onSubmit={handleSend}
-                className="shrink-0 border-t border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800"
-            >
-                <div className="mx-auto flex max-w-2xl gap-2">
-                    <textarea
-                        value={reply}
-                        onChange={(e) => setReply(e.target.value)}
-                        rows={2}
-                        disabled={sending || conversation.status === 'closed'}
-                        placeholder={
-                            conversation.status === 'closed'
-                                ? 'Konverzace je uzavřená'
-                                : 'Napište odpověď pro hosta…'
-                        }
-                        className="flex-1 resize-none rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm focus:ring-2 focus:ring-orange-500 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault();
-                                handleSend(e);
-                            }
-                        }}
-                    />
-                    <button
-                        type="submit"
-                        disabled={sending || !reply.trim() || conversation.status === 'closed'}
-                        className="flex h-auto shrink-0 items-center justify-center rounded-xl px-4 text-white transition disabled:opacity-50"
-                        style={{ backgroundColor: PRIMARY_ORANGE }}
-                    >
-                        <span className="material-symbols-outlined">send</span>
-                    </button>
+            {isBotMode && !isClosed ? (
+                <div className="shrink-0 border-t border-violet-300 bg-gradient-to-t from-violet-100 to-violet-50 px-4 py-5 dark:border-violet-900/50 dark:from-violet-950/60 dark:to-violet-950/30">
+                    <div className="mx-auto flex max-w-2xl flex-col items-center gap-3 text-center">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-violet-600 text-white shadow">
+                            <span className="material-symbols-outlined text-[28px]">smart_toy</span>
+                        </div>
+                        <div>
+                            <p className="text-sm font-semibold text-violet-950 dark:text-violet-100">
+                                AI chatbot je aktivní
+                            </p>
+                            <p className="mt-1 text-xs text-violet-800 dark:text-violet-200">
+                                Psát hostovi můžeš až po převzetí. Chatbot se vypne a host uvidí ve své
+                                appce, že živá obsluha převzala kontrolu (tuto zprávu v adminu neuvidíš).
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleTakeOver}
+                            disabled={takingOver}
+                            className="inline-flex min-w-[220px] items-center justify-center gap-2 rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-violet-800 disabled:opacity-60"
+                        >
+                            <span className="material-symbols-outlined">handshake</span>
+                            {takingOver ? 'Přebírám kontrolu…' : 'Převzít kontrolu'}
+                        </button>
+                    </div>
                 </div>
-            </form>
+            ) : (
+                <form
+                    onSubmit={handleSend}
+                    className={`shrink-0 border-t p-4 ${
+                        isWaiting
+                            ? 'border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/40'
+                            : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800'
+                    }`}
+                >
+                    <div className="mx-auto flex max-w-2xl flex-col gap-2">
+                        {canCompose && !isClosed ? (
+                            <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={handleSatisfactionCheck}
+                                    disabled={sendingCheck || hasPendingSatisfaction}
+                                    title={
+                                        hasPendingSatisfaction
+                                            ? 'Už čekáš na odpověď hosta'
+                                            : 'Pošle hostovi otázku s tlačítky Ano / Ne'
+                                    }
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-800 hover:bg-sky-100 disabled:opacity-50 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100"
+                                >
+                                    <span className="material-symbols-outlined text-[16px]">
+                                        fact_check
+                                    </span>
+                                    {sendingCheck
+                                        ? 'Odesílám…'
+                                        : hasPendingSatisfaction
+                                          ? 'Čeká na Ano/Ne'
+                                          : 'Bylo to vyřešeno?'}
+                                </button>
+                            </div>
+                        ) : null}
+                        <div className="flex gap-2">
+                            <textarea
+                                value={reply}
+                                onChange={(e) => {
+                                    const next = e.target.value;
+                                    setReply(next);
+                                    if (next.trim()) {
+                                        notifyTyping();
+                                    } else {
+                                        stopTyping();
+                                    }
+                                }}
+                                onBlur={() => stopTyping()}
+                                rows={2}
+                                disabled={sending || isClosed || !canCompose}
+                                placeholder={
+                                    isClosed
+                                        ? conversation.status === 'archived'
+                                          ? 'Konverzace je archivovaná'
+                                          : 'Konverzace je uzavřená'
+                                        : isWaiting
+                                          ? 'Napište odpověď — tím chat převezmete…'
+                                          : 'Napište odpověď pro hosta…'
+                                }
+                                className="flex-1 resize-none rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm focus:ring-2 focus:ring-orange-500 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handleSend(e);
+                                    }
+                                }}
+                            />
+                            <button
+                                type="submit"
+                                disabled={sending || !reply.trim() || isClosed || !canCompose}
+                                className="flex h-auto shrink-0 items-center justify-center rounded-xl px-4 text-white transition disabled:opacity-50"
+                                style={{ backgroundColor: PRIMARY_ORANGE }}
+                            >
+                                <span className="material-symbols-outlined">send</span>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            )}
+
+            {guestOpsOpen ? (
+                <GuestOpsModal
+                    conversationId={conversation.id}
+                    onClose={() => setGuestOpsOpen(false)}
+                    onUpdated={(data) => {
+                        if (data?.conversation) {
+                            setConversation((prev) =>
+                                prev
+                                    ? {
+                                          ...prev,
+                                          guest_room: data.conversation.guest_room ?? prev.guest_room,
+                                          guest_name: data.conversation.guest_name ?? prev.guest_name,
+                                      }
+                                    : prev,
+                            );
+                            onListRefresh?.({ silent: true });
+                        }
+                    }}
+                />
+            ) : null}
         </div>
     );
 }
@@ -410,6 +856,7 @@ export function Concierge() {
     const [listError, setListError] = useState(null);
     const [selectedId, setSelectedId] = useState(null);
     const [filter, setFilter] = useState('all');
+    const [modeFilter, setModeFilter] = useState('all');
     const [localeFilter, setLocaleFilter] = useState('');
     const [searchQ, setSearchQ] = useState('');
     const [debouncedQ, setDebouncedQ] = useState('');
@@ -469,6 +916,31 @@ export function Concierge() {
         if (isEnabled) loadConversations();
     }, [isEnabled, loadConversations]);
 
+    const modeCounts = conversations.reduce(
+        (acc, c) => {
+            const mode = resolveHandlerMode(c.handler_mode);
+            acc[mode] += 1;
+            return acc;
+        },
+        { bot: 0, waiting: 0, staff: 0 },
+    );
+
+    const visibleConversations = conversations
+        .filter((c) => (modeFilter === 'all' ? true : resolveHandlerMode(c.handler_mode) === modeFilter))
+        .slice()
+        .sort((a, b) => {
+            const rank = (item) => {
+                const mode = resolveHandlerMode(item.handler_mode);
+                if (mode === 'waiting') return 0;
+                if (mode === 'staff' && item.unread_count > 0) return 1;
+                if (mode === 'staff') return 2;
+                return 3;
+            };
+            const diff = rank(a) - rank(b);
+            if (diff !== 0) return diff;
+            return String(b.last_message_iso || '').localeCompare(String(a.last_message_iso || ''));
+        });
+
     if (!isEnabled) {
         return <NotFound />;
     }
@@ -526,6 +998,43 @@ export function Concierge() {
                                 </button>
                             ))}
                         </div>
+                        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                            {[
+                                { key: 'all', label: 'Vše stavy', count: conversations.length },
+                                {
+                                    key: 'waiting',
+                                    label: 'Žádá člověka',
+                                    count: modeCounts.waiting,
+                                    activeClass: 'bg-amber-500 text-white',
+                                },
+                                {
+                                    key: 'staff',
+                                    label: 'Řeší člověk',
+                                    count: modeCounts.staff,
+                                    activeClass: 'bg-orange-500 text-white',
+                                },
+                                {
+                                    key: 'bot',
+                                    label: 'AI chatbot',
+                                    count: modeCounts.bot,
+                                    activeClass: 'bg-violet-600 text-white',
+                                },
+                            ].map((f) => (
+                                <button
+                                    key={f.key}
+                                    type="button"
+                                    onClick={() => setModeFilter(f.key)}
+                                    className={`rounded-lg px-2 py-1.5 text-left text-[11px] font-semibold leading-tight transition ${
+                                        modeFilter === f.key
+                                            ? f.activeClass || 'bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900'
+                                            : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
+                                    }`}
+                                >
+                                    <span className="block truncate">{f.label}</span>
+                                    <span className="opacity-80">{f.count}</span>
+                                </button>
+                            ))}
+                        </div>
                         <div className="flex items-center justify-between">
                             <div className="flex flex-wrap gap-1.5">
                                 <button
@@ -568,10 +1077,10 @@ export function Concierge() {
                     <div className="min-h-0 flex-1 overflow-y-auto">
                         {listLoading ? (
                             <p className="p-6 text-center text-sm text-gray-500">Načítání…</p>
-                        ) : conversations.length === 0 ? (
+                        ) : visibleConversations.length === 0 ? (
                             <p className="p-6 text-center text-sm text-gray-500">Žádné konverzace.</p>
                         ) : (
-                            conversations.map((c) => (
+                            visibleConversations.map((c) => (
                                 <ConversationListItem
                                     key={c.id}
                                     item={c}
@@ -606,6 +1115,7 @@ export function Concierge() {
                         </button>
                     ) : null}
                     <ConversationThread
+                        key={selectedId ?? 'none'}
                         conversationId={selectedId}
                         onListRefresh={loadConversations}
                         realtimeMode={realtimeMode}

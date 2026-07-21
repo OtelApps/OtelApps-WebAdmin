@@ -132,6 +132,60 @@ class GuestPushService
         ];
     }
 
+    public function isConciergePushEnabled(Hotel $hotel): bool
+    {
+        if (! $this->isEnabled($hotel)) {
+            return false;
+        }
+
+        $prefs = $this->notificationService->settings($hotel)['preferences'];
+
+        return (bool) ($prefs['guest_push_on_concierge'] ?? true);
+    }
+
+    /**
+     * Push hostovi při nové zprávě od AI / recepce.
+     *
+     * @return array{sent: int, tickets: array<int, mixed>}
+     */
+    public function sendConciergeMessage(
+        Hotel $hotel,
+        string $guestExternalId,
+        string $conversationId,
+        string $preview,
+        string $from = 'bot',
+    ): array {
+        if (! $this->isConciergePushEnabled($hotel) || $guestExternalId === '') {
+            return ['sent' => 0, 'tickets' => []];
+        }
+
+        $tokens = $this->audienceResolver->loadTokens($hotel, collect([$guestExternalId]));
+        if ($tokens->isEmpty()) {
+            return ['sent' => 0, 'tickets' => []];
+        }
+
+        $copy = $this->guestPushCopy->conciergeMessage(
+            $this->hotelDisplayName($hotel),
+            $preview,
+            $conversationId,
+            $from,
+        );
+
+        $messages = $tokens
+            ->map(fn (HotelGuestPushToken $token) => $this->buildMessage($token, [
+                ...$copy,
+                'data' => [
+                    'type' => 'concierge_message',
+                    'conversationId' => $conversationId,
+                    'from' => $from,
+                ],
+            ]))
+            ->values()
+            ->all();
+
+        return $this->expoPushService->send($messages);
+    }
+
     /**
      * @return array{sent: int, tickets: array<int, mixed>}
      */

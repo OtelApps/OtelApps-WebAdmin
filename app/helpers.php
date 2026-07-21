@@ -6,9 +6,11 @@
  * @param  array<string, mixed>  $default
  * @return array<string, mixed>
  */
-function config_array(string $key, array $default = []): array
-{
-    $value = config($key, $default);
+if (! function_exists('config_array')) {
+    function config_array(string $key, array $default = []): array
+    {
+        $value = config($key, $default);
 
-    return is_array($value) ? $value : $default;
+        return is_array($value) ? $value : $default;
+    }
 }

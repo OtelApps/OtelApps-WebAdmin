@@ -311,6 +311,10 @@ class DashboardService
             try {
                 $unread = (int) \App\Models\HotelConciergeConversation::query()
                     ->where('hotel_id', $hotel->id)
+                    ->where(function ($q) {
+                        $q->where('metadata->mode', 'staff')
+                            ->orWhere('metadata->mode', 'waiting');
+                    })
                     ->sum('unread_staff_count');
                 if ($unread > 0) {
                     $items[] = [

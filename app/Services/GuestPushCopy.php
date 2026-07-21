@@ -110,4 +110,30 @@ class GuestPushCopy
             'badge' => 1,
         ];
     }
+
+    /**
+     * @return array{title: string, subtitle: string, body: string, category_id: string, thread_id: string, badge: int}
+     */
+    public function conciergeMessage(
+        string $hotelName,
+        string $preview,
+        string $conversationId,
+        string $from = 'bot',
+    ): array {
+        $preview = trim(preg_replace('/\s+/u', ' ', $preview) ?? $preview);
+        if (mb_strlen($preview) > 140) {
+            $preview = mb_substr($preview, 0, 137).'…';
+        }
+
+        $fromLabel = $from === 'staff' ? 'Recepce' : 'Concierge AI';
+
+        return [
+            'title' => $hotelName,
+            'subtitle' => "💬 {$fromLabel}",
+            'body' => $preview !== '' ? $preview : 'Máte novou zprávu v chatu s hotelem.',
+            'category_id' => 'concierge_chat',
+            'thread_id' => "concierge-{$conversationId}",
+            'badge' => 1,
+        ];
+    }
 }
