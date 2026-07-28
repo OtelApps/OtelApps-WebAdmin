@@ -204,45 +204,32 @@ class ConciergeBotController extends Controller
                 ->exists();
         }
 
+        $needsGuestToCs = $guestLocale !== 'cs'
+            && HotelConciergeMessage::query()
+                ->where('conversation_id', $conversation->id)
+                ->where('sender_type', 'guest')
+                ->where(function ($q) {
+                    $q->whereNull('body_translated')
+                        ->orWhere('body_translated', '');
+                })
+                ->exists();
+
         if (ConciergeBotService::needsStaffAttention($mode)) {
-            $needsWork = $guestLocale !== 'cs'
-                && HotelConciergeMessage::query()
-                    ->where('conversation_id', $conversation->id)
-                    ->where('sender_type', 'guest')
-                    ->where(function ($q) {
-                        $q->whereNull('body_translated')
-                            ->orWhere('body_translated', '');
-                    })
-                    ->exists();
+            $needsWork = $needsGuestToCs;
         } else {
             $last = HotelConciergeMessage::query()
                 ->where('conversation_id', $conversation->id)
                 ->orderByDesc('created_at')
                 ->orderByDesc('id')
                 ->first();
-            $needsWork = $last && $last->sender_type === 'guest';
+            // Bot už odpověděl, ale CS překlad hosta může chybět — stále potřebujeme práci.
+            $needsWork = ($last && $last->sender_type === 'guest') || $needsGuestToCs;
         }
 
         if ($needsWork || $needsStaffTranslation) {
-            $conversationId = (string) $conversation->id;
-            dispatch(function () use ($conversationId, $mode, $needsWork, $needsStaffTranslation) {
-                set_time_limit(180);
-                $c = HotelConciergeConversation::query()->find($conversationId);
-                if (! $c) {
-                    return;
-                }
-                $bot = app(ConciergeBotService::class);
-                if ($needsStaffTranslation) {
-                    $bot->ensureStaffTranslationsForGuest($c);
-                }
-                if ($needsWork) {
-                    if (ConciergeBotService::needsStaffAttention($mode)) {
-                        $bot->ensureGuestTranslationsForStaff($c);
-                    } else {
-                        $bot->ensurePendingReply($c);
-                    }
-                }
-            })->afterResponse();
+            ProcessConciergeGuestMessage::dispatchConversationAfterHttpResponse(
+                (string) $conversation->id,
+            );
         }
 
         return response()->json([

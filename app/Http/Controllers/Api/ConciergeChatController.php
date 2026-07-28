@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ProcessConciergeGuestMessage;
 use App\Models\Hotel;
 use App\Models\HotelConciergeConversation;
 use App\Models\HotelConciergeMessage;
@@ -88,22 +89,40 @@ class ConciergeChatController extends Controller
     public function show(string $id): JsonResponse
     {
         $conversation = $this->findConversation($id);
-        $mode = $this->botService->conversationMode($conversation);
-
-        if (ConciergeBotService::needsStaffAttention($mode)
-            && ($conversation->guest_locale ?: 'cs') !== 'cs') {
-            // Jen afterResponse — sync LLM v show() zabíjí artisan serve (max_execution_time 30s).
-            $conversationId = (string) $conversation->id;
-            dispatch(function () use ($conversationId) {
-                set_time_limit(180);
-                $c = HotelConciergeConversation::query()->find($conversationId);
-                if ($c) {
-                    app(ConciergeBotService::class)->ensureGuestTranslationsForStaff($c, 10);
-                }
-            })->afterResponse();
-        }
-
         $conversation->load('messages');
+
+        // Když host čeká na AI a notify/ensure z appky nedorazilo, nastartuj background job.
+        // Žádné LLM sync v tomto requestu — artisan serve zůstane volný.
+        $mode = $this->botService->conversationMode($conversation);
+        if ($mode === ConciergeBotService::MODE_BOT) {
+            $last = $conversation->messages
+                ->sortByDesc(fn ($m) => ($m->created_at?->getTimestamp() ?? 0).'|'.$m->id)
+                ->first();
+            if ($last && $last->sender_type === 'guest') {
+                // Jen pokud ještě není bot/staff odpověď po této zprávě.
+                $hasReply = $conversation->messages->contains(
+                    fn ($m) => in_array($m->sender_type, ['bot', 'staff'], true)
+                        && $m->created_at >= $last->created_at
+                        && $m->id !== $last->id
+                );
+                if (! $hasReply) {
+                    ProcessConciergeGuestMessage::dispatchAfterHttpResponse(
+                        (string) $conversation->id,
+                        (string) $last->id,
+                    );
+                }
+            }
+        } elseif (ConciergeBotService::needsStaffAttention($mode)
+            && ($conversation->guest_locale ?: 'cs') !== 'cs') {
+            $needsGuestCs = $conversation->messages
+                ->where('sender_type', 'guest')
+                ->contains(fn ($m) => ! filled($m->body_translated));
+            if ($needsGuestCs) {
+                ProcessConciergeGuestMessage::dispatchConversationAfterHttpResponse(
+                    (string) $conversation->id,
+                );
+            }
+        }
 
         return response()->json([
             'conversation' => $this->detailPayload($conversation),
@@ -154,7 +173,7 @@ class ConciergeChatController extends Controller
         $conversationId = (string) $conversation->id;
         if (($conversation->guest_locale ?: 'cs') !== 'cs') {
             dispatch(function () use ($conversationId, $messageId) {
-                set_time_limit(180);
+                set_time_limit(600);
                 $c = HotelConciergeConversation::query()->find($conversationId);
                 $m = HotelConciergeMessage::query()->find($messageId);
                 if (! $c || ! $m) {
@@ -163,14 +182,14 @@ class ConciergeChatController extends Controller
                 $bot = app(ConciergeBotService::class);
                 if (! filled($m->body_translated)) {
                     $translated = $bot->translateStaffReply($c, $m->body);
-                    if (! filled($translated)) {
-                        // Bez překladu host zprávu neuvidí — neposílej push s češtinou.
-                        return;
+                    if (filled($translated)) {
+                        $m->update(['body_translated' => $translated]);
+                        $m->refresh();
                     }
-                    $m->update(['body_translated' => $translated]);
-                    $m->refresh();
                 }
-                $bot->pushGuestConcierge($c, (string) $m->body_translated, 'staff');
+                // I bez překladu pushni originál — host aspoň něco uvidí.
+                $pushBody = filled($m->body_translated) ? (string) $m->body_translated : (string) $m->body;
+                $bot->pushGuestConcierge($c, $pushBody, 'staff');
             })->afterResponse();
         } else {
             dispatch(function () use ($conversationId, $messageId) {
@@ -195,6 +214,17 @@ class ConciergeChatController extends Controller
     {
         $conversation = $this->findConversation($id);
         $this->botService->takeOverByStaff($conversation);
+        $conversation->refresh()->load('messages');
+
+        return response()->json([
+            'conversation' => $this->detailPayload($conversation),
+        ]);
+    }
+
+    public function releaseToBot(string $id): JsonResponse
+    {
+        $conversation = $this->findConversation($id);
+        $this->botService->releaseToBot($conversation);
         $conversation->refresh()->load('messages');
 
         return response()->json([
@@ -230,6 +260,26 @@ class ConciergeChatController extends Controller
             ->update(['read_by_staff_at' => now()]);
 
         $conversation->update(['unread_staff_count' => 0]);
+
+        // Jednorázově při otevření chatu — background proces, neblokuje artisan serve.
+        if (ConciergeBotService::needsStaffAttention($this->botService->conversationMode($conversation))
+            && ($conversation->guest_locale ?: 'cs') !== 'cs') {
+            $needsGuestCs = HotelConciergeMessage::query()
+                ->where('conversation_id', $conversation->id)
+                ->where('sender_type', 'guest')
+                ->where(function ($q) {
+                    $q->whereNull('body_translated')
+                        ->orWhere('body_translated', '');
+                })
+                ->exists();
+
+            if ($needsGuestCs) {
+                ProcessConciergeGuestMessage::dispatchConversationAfterHttpResponse(
+                    (string) $conversation->id,
+                );
+            }
+        }
+
         $conversation->refresh()->load('messages');
 
         return response()->json([

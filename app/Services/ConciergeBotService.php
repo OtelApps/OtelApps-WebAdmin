@@ -6,8 +6,11 @@ use App\Models\Hotel;
 use App\Models\HotelConciergeCaseSummary;
 use App\Models\HotelConciergeConversation;
 use App\Models\HotelConciergeMessage;
+use App\Models\HotelCrmGuestProfile;
 use App\Models\HotelInfoTopic;
 use App\Models\HotelPlace;
+use App\Models\HotelServiceRequest;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -171,6 +174,10 @@ class ConciergeBotService
             return;
         }
 
+        // Bot + 1–2 překlady přes LM Studio snadno přesáhne PHP default 30 s.
+        @ini_set('max_execution_time', '600');
+        @set_time_limit(600);
+
         // Jazyk z aktuální zprávy / UI výběru přepiš na konverzaci (ensure dřív locale neaktualizovalo).
         $messageLocale = $message->locale ?: null;
         if ($messageLocale && in_array($messageLocale, ['cs', 'en', 'de', 'fr', 'pl'], true)
@@ -189,58 +196,108 @@ class ConciergeBotService
             return;
         }
 
-        // Idempotent: už máme novější bot/staff/system odpověď po této zprávě.
+        // Idempotent: už máme novější bot/staff odpověď po této zprávě.
+        // Překlad host → CS ale stejně doplň (admin UI / retry po timeoutu).
         if ($this->hasReplyAfter($conversation, $message)) {
-            return;
-        }
-
-        // AI chaty nebudí staff přes unread badge, ale jednorázově oznámí start.
-        if ((int) $conversation->unread_staff_count > 0) {
-            $conversation->update(['unread_staff_count' => 0]);
-            $conversation->refresh();
-        }
-
-        $this->notifyAdminBotStarted($conversation);
-
-        if ($this->guestRequestsHuman($message->body)) {
             $this->translateGuestMessageForStaff($conversation, $message);
-            $this->escalateToStaff($conversation, 'guest_request');
 
             return;
         }
 
-        if (! $this->openAi->isConfigured()) {
-            Log::warning('Concierge bot: OPENAI_API_KEY chybí, eskaluji na recepci.');
-            $this->escalateToStaff($conversation, 'openai_missing');
+        // Jeden guest message = max jedna bot odpověď (on-message + ensure-reply + show race).
+        $lock = Cache::lock('concierge-reply:'.$message->id, 300);
+        if (! $lock->get()) {
+            Log::info('Concierge bot: přeskočeno — jiný proces už odpovídá', [
+                'conversation_id' => $conversation->id,
+                'message_id' => $message->id,
+            ]);
 
             return;
         }
 
         try {
-            $this->replyAsBot($conversation, $message);
-        } catch (Throwable $e) {
-            Log::error('Concierge bot selhal', [
-                'conversation_id' => $conversation->id,
-                'message' => $e->getMessage(),
-            ]);
+            // Po čekání na lock znovu — první proces už mohl uložit odpověď.
+            if ($this->hasReplyAfter($conversation->fresh(), $message)) {
+                $this->translateGuestMessageForStaff($conversation, $message);
 
-            // Transientní DB chyba u pooleru — zkus ještě jednou, ať neeskalujeme zbytečně.
-            if ($this->isTransientDbError($e)) {
-                try {
-                    usleep(200_000);
-                    DB::connection(config('otelapps.db_connection'))->reconnect();
-                    $this->replyAsBot($conversation, $message);
-
-                    return;
-                } catch (Throwable $retry) {
-                    Log::error('Concierge bot retry selhal', [
-                        'conversation_id' => $conversation->id,
-                        'message' => $retry->getMessage(),
-                    ]);
-                }
+                return;
             }
 
-            $this->escalateToStaff($conversation, 'bot_error');
+            // AI chaty nebudí staff přes unread badge, ale jednorázově oznámí start.
+            if ((int) $conversation->unread_staff_count > 0) {
+                $conversation->update(['unread_staff_count' => 0]);
+                $conversation->refresh();
+            }
+
+            $this->notifyAdminBotStarted($conversation);
+
+            if ($this->guestRequestsHuman($message->body)) {
+                $this->translateGuestMessageForStaff($conversation, $message);
+                $this->escalateToStaff($conversation, 'guest_request');
+
+                return;
+            }
+
+            if (! $this->openAi->isConfigured()) {
+                Log::warning('Concierge bot: OPENAI_API_KEY chybí, eskaluji na recepci.');
+                $this->escalateToStaff($conversation, 'openai_missing');
+
+                return;
+            }
+
+            // Nejdřív odpověz hostovi — překlad pro admin až potom (nesmí blokovat reply).
+            try {
+                $this->replyAsBot($conversation, $message);
+            } catch (Throwable $e) {
+                Log::error('Concierge bot selhal', [
+                    'conversation_id' => $conversation->id,
+                    'message' => $e->getMessage(),
+                ]);
+
+                // Transientní DB / timeout LLM — zkus ještě jednou, ať neeskalujeme zbytečně.
+                if ($this->isLlmUnreachable($e)) {
+                    Log::warning('Concierge bot: LM Studio nedostupné — nechávám bot mode pro retry', [
+                        'conversation_id' => $conversation->id,
+                        'base_url' => config('openai.base_url'),
+                        'message' => $e->getMessage(),
+                    ]);
+                    $this->notifyLlmOffline($conversation);
+
+                    return;
+                }
+
+                if ($this->isTransientDbError($e) || $this->isLlmTimeout($e)) {
+                    try {
+                        usleep(300_000);
+                        if ($this->isTransientDbError($e)) {
+                            DB::connection(config('otelapps.db_connection'))->reconnect();
+                        }
+                        if ($this->hasReplyAfter($conversation->fresh(), $message)) {
+                            return;
+                        }
+                        $this->replyAsBot($conversation, $message);
+
+                        return;
+                    } catch (Throwable $retry) {
+                        Log::error('Concierge bot retry selhal', [
+                            'conversation_id' => $conversation->id,
+                            'message' => $retry->getMessage(),
+                        ]);
+                        if ($this->isLlmUnreachable($retry)) {
+                            $this->notifyLlmOffline($conversation);
+
+                            return;
+                        }
+                    }
+                }
+
+                $this->escalateToStaff($conversation, 'bot_error');
+            } finally {
+                $message->refresh();
+                $this->translateGuestMessageForStaff($conversation, $message);
+            }
+        } finally {
+            optional($lock)->release();
         }
     }
 
@@ -258,6 +315,9 @@ class ConciergeBotService
             return $this->ensureGuestTranslationsForStaff($conversation) > 0;
         }
 
+        // Bot mode: doplň chybějící CS překlady hosta (admin UI), i když už bot odpověděl.
+        $translated = $this->ensureGuestTranslationsForStaff($conversation);
+
         $last = HotelConciergeMessage::query()
             ->where('conversation_id', $conversation->id)
             ->orderByDesc('created_at')
@@ -265,11 +325,11 @@ class ConciergeBotService
             ->first();
 
         if (! $last || $last->sender_type !== 'guest') {
-            return false;
+            return $translated > 0;
         }
 
         if ($this->hasReplyAfter($conversation, $last)) {
-            return false;
+            return $translated > 0;
         }
 
         $this->handleGuestMessage($conversation->fresh(), $last);
@@ -313,9 +373,11 @@ class ConciergeBotService
 
     private function hasReplyAfter(HotelConciergeConversation $conversation, HotelConciergeMessage $guestMessage): bool
     {
+        // Jen bot/staff = skutečná odpověď. System noticely (escalate, satisfaction)
+        // by jinak zablokovaly retry bota navždy.
         return HotelConciergeMessage::query()
             ->where('conversation_id', $conversation->id)
-            ->whereIn('sender_type', ['bot', 'staff', 'system'])
+            ->whereIn('sender_type', ['bot', 'staff'])
             ->where('created_at', '>=', $guestMessage->created_at)
             ->where('id', '!=', $guestMessage->id)
             ->exists();
@@ -680,6 +742,7 @@ class ConciergeBotService
         HotelConciergeConversation $conversation,
         string $guestLocale,
     ): array {
+        // Bez LLM — satisfaction „Ano“ musí být okamžité (jinak artisan serve + Expo: Network request failed).
         $guestBodies = HotelConciergeMessage::query()
             ->where('conversation_id', $conversation->id)
             ->where('sender_type', 'guest')
@@ -692,47 +755,19 @@ class ConciergeBotService
 
         $fallbackGuest = $guestBodies[0] ?? 'Concierge chat';
         $fallbackGuest = mb_substr(trim(preg_replace('/\s+/u', ' ', $fallbackGuest) ?? $fallbackGuest), 0, 90);
-        $fallbackCs = $guestLocale === 'cs'
-            ? $fallbackGuest
-            : mb_substr($fallbackGuest, 0, 90);
 
-        if ($guestBodies === [] || ! $this->openAi->isConfigured()) {
-            return ['guest' => $fallbackGuest, 'cs' => $fallbackCs];
-        }
+        $csBodies = HotelConciergeMessage::query()
+            ->where('conversation_id', $conversation->id)
+            ->where('sender_type', 'guest')
+            ->whereNotNull('body_translated')
+            ->where('body_translated', '!=', '')
+            ->orderBy('created_at')
+            ->limit(1)
+            ->value('body_translated');
 
-        $languageName = $this->localeLabel($guestLocale);
-        $joined = implode("\n- ", array_map(fn ($b) => mb_substr((string) $b, 0, 160), $guestBodies));
-
-        try {
-            $raw = $this->openAi->chat([
-                [
-                    'role' => 'system',
-                    'content' => <<<PROMPT
-Summarize a resolved hotel guest support chat into a short keyword-style title.
-Return JSON only:
-{"summary":"...in {$languageName}...","summary_cs":"...in Czech..."}
-Rules: max 12 words each, no quotes, no trailing period if possible, capture the main problem only.
-PROMPT
-                ],
-                [
-                    'role' => 'user',
-                    'content' => "Guest messages:\n- {$joined}",
-                ],
-            ], false);
-
-            $decoded = $this->openAi->tryDecodeJson($raw);
-            $guest = trim((string) ($decoded['summary'] ?? ''));
-            $cs = trim((string) ($decoded['summary_cs'] ?? ''));
-
-            if ($guest !== '') {
-                return [
-                    'guest' => mb_substr($guest, 0, 120),
-                    'cs' => mb_substr($cs !== '' ? $cs : $guest, 0, 120),
-                ];
-            }
-        } catch (Throwable $e) {
-            Log::warning('Concierge: shrnutí chatu selhalo', ['message' => $e->getMessage()]);
-        }
+        $fallbackCs = filled($csBodies)
+            ? mb_substr(trim(preg_replace('/\s+/u', ' ', (string) $csBodies) ?? (string) $csBodies), 0, 90)
+            : ($guestLocale === 'cs' ? $fallbackGuest : $fallbackGuest);
 
         return ['guest' => $fallbackGuest, 'cs' => $fallbackCs];
     }
@@ -851,22 +886,33 @@ PROMPT
         $hotel = Hotel::query()->find($conversation->hotel_id);
         $guestLocale = $message->locale ?: ($conversation->guest_locale ?: 'cs');
         $languageName = $this->localeLabel($guestLocale);
-        $context = $this->buildHotelContext($hotel);
+        $guestContext = $this->buildGuestContext($conversation, $hotel);
+        $appContext = $this->buildAppCapabilities();
+        $hotelContext = $this->buildHotelContext($hotel);
         $history = $this->buildChatHistory($conversation);
 
         $system = <<<PROMPT
 You are a hotel concierge chatbot for "{$hotel?->name}".
+Answer immediately. Do NOT write chain-of-thought or step-by-step analysis — output the final answer only.
 CRITICAL: The guest language is {$languageName} (code: {$guestLocale}).
 The field "reply" MUST be written entirely in {$languageName}.
 The field "reply_cs" MUST be the same meaning in Czech for hotel staff.
-Keep answers to 1–3 short sentences. Use hotel knowledge below. Hotel knowledge may be in Czech — still answer the guest in {$languageName}.
+Keep answers to 1–3 short sentences. Be practical and personal using GUEST CONTEXT when relevant (name, room, stay, VIP).
+Prefer guiding the guest to the hotel app features listed below when that solves the request (room service, requests, map, etc.).
+Never invent prices, opening hours, menu items, or stay details that are not in the context.
+Escalate to staff (escalate=true) for: billing/folio disputes, medical emergencies, serious complaints, security, or when you lack reliable info.
+Do not mention internal notes, CRM, or staff-only data explicitly — use them only to tailor the answer.
 
-Return JSON:
+Return ONLY JSON (no markdown fences):
 {"reply":"...in {$languageName}...","reply_cs":"...in Czech...","escalate":false,"escalate_reason":null}
 If you cannot output JSON, write the guest-facing answer in {$languageName} only (plain text).
 
+{$guestContext}
+
+{$appContext}
+
 HOTEL KNOWLEDGE:
-{$context}
+{$hotelContext}
 PROMPT;
 
         $userContent = "Guest message ({$languageName}):\n".$message->body;
@@ -875,7 +921,10 @@ PROMPT;
             ['role' => 'system', 'content' => $system],
             ...$history,
             ['role' => 'user', 'content' => $userContent],
-        ], false);
+        ], false, [
+            'max_tokens' => (int) config('openai.bot_max_tokens', 768),
+            'timeout' => (int) config('openai.timeout', 120),
+        ]);
 
         $result = $this->openAi->tryDecodeJson($raw);
 
@@ -892,7 +941,7 @@ PROMPT;
             }
 
             [$replyGuest, $replyCs] = $this->normalizeBotReplies($plain, null, $guestLocale);
-            $this->storeBotMessage($conversation, $replyGuest, $replyCs, $guestLocale);
+            $this->storeBotMessage($conversation, $replyGuest, $replyCs, $guestLocale, $message);
             $conversation->update(['unread_staff_count' => 0]);
             Log::info('Concierge bot: uložena plain-text odpověď', [
                 'conversation_id' => $conversation->id,
@@ -919,7 +968,7 @@ PROMPT;
                     $replyCsField !== '' ? $replyCsField : null,
                     $guestLocale,
                 );
-                $this->storeBotMessage($conversation, $replyGuest, $replyCs, $guestLocale);
+                $this->storeBotMessage($conversation, $replyGuest, $replyCs, $guestLocale, $message);
             }
 
             return;
@@ -929,7 +978,7 @@ PROMPT;
             $plain = trim($raw);
             if ($plain !== '' && ! str_contains($plain, '{')) {
                 [$replyGuest, $replyCs] = $this->normalizeBotReplies($plain, null, $guestLocale);
-                $this->storeBotMessage($conversation, $replyGuest, $replyCs, $guestLocale);
+                $this->storeBotMessage($conversation, $replyGuest, $replyCs, $guestLocale, $message);
                 $conversation->update(['unread_staff_count' => 0]);
 
                 return;
@@ -945,7 +994,7 @@ PROMPT;
             $guestLocale,
         );
 
-        $this->storeBotMessage($conversation, $replyGuest, $replyCs, $guestLocale);
+        $this->storeBotMessage($conversation, $replyGuest, $replyCs, $guestLocale, $message);
         $conversation->update(['unread_staff_count' => 0]);
         Log::info('Concierge bot: uložena JSON odpověď', [
             'conversation_id' => $conversation->id,
@@ -976,6 +1025,15 @@ PROMPT;
             : ($this->looksLikeCzech($primary)
                 ? $primary
                 : ($this->safeTranslate($primary, $guestLocale, 'cs') ?? $primary));
+
+        // Model už vrátil reply v jazyku hosta + reply_cs — nevolej druhý LLM překlad (šetří 60–120 s).
+        if ($czechHint !== '' && $primary !== '' && ! $this->looksLikeCzech($primary)) {
+            return [$primary, $replyCs];
+        }
+
+        if (! $this->looksLikeCzech($primary) && $primary !== '' && $primary !== $replyCs) {
+            return [$primary, $replyCs];
+        }
 
         $replyGuest = $this->safeTranslate($replyCs, 'cs', $guestLocale);
         if ($replyGuest === null || trim($replyGuest) === '') {
@@ -1028,15 +1086,50 @@ PROMPT;
             $metadata = [];
         }
         $metadata['mode'] = self::MODE_BOT;
-        unset($metadata['escalated_at'], $metadata['escalation_reason']);
+        unset(
+            $metadata['escalated_at'],
+            $metadata['escalation_reason'],
+            $metadata['taken_over_at'],
+        );
         $conversation->update([
             'metadata' => $metadata,
             'unread_staff_count' => 0,
         ]);
         $conversation->refresh();
-        Log::info('Concierge: obnoven bot mode (žádná staff odpověď)', [
+        Log::info('Concierge: obnoven bot mode', [
             'conversation_id' => $conversation->id,
         ]);
+    }
+
+    /** Recepce vrací chat AI chatbotu. */
+    public function releaseToBot(HotelConciergeConversation $conversation): void
+    {
+        $this->ensureDefaultMetadata($conversation);
+        $this->resumeBotMode($conversation);
+
+        $locale = $conversation->guest_locale ?: 'cs';
+        $notices = [
+            'cs' => 'Concierge AI opět převzal chat. Napište, s čím vám můžu pomoci.',
+            'en' => 'Concierge AI is handling this chat again. How can I help you?',
+            'de' => 'Concierge AI führt diesen Chat wieder. Wie kann ich Ihnen helfen?',
+            'fr' => 'Concierge AI gère à nouveau ce chat. Comment puis-je vous aider ?',
+            'pl' => 'Concierge AI ponownie prowadzi ten czat. W czym mogę pomóc?',
+        ];
+        $guestNotice = $notices[$locale] ?? $notices['en'];
+        $staffNotice = 'Chat vrácen AI chatbotu.';
+
+        HotelConciergeMessage::create([
+            'conversation_id' => $conversation->id,
+            'sender_type' => 'system',
+            'body' => $staffNotice,
+            'body_original' => $staffNotice,
+            'body_translated' => $guestNotice,
+            'locale' => 'cs',
+            'staff_display_name' => null,
+            'created_at' => now(),
+        ]);
+
+        $this->pushGuestConcierge($conversation, $guestNotice, 'system');
     }
 
     private function storeBotMessage(
@@ -1044,7 +1137,18 @@ PROMPT;
         string $replyGuestLang,
         string $replyCs,
         string $guestLocale,
+        ?HotelConciergeMessage $triggerMessage = null,
     ): void {
+        // Poslední pojistka proti race (dva LLM call najednou).
+        if ($triggerMessage && $this->hasReplyAfter($conversation->fresh(), $triggerMessage)) {
+            Log::info('Concierge bot: storeBotMessage přeskočen — odpověď už existuje', [
+                'conversation_id' => $conversation->id,
+                'message_id' => $triggerMessage->id,
+            ]);
+
+            return;
+        }
+
         HotelConciergeMessage::create([
             'conversation_id' => $conversation->id,
             'sender_type' => 'bot',
@@ -1058,6 +1162,157 @@ PROMPT;
 
         $preview = $guestLocale === 'cs' ? $replyCs : $replyGuestLang;
         $this->pushGuestConcierge($conversation, $preview, 'bot');
+    }
+
+    /**
+     * Kontext hosta pro LLM (bez e-mailu, telefonu, folio).
+     */
+    private function buildGuestContext(HotelConciergeConversation $conversation, ?Hotel $hotel): string
+    {
+        $lines = ['GUEST CONTEXT:'];
+        $name = trim((string) ($conversation->guest_display_name ?: ''));
+        $room = trim((string) ($conversation->room_number ?: ''));
+        $locale = $conversation->guest_locale ?: 'cs';
+
+        $lines[] = '- Name: '.($name !== '' ? $name : 'unknown');
+        $lines[] = '- Room: '.($room !== '' ? $room : 'unknown');
+        $lines[] = '- Locale: '.$locale;
+
+        $segment = 'standard';
+        $notes = null;
+        $checkIn = null;
+        $checkOut = null;
+        $loyalty = 0;
+        $stayCount = 0;
+        $preferences = [];
+        $company = null;
+
+        if ($hotel) {
+            try {
+                $guestKey = app(ConciergeGuestOpsService::class)
+                    ->guestKeyForConversation($conversation);
+
+                $profile = HotelCrmGuestProfile::query()
+                    ->where('hotel_id', $hotel->id)
+                    ->where('guest_key', $guestKey)
+                    ->first();
+
+                if ($profile) {
+                    $segment = (string) ($profile->segment ?: 'standard');
+                    $notes = filled($profile->notes) ? (string) $profile->notes : null;
+                    $checkIn = $profile->check_in_at?->format('Y-m-d H:i');
+                    $checkOut = $profile->check_out_at?->format('Y-m-d H:i');
+                    $loyalty = (int) ($profile->loyalty_points ?? 0);
+                    $stayCount = (int) ($profile->stay_count ?? 0);
+                    $preferences = is_array($profile->preferences) ? $profile->preferences : [];
+                    $company = filled($profile->company_name) ? (string) $profile->company_name : null;
+                    if (! $name && filled($profile->display_name)) {
+                        $lines[1] = '- Name: '.$profile->display_name;
+                    }
+                    if (! $room && filled($profile->room_number)) {
+                        $lines[2] = '- Room: '.$profile->room_number;
+                    }
+                }
+            } catch (Throwable $e) {
+                Log::warning('Concierge bot: guest CRM context selhal', [
+                    'conversation_id' => $conversation->id,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $lines[] = '- Segment: '.$segment;
+        if ($segment === 'vip') {
+            $lines[] = '- Tone: VIP guest — be especially courteous and proactive.';
+        }
+        if ($company) {
+            $lines[] = '- Company: '.mb_substr($company, 0, 80);
+        }
+        if ($checkIn || $checkOut) {
+            $lines[] = '- Stay: '.($checkIn ?: '?').' → '.($checkOut ?: '?');
+        }
+        if ($loyalty > 0 || $stayCount > 0) {
+            $lines[] = "- Loyalty points: {$loyalty}; previous stays: {$stayCount}";
+        }
+        if ($preferences !== []) {
+            $prefBits = [];
+            foreach (array_slice($preferences, 0, 4, true) as $k => $v) {
+                if (is_scalar($v) && (string) $v !== '') {
+                    $prefBits[] = (is_string($k) ? $k.': ' : '').mb_substr((string) $v, 0, 60);
+                }
+            }
+            if ($prefBits !== []) {
+                $lines[] = '- Preferences: '.implode('; ', $prefBits);
+            }
+        }
+        if ($notes) {
+            $lines[] = '- Staff notes (internal, do not quote): '.mb_substr($notes, 0, 200);
+        }
+
+        try {
+            if ($conversation->guest_external_id) {
+                $requests = HotelServiceRequest::query()
+                    ->where('hotel_id', $conversation->hotel_id)
+                    ->where('guest_external_id', $conversation->guest_external_id)
+                    ->whereNull('archived_at')
+                    ->orderByDesc('created_at')
+                    ->limit(3)
+                    ->get(['service_label', 'status', 'request_text', 'created_at']);
+
+                if ($requests->isNotEmpty()) {
+                    $lines[] = '- Recent service requests:';
+                    foreach ($requests as $req) {
+                        $label = $req->service_label ?: 'Request';
+                        $status = $req->status ?: 'open';
+                        $snippet = $req->request_text
+                            ? mb_substr((string) $req->request_text, 0, 80)
+                            : '';
+                        $lines[] = '  - '.$label.' ['.$status.']'
+                            .($snippet !== '' ? ': '.$snippet : '');
+                    }
+                }
+            }
+
+            if ($conversation->guest_external_id) {
+                $past = HotelConciergeCaseSummary::query()
+                    ->where('hotel_id', $conversation->hotel_id)
+                    ->where('guest_external_id', $conversation->guest_external_id)
+                    ->orderByDesc('resolved_at')
+                    ->orderByDesc('created_at')
+                    ->first();
+
+                if ($past) {
+                    $summary = $past->summary_cs ?: $past->summary;
+                    if (filled($summary)) {
+                        $lines[] = '- Previous concierge topic: '.mb_substr((string) $summary, 0, 160);
+                    }
+                }
+            }
+        } catch (Throwable $e) {
+            Log::warning('Concierge bot: guest requests/history selhal', [
+                'conversation_id' => $conversation->id,
+                'message' => $e->getMessage(),
+            ]);
+        }
+
+        $text = implode("\n", $lines);
+
+        return mb_substr($text, 0, 900);
+    }
+
+    private function buildAppCapabilities(): string
+    {
+        return <<<'TXT'
+GUEST APP FEATURES (guide guest here when it solves the request; do not invent prices/menus):
+- This Concierge chat (AI first; guest can request live reception via "Connect to reception")
+- Room service: order breakfast / lunch / dinner from the app
+- Service requests: housekeeping, amenities/supplies, maintenance/repairs
+- Interactive map & trip planner with places of interest
+- Hotel info: facilities, parking, transport, room types
+- Restaurants & bars, wellness/spa, sport/fitness sections
+- Guest profile: stay details, order history, concierge history
+When helpful, tell the guest which section of the app to open. If a request needs staff action beyond the app, escalate.
+TXT;
     }
 
     private function buildHotelContext(?Hotel $hotel): string
@@ -1078,7 +1333,11 @@ PROMPT;
                 ->get();
 
             foreach ($topics as $topic) {
-                $parts[] = "Topic: {$topic->title}";
+                $topicLine = "Topic: {$topic->title}";
+                if (filled($topic->navigation_screen)) {
+                    $topicLine .= ' (app screen: '.$topic->navigation_screen.')';
+                }
+                $parts[] = $topicLine;
                 if ($topic->list_description) {
                     $parts[] = '  Summary: '.mb_substr((string) $topic->list_description, 0, 180);
                 }
@@ -1097,15 +1356,18 @@ PROMPT;
                 ->orderByDesc('is_recommended')
                 ->orderBy('sort_order')
                 ->limit(6)
-                ->get(['name', 'category', 'description']);
+                ->get(['name', 'category', 'description', 'address', 'opening_hours', 'is_recommended']);
 
             if ($places->isNotEmpty()) {
-                $parts[] = 'Places:';
+                $parts[] = 'Places (also in app Map / Trip planner):';
                 foreach ($places as $place) {
                     $bits = array_filter([
                         $place->name,
                         $place->category,
-                        $place->description ? mb_substr((string) $place->description, 0, 100) : null,
+                        $place->is_recommended ? 'recommended' : null,
+                        $place->description ? mb_substr((string) $place->description, 0, 80) : null,
+                        $place->address ? 'addr: '.mb_substr((string) $place->address, 0, 60) : null,
+                        $place->opening_hours ? 'hours: '.mb_substr((string) $place->opening_hours, 0, 60) : null,
                     ]);
                     $parts[] = '  - '.implode(' | ', $bits);
                 }
@@ -1120,11 +1382,14 @@ PROMPT;
 
         $text = implode("\n", $parts);
 
-        // Lokální LM Studio snáší kratší kontext lépe (rychlost + stabilita).
-        $limit = str_contains((string) config('openai.base_url'), '127.0.0.1')
-            || str_contains((string) config('openai.base_url'), 'localhost')
-            ? 3500
-            : 12000;
+        // Lokální / LAN LM Studio snáší kratší kontext lépe (rychlost + stabilita).
+        // Guest + app bloky jsou zvlášť; hotel knowledge držíme kratší.
+        $base = (string) config('openai.base_url');
+        $host = (string) (parse_url($base, PHP_URL_HOST) ?: '');
+        $isLocalOrLan = str_contains($base, '127.0.0.1')
+            || str_contains($base, 'localhost')
+            || (bool) preg_match('/^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[0-1])\.)/', $host);
+        $limit = $isLocalOrLan ? 2800 : 10000;
 
         return mb_substr($text, 0, $limit);
     }
@@ -1199,17 +1464,83 @@ PROMPT;
         return false;
     }
 
+    private function isLlmTimeout(Throwable $e): bool
+    {
+        $msg = $e->getMessage();
+
+        return str_contains($msg, 'cURL error 28')
+            || str_contains($msg, 'Operation timed out')
+            || str_contains($msg, 'timed out after');
+    }
+
+    /** LM Studio / OpenAI endpoint není dostupný (síť, firewall, server vypnutý). */
+    private function isLlmUnreachable(Throwable $e): bool
+    {
+        $msg = $e->getMessage();
+
+        return str_contains($msg, 'cURL error 7')
+            || str_contains($msg, 'Failed to connect')
+            || str_contains($msg, 'Could not connect to server')
+            || str_contains($msg, 'Connection refused')
+            || str_contains($msg, 'No route to host');
+    }
+
     private function isTransientDbError(Throwable $e): bool
     {
         $msg = $e->getMessage();
 
+        // Pozor: „Could not connect“ je i u LLM — to řeší isLlmUnreachable().
         return str_contains($msg, 'prepared statement')
             || str_contains($msg, 'SQLSTATE[26000]')
             || str_contains($msg, 'SQLSTATE[08P01]')
             || str_contains($msg, 'boolean = integer')
             || str_contains($msg, 'server closed the connection')
-            || str_contains($msg, 'Could not connect')
             || str_contains($msg, "Can't assign requested address");
+    }
+
+    /**
+     * Jednorázová informace hostovi + recepci, když LM Studio nejde.
+     * Chat zůstává v bot módu — ensure-reply / další zpráva zkusí znovu.
+     */
+    private function notifyLlmOffline(HotelConciergeConversation $conversation): void
+    {
+        $metadata = is_array($conversation->metadata) ? $conversation->metadata : [];
+        $lastAt = data_get($metadata, 'llm_offline_notified_at');
+        if (is_string($lastAt) && $lastAt !== '') {
+            try {
+                if (\Illuminate\Support\Carbon::parse($lastAt)->greaterThan(now()->subSeconds(120))) {
+                    return;
+                }
+            } catch (Throwable) {
+                // continue
+            }
+        }
+
+        $locale = $conversation->guest_locale ?: 'cs';
+        $guestNotices = [
+            'cs' => 'Omlouváme se, digitální asistent je dočasně nedostupný. Zkuste to za chvíli, nebo použijte tlačítko pro spojení s recepcí.',
+            'en' => 'Sorry — the digital assistant is temporarily unavailable. Please try again shortly, or use the button to connect with reception.',
+            'de' => 'Entschuldigung — der digitale Assistent ist vorübergehend nicht verfügbar. Bitte versuchen Sie es gleich erneut oder verbinden Sie sich mit der Rezeption.',
+            'fr' => 'Désolé — l’assistant numérique est temporairement indisponible. Réessayez sous peu ou contactez la réception.',
+            'pl' => 'Przepraszamy — asystent cyfrowy jest chwilowo niedostępny. Spróbuj ponownie za chwilę lub połącz się z recepcją.',
+        ];
+        $guestNotice = $guestNotices[$locale] ?? $guestNotices['en'];
+        $staffNotice = 'LM Studio nedostupné ('.config('openai.base_url').') — AI neodpověděla. Chat zůstává u bota; po obnovení spojení zkusí znovu. Nebo převeď kontrolu.';
+
+        HotelConciergeMessage::create([
+            'conversation_id' => $conversation->id,
+            'sender_type' => 'system',
+            'body' => $staffNotice,
+            'body_original' => $staffNotice,
+            'body_translated' => $guestNotice,
+            'locale' => 'cs',
+            'staff_display_name' => null,
+            'created_at' => now(),
+        ]);
+
+        $metadata['llm_offline_notified_at'] = now()->toIso8601String();
+        $conversation->update(['metadata' => $metadata]);
+        $this->pushGuestConcierge($conversation, $guestNotice, 'system');
     }
 
     private function escalationNoticeForStaff(string $reason): string
@@ -1217,7 +1548,11 @@ PROMPT;
         return match ($reason) {
             'staff_takeover' => 'Recepce převzala kontrolu nad chatem. Host už čeká na živou odpověď.',
             'guest_button', 'guest_request' => 'Host chce živou recepci — čeká na převzetí chatu.',
-            'bot_error', 'empty_bot_reply', 'openai_missing', 'bot_handoff' => 'AI předalo chat recepci ('.$reason.') — host čeká.',
+            'bot_error' => 'AI selhala (technická chyba) — host čeká na recepci.',
+            'empty_bot_reply' => 'AI nevrátila odpověď — host čeká na recepci.',
+            'openai_missing' => 'AI není nakonfigurovaná (OPENAI_*) — host čeká na recepci.',
+            'bot_handoff' => 'AI předala chat recepci — host čeká.',
+            'llm_offline' => 'LM Studio / AI server není dostupný — host čeká na recepci.',
             default => 'Host byl předán recepci. Důvod: '.$reason.'.',
         };
     }

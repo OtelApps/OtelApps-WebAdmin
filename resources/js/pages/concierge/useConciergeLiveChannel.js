@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import http from '../../lib/http';
 
-const HEARTBEAT_MS = 4000;
+const HEARTBEAT_MS = 8000;
 const TYPING_IDLE_MS = 2500;
 
 /**

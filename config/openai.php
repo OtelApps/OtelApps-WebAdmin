@@ -26,6 +26,9 @@ return [
 
     'max_tokens' => (int) env('OPENAI_MAX_TOKENS', 768),
 
+    /** Odpověď concierge bota (méně než překlady — rychlost). */
+    'bot_max_tokens' => (int) env('OPENAI_BOT_MAX_TOKENS', 512),
+
     /*
     | Některé lokální modely (Gemma) neumí response_format=json_object.
     | Pro LM Studio nech false — JSON vynutíme promptem.

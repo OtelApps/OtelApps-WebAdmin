@@ -15,8 +15,8 @@ import { useConciergeLiveChannel } from './useConciergeLiveChannel';
 import { useConciergeRealtime } from './useConciergeRealtime';
 
 const PRIMARY_ORANGE = '#FF9F00';
-const THREAD_FALLBACK_POLL_MS = 3000;
-const LIST_FALLBACK_POLL_MS = 6000;
+const THREAD_FALLBACK_POLL_MS = 5000;
+const LIST_FALLBACK_POLL_MS = 8000;
 
 const HANDLER_MODE_META = {
     bot: {
@@ -166,7 +166,8 @@ function MessageBubble({ message, guestLocale }) {
                     <p>{message.body}</p>
                     {message.body_translated && message.body_translated !== message.body ? (
                         <span className="mt-0.5 block text-[10px] opacity-80">
-                            → {guestMeta.flag} {message.body_translated}
+                            Pro hosta ({guestMeta.flag} {(guestLocale || '—').toUpperCase()}):{' '}
+                            {message.body_translated}
                         </span>
                     ) : null}
                     {isSatisfaction ? (
@@ -203,7 +204,7 @@ function MessageBubble({ message, guestLocale }) {
                         {message.staff_display_name}
                     </p>
                 ) : null}
-                {/* Staff/bot: CZ text; guest: CS překlad nahoře, originál pod tím */}
+                {/* Staff/bot: hlavní text česky; guest: CS překlad nahoře, originál pod tím */}
                 <p className="whitespace-pre-wrap text-sm leading-relaxed">
                     {!isStaff && message.body_translated
                         ? message.body_translated
@@ -216,12 +217,13 @@ function MessageBubble({ message, guestLocale }) {
                 ) : null}
                 {!isStaff && message.body_translated && message.body_translated !== message.body ? (
                     <p className="mt-2 border-t border-gray-200 pt-2 text-xs italic text-gray-500 dark:border-gray-600 dark:text-gray-400">
-                        Originál ({message.locale || '—'}): {message.body}
+                        Originál hosta ({(message.locale || '—').toUpperCase()}): {message.body}
                     </p>
                 ) : null}
                 {isStaff && message.body_translated ? (
                     <p className="mt-2 border-t border-white/30 pt-2 text-xs italic opacity-90">
-                        → {guestMeta.flag} {message.body_translated}
+                        Pro hosta ({guestMeta.flag} {(guestLocale || '—').toUpperCase()}):{' '}
+                        {message.body_translated}
                     </p>
                 ) : null}
                 <p
@@ -435,6 +437,27 @@ function ConversationThread({ conversationId, onListRefresh, realtimeMode, pollT
         }
     };
 
+    const handleReleaseToBot = async () => {
+        const id = conversationIdRef.current;
+        if (!id || takingOver) return;
+        if (!window.confirm('Vrátit chat AI chatbotu? Hostovi se zobrazí oznámení.')) return;
+        setTakingOver(true);
+        try {
+            const { data } = await http.post(`/api/concierge/conversations/${id}/release-to-bot`);
+            if (id !== conversationIdRef.current) return;
+            if (data?.conversation) {
+                applyConversation(data.conversation, { scrollIfNearBottom: true });
+                onListRefresh?.({ silent: true });
+            }
+        } catch (err) {
+            if (id === conversationIdRef.current) {
+                window.alert(err.response?.data?.message || 'Vrácení chatbotu se nezdařilo.');
+            }
+        } finally {
+            if (id === conversationIdRef.current) setTakingOver(false);
+        }
+    };
+
     const handleSatisfactionCheck = async () => {
         const id = conversationIdRef.current;
         if (!id || sendingCheck) return;
@@ -613,6 +636,17 @@ function ConversationThread({ conversationId, onListRefresh, realtimeMode, pollT
                             className="rounded-lg bg-amber-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
                         >
                             {takingOver ? 'Přebírám…' : 'Převzít kontrolu'}
+                        </button>
+                    ) : null}
+                    {(isStaffMode || isWaiting) && !isClosed ? (
+                        <button
+                            type="button"
+                            onClick={handleReleaseToBot}
+                            disabled={takingOver}
+                            className="rounded-lg bg-violet-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-violet-700 disabled:opacity-60"
+                            title="Vrátit chat AI chatbotu"
+                        >
+                            {takingOver ? 'Vracím…' : 'Vrátit AI'}
                         </button>
                     ) : null}
                     <span

@@ -51,52 +51,108 @@ class OpenAiService
         }
 
         $maxTokens = (int) ($options['max_tokens'] ?? config('openai.max_tokens', 768));
-        $timeout = (int) ($options['timeout'] ?? config('openai.timeout', 25));
+        $timeout = $this->resolveTimeout((int) ($options['timeout'] ?? config('openai.timeout', 25)));
+        $model = (string) config('openai.model', 'gpt-4o-mini');
+        $isLocal = $this->isLocalLlm();
+
+        // Gemma-4 reasoning: nízký max_tokens → content="" + finish_reason=length (viz LM Studio log).
+        $minTokens = $isLocal ? 512 : 256;
+        $messages = $this->withLocalAntiThinkingGuard($messages, $isLocal);
 
         $payload = [
-            'model' => config('openai.model', 'gpt-4o-mini'),
+            'model' => $model,
             'messages' => $messages,
             'temperature' => 0.3,
-            'max_tokens' => max(256, $maxTokens),
+            'max_tokens' => max($minTokens, $maxTokens),
         ];
 
         if ($jsonObject) {
             $payload['response_format'] = ['type' => 'json_object'];
         }
 
-        $url = config('openai.base_url').'/chat/completions';
+        $url = $this->chatCompletionsUrl();
         $apiKey = (string) (config('openai.api_key') ?: 'lm-studio');
+
+        // artisan serve / PHP-FPM má default 30 s — Guzzle timeout nestačí, PHP request umře dřív.
+        $this->extendPhpTimeLimit($timeout);
 
         $response = Http::withToken($apiKey)
             ->timeout(max(10, $timeout))
+            ->connectTimeout(10)
             ->acceptJson()
+            ->withOptions($this->httpClientOptions())
             ->post($url, $payload);
 
         if (! $response->successful()) {
+            $body = $response->body();
             Log::warning('LLM API error', [
                 'url' => $url,
+                'model' => $model,
                 'status' => $response->status(),
-                'body' => $response->body(),
+                'body' => $body,
             ]);
-            throw new RuntimeException('LLM API selhalo (HTTP '.$response->status().').');
+
+            $hint = '';
+            if (str_contains($body, 'No models loaded') || str_contains($body, 'model')) {
+                $hint = ' Zkontroluj LM Studio: načti model a OPENAI_MODEL musí sedět s /v1/models.';
+            }
+
+            throw new RuntimeException('LLM API selhalo (HTTP '.$response->status().').'.$hint);
         }
 
-        $choice = data_get($response->json(), 'choices.0');
+        $json = $response->json();
+        $choice = data_get($json, 'choices.0');
+        if (! is_array($choice)) {
+            Log::warning('LLM unexpected response shape', [
+                'url' => $url,
+                'body_preview' => mb_substr($response->body(), 0, 400),
+            ]);
+            throw new RuntimeException('LLM vrátilo neočekávanou odpověď (chybí choices).');
+        }
+
         $message = data_get($choice, 'message', []);
         $content = data_get($message, 'content');
-        if (! is_string($content) || trim($content) === '') {
-            // Gemma-4 thinking: často naplní reasoning_content a content nechá prázdný při nízkém max_tokens.
-            Log::warning('LLM empty content', [
-                'finish_reason' => data_get($choice, 'finish_reason'),
-                'usage' => data_get($response->json(), 'usage'),
-                'reasoning_preview' => mb_substr((string) data_get($message, 'reasoning_content', ''), 0, 200),
-            ]);
-            throw new RuntimeException(
-                'LLM vrátilo prázdnou odpověď (model pravděpodobně spotřeboval tokeny na reasoning — zvyš OPENAI_MAX_TOKENS).'
-            );
+        $finishReason = data_get($choice, 'finish_reason');
+        $reasoning = trim((string) data_get($message, 'reasoning_content', ''));
+
+        if (is_string($content) && trim($content) !== '') {
+            return trim($content);
         }
 
-        return trim($content);
+        // finish_reason=length → reasoning sežral celý budget; nejdřív retry s víc tokeny
+        if ($finishReason === 'length' && empty($options['_retried_length'])) {
+            Log::info('LLM: retry po finish_reason=length (prázdný content)', [
+                'model' => $model,
+                'prev_max_tokens' => $payload['max_tokens'],
+                'reasoning_preview' => mb_substr($reasoning, 0, 160),
+            ]);
+
+            return $this->chat($messages, $jsonObject, [
+                ...$options,
+                'max_tokens' => min(4096, max(1024, $payload['max_tokens'] * 2)),
+                '_retried_length' => true,
+            ]);
+        }
+
+        $recovered = $this->recoverFromReasoning($reasoning);
+        if ($recovered !== null) {
+            Log::info('LLM: content recovered from reasoning_content', [
+                'chars' => mb_strlen($recovered),
+                'finish_reason' => $finishReason,
+            ]);
+
+            return $recovered;
+        }
+
+        Log::warning('LLM empty content', [
+            'model' => $model,
+            'finish_reason' => $finishReason,
+            'usage' => data_get($json, 'usage'),
+            'reasoning_preview' => mb_substr($reasoning, 0, 200),
+        ]);
+        throw new RuntimeException(
+            'LLM vrátilo prázdnou odpověď (Gemma reasoning spotřebovala tokeny — v LM Studio nech vyšší Response tokens / OPENAI_MAX_TOKENS).'
+        );
     }
 
     public function translate(string $text, string $fromLocale, string $toLocale): string
@@ -195,6 +251,152 @@ class OpenAiService
             $decoded = json_decode($m[0], true);
             if (is_array($decoded)) {
                 return $decoded;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Lokální LM Studio (Gemma thinking) často potřebuje 60–120 s.
+     */
+    private function resolveTimeout(int $configured): int
+    {
+        if ($this->isLocalLlm()) {
+            return max($configured, 120);
+        }
+
+        return max(10, $configured);
+    }
+
+    /**
+     * PHP default max_execution_time=30 zabije Guzzle dřív, než doběhne LM Studio.
+     * Každé LLM volání proto prodlouží limit o timeout + rezervu (víc sekvenčních callů).
+     */
+    private function extendPhpTimeLimit(int $httpTimeoutSeconds): void
+    {
+        $needed = max(120, $httpTimeoutSeconds + 60);
+        if ($this->isLocalLlm()) {
+            // Celý concierge pipeline = překlad + bot + případný další překlad.
+            $needed = max(600, $needed);
+        }
+
+        @ini_set('max_execution_time', (string) $needed);
+        @set_time_limit($needed);
+    }
+
+    private function isLocalLlm(): bool
+    {
+        $base = (string) config('openai.base_url', '');
+        if ($base === '') {
+            return false;
+        }
+
+        // Localhost nebo LM Studio na LAN (stejná síť).
+        if (str_contains($base, '127.0.0.1') || str_contains($base, 'localhost')) {
+            return true;
+        }
+
+        $host = parse_url($base, PHP_URL_HOST);
+        if (! is_string($host) || $host === '') {
+            return false;
+        }
+
+        return (bool) preg_match(
+            '/^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[0-1])\.)/',
+            $host
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function httpClientOptions(): array
+    {
+        $options = [];
+
+        // LAN LM Studio: vynuť IPv4 (někdy PHP/cURL zkusí IPv6 a hned spadne).
+        if ($this->isLocalLlm() && defined('CURLOPT_IPRESOLVE') && defined('CURL_IPRESOLVE_V4')) {
+            $options['curl'] = [
+                CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
+            ];
+        }
+
+        return $options;
+    }
+
+    /**
+     * @param  list<array{role: string, content: string}>  $messages
+     * @return list<array{role: string, content: string}>
+     */
+    private function withLocalAntiThinkingGuard(array $messages, bool $isLocal): array
+    {
+        if (! $isLocal || $messages === []) {
+            return $messages;
+        }
+
+        $guard = 'CRITICAL: Answer immediately with the final reply only. '
+            .'Do not write long chain-of-thought. Keep internal reasoning minimal so the answer fits in content.';
+
+        if (($messages[0]['role'] ?? null) === 'system') {
+            $messages[0]['content'] = $guard."\n\n".$messages[0]['content'];
+
+            return $messages;
+        }
+
+        array_unshift($messages, ['role' => 'system', 'content' => $guard]);
+
+        return $messages;
+    }
+
+    /**
+     * LM Studio očekává …/v1/chat/completions. Když v .env chybí /v1, doplníme ho.
+     */
+    private function chatCompletionsUrl(): string
+    {
+        $base = rtrim((string) config('openai.base_url'), '/');
+        if ($base === '') {
+            throw new RuntimeException('OPENAI_BASE_URL chybí.');
+        }
+
+        if (! str_ends_with($base, '/v1')) {
+            // http://127.0.0.1:1234 → http://127.0.0.1:1234/v1
+            if (preg_match('#^https?://[^/]+$#', $base)) {
+                $base .= '/v1';
+            }
+        }
+
+        return $base.'/chat/completions';
+    }
+
+    /**
+     * Když Gemma naplní jen reasoning_content, zkus vytáhnout JSON nebo poslední smysluplný odstavec.
+     */
+    private function recoverFromReasoning(string $reasoning): ?string
+    {
+        $reasoning = trim($reasoning);
+        if ($reasoning === '') {
+            return null;
+        }
+
+        if ($this->decodeJsonObject($reasoning) !== null) {
+            if (preg_match('/```(?:json)?\s*(\{.*?\})\s*```/s', $reasoning, $m)) {
+                return trim($m[1]);
+            }
+            if (preg_match('/\{.*\}/s', $reasoning, $m)) {
+                return trim($m[0]);
+            }
+        }
+
+        // Poslední neprázdný odstavec bez „Thinking“ hlaviček
+        $parts = preg_split('/\n{2,}/', $reasoning) ?: [];
+        for ($i = count($parts) - 1; $i >= 0; $i--) {
+            $p = trim($parts[$i]);
+            if ($p === '' || str_starts_with($p, 'Thinking') || preg_match('/^\d+\.\s/', $p)) {
+                continue;
+            }
+            if (mb_strlen($p) >= 2 && mb_strlen($p) <= 600) {
+                return $p;
             }
         }
 

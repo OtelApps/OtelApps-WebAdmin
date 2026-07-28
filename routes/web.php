@@ -221,6 +221,7 @@ Route::prefix('api')->group(function () {
     Route::post('/concierge/conversations/{id}/messages', [ConciergeChatController::class, 'storeMessage']);
     Route::post('/concierge/conversations/{id}/read', [ConciergeChatController::class, 'markRead']);
     Route::post('/concierge/conversations/{id}/take-over', [ConciergeChatController::class, 'takeOver']);
+    Route::post('/concierge/conversations/{id}/release-to-bot', [ConciergeChatController::class, 'releaseToBot']);
     Route::post('/concierge/conversations/{id}/satisfaction-check', [ConciergeChatController::class, 'sendSatisfactionCheck']);
     Route::get('/concierge/conversations/{id}/guest-card', [ConciergeChatController::class, 'guestCard']);
     Route::post('/concierge/conversations/{id}/guest-ops', [ConciergeChatController::class, 'guestOps']);
