@@ -478,6 +478,8 @@ class ConciergeChatController extends Controller
             ? ($m->body_translated ?: $m->body)
             : $m->body;
 
+        $payload = is_array($m->payload) ? $m->payload : [];
+
         return [
             'id' => $m->id,
             'sender_type' => $m->sender_type,
@@ -487,6 +489,7 @@ class ConciergeChatController extends Controller
             'display_body_guest' => $displayForGuest,
             'locale' => $m->locale,
             'staff_display_name' => $m->staff_display_name,
+            'payload' => $payload,
             'is_staff' => $isStaffSide,
             'is_bot' => $m->sender_type === 'bot',
             'is_system' => $isSystem,

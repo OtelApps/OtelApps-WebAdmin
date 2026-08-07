@@ -42,7 +42,7 @@ export function messagesFingerprint(messages) {
     const translationSig = messages
         .map(
             (m) =>
-                `${m.id}:${m.body_translated ? String(m.body_translated).length : 0}:${m.satisfaction_answer ?? ''}:${m.staff_display_name ?? ''}`,
+                `${m.id}:${m.body_translated ? String(m.body_translated).length : 0}:${m.satisfaction_answer ?? ''}:${m.staff_display_name ?? ''}:${m.payload?.actions?.length ?? 0}`,
         )
         .join('|');
     return `${messages.length}:${last.id}:${last.created_at ?? ''}:${translationSig}`;

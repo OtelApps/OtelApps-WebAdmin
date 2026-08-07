@@ -10,9 +10,11 @@ use App\Models\HotelCrmGuestProfile;
 use App\Models\HotelInfoTopic;
 use App\Models\HotelPlace;
 use App\Models\HotelServiceRequest;
+use App\Models\Venue;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Throwable;
 
 class ConciergeBotService
@@ -245,7 +247,10 @@ class ConciergeBotService
                 return;
             }
 
-            // Nejdřív odpověz hostovi — překlad pro admin až potom (nesmí blokovat reply).
+            // Nejdřív překlad host → CS (admin UI ASAP), teprve potom bot reply.
+            // translateGuestMessageForStaff je idempotentní — pokud už je hotový, ihned return.
+            $this->translateGuestMessageForStaff($conversation, $message);
+
             try {
                 $this->replyAsBot($conversation, $message);
             } catch (Throwable $e) {
@@ -293,6 +298,7 @@ class ConciergeBotService
 
                 $this->escalateToStaff($conversation, 'bot_error');
             } finally {
+                // Pojistka: kdyby překlad před reply selhal / race, doplň ho teď.
                 $message->refresh();
                 $this->translateGuestMessageForStaff($conversation, $message);
             }
@@ -887,7 +893,8 @@ class ConciergeBotService
         $guestLocale = $message->locale ?: ($conversation->guest_locale ?: 'cs');
         $languageName = $this->localeLabel($guestLocale);
         $guestContext = $this->buildGuestContext($conversation, $hotel);
-        $appContext = $this->buildAppCapabilities();
+        $actionCatalog = $this->buildActionCatalog($hotel);
+        $appContext = $this->buildAppCapabilities($actionCatalog);
         $hotelContext = $this->buildHotelContext($hotel);
         $history = $this->buildChatHistory($conversation);
 
@@ -898,13 +905,16 @@ CRITICAL: The guest language is {$languageName} (code: {$guestLocale}).
 The field "reply" MUST be written entirely in {$languageName}.
 The field "reply_cs" MUST be the same meaning in Czech for hotel staff.
 Keep answers to 1–3 short sentences. Be practical and personal using GUEST CONTEXT when relevant (name, room, stay, VIP).
-Prefer guiding the guest to the hotel app features listed below when that solves the request (room service, requests, map, etc.).
+Prefer guiding the guest to the hotel app features listed below when that solves the request (room service, requests, map, menus, etc.).
+When the guest asks about wines, drinks, food menus, room service, requests, map, or similar app sections, include interactive actions from AVAILABLE ACTIONS (1–3 ids) plus a short card title/subtitle in {$languageName}.
+Never invent action ids — only use ids from AVAILABLE ACTIONS.
 Never invent prices, opening hours, menu items, or stay details that are not in the context.
 Escalate to staff (escalate=true) for: billing/folio disputes, medical emergencies, serious complaints, security, or when you lack reliable info.
 Do not mention internal notes, CRM, or staff-only data explicitly — use them only to tailor the answer.
 
 Return ONLY JSON (no markdown fences):
-{"reply":"...in {$languageName}...","reply_cs":"...in Czech...","escalate":false,"escalate_reason":null}
+{"reply":"...in {$languageName}...","reply_cs":"...in Czech...","escalate":false,"escalate_reason":null,"card":{"title":"...","subtitle":"..."}|null,"actions":[{"id":"action_id","label":"...optional..."}]}
+If no buttons are useful, set "card":null and "actions":[].
 If you cannot output JSON, write the guest-facing answer in {$languageName} only (plain text).
 
 {$guestContext}
@@ -955,6 +965,7 @@ PROMPT;
         $escalate = (bool) ($result['escalate'] ?? false);
         $reply = trim((string) ($result['reply'] ?? ''));
         $replyCsField = trim((string) ($result['reply_cs'] ?? ''));
+        $payload = $this->buildMessagePayloadFromLlm($result, $actionCatalog);
 
         if ($escalate) {
             $this->escalateToStaff(
@@ -968,7 +979,7 @@ PROMPT;
                     $replyCsField !== '' ? $replyCsField : null,
                     $guestLocale,
                 );
-                $this->storeBotMessage($conversation, $replyGuest, $replyCs, $guestLocale, $message);
+                $this->storeBotMessage($conversation, $replyGuest, $replyCs, $guestLocale, $message, $payload);
             }
 
             return;
@@ -994,12 +1005,13 @@ PROMPT;
             $guestLocale,
         );
 
-        $this->storeBotMessage($conversation, $replyGuest, $replyCs, $guestLocale, $message);
+        $this->storeBotMessage($conversation, $replyGuest, $replyCs, $guestLocale, $message, $payload);
         $conversation->update(['unread_staff_count' => 0]);
         Log::info('Concierge bot: uložena JSON odpověď', [
             'conversation_id' => $conversation->id,
             'guest_locale' => $guestLocale,
             'chars' => mb_strlen($replyGuest),
+            'actions' => count($payload['actions'] ?? []),
         ]);
     }
 
@@ -1138,6 +1150,7 @@ PROMPT;
         string $replyCs,
         string $guestLocale,
         ?HotelConciergeMessage $triggerMessage = null,
+        ?array $payload = null,
     ): void {
         // Poslední pojistka proti race (dva LLM call najednou).
         if ($triggerMessage && $this->hasReplyAfter($conversation->fresh(), $triggerMessage)) {
@@ -1149,6 +1162,11 @@ PROMPT;
             return;
         }
 
+        $safePayload = is_array($payload) ? $payload : [];
+        if ($safePayload === [] || (empty($safePayload['actions']) && empty($safePayload['card']))) {
+            $safePayload = [];
+        }
+
         HotelConciergeMessage::create([
             'conversation_id' => $conversation->id,
             'sender_type' => 'bot',
@@ -1157,6 +1175,7 @@ PROMPT;
             'body_translated' => $guestLocale === 'cs' ? null : $replyGuestLang,
             'locale' => 'cs',
             'staff_display_name' => config('openai.bot_display_name', 'Concierge AI'),
+            'payload' => $safePayload === [] ? [] : $safePayload,
             'created_at' => now(),
         ]);
 
@@ -1300,9 +1319,20 @@ PROMPT;
         return mb_substr($text, 0, 900);
     }
 
-    private function buildAppCapabilities(): string
+    /**
+     * @param  array<string, array{id: string, label: string, hint: string, type: string, screen?: string, params?: array<string, mixed>}>  $actionCatalog
+     */
+    private function buildAppCapabilities(array $actionCatalog = []): string
     {
-        return <<<'TXT'
+        $actionLines = [];
+        foreach ($actionCatalog as $action) {
+            $actionLines[] = '- '.$action['id'].' | '.$action['label'].' | '.$action['hint'];
+        }
+        $actionsBlock = $actionLines === []
+            ? '- (none)'
+            : implode("\n", $actionLines);
+
+        return <<<TXT
 GUEST APP FEATURES (guide guest here when it solves the request; do not invent prices/menus):
 - This Concierge chat (AI first; guest can request live reception via "Connect to reception")
 - Room service: order breakfast / lunch / dinner from the app
@@ -1311,8 +1341,267 @@ GUEST APP FEATURES (guide guest here when it solves the request; do not invent p
 - Hotel info: facilities, parking, transport, room types
 - Restaurants & bars, wellness/spa, sport/fitness sections
 - Guest profile: stay details, order history, concierge history
-When helpful, tell the guest which section of the app to open. If a request needs staff action beyond the app, escalate.
+When helpful, tell the guest which section of the app to open AND attach matching AVAILABLE ACTIONS so the app shows tappable buttons.
+If a request needs staff action beyond the app, escalate.
+
+AVAILABLE ACTIONS (pick 0–3 by id only; optional custom label in guest language):
+{$actionsBlock}
 TXT;
+    }
+
+    /**
+     * Whitelist navigací pro interaktivní bot karty.
+     *
+     * @return array<string, array{id: string, label: string, hint: string, type: string, screen?: string, params?: array<string, mixed>}>
+     */
+    private function buildActionCatalog(?Hotel $hotel): array
+    {
+        $catalog = [];
+
+        $static = [
+            [
+                'id' => 'restaurants_and_bars',
+                'label' => 'Restaurants & bars',
+                'hint' => 'Open restaurants and bars list',
+                'type' => 'navigate',
+                'screen' => 'RestaurantsAndBars',
+                'params' => [],
+            ],
+            [
+                'id' => 'room_service',
+                'label' => 'Room service',
+                'hint' => 'Order breakfast / lunch / dinner',
+                'type' => 'navigate',
+                'screen' => 'RoomServiceList',
+                'params' => [],
+            ],
+            [
+                'id' => 'service_requests',
+                'label' => 'Service requests',
+                'hint' => 'Housekeeping, amenities, maintenance',
+                'type' => 'navigate',
+                'screen' => 'RequestPageScreen',
+                'params' => [],
+            ],
+            [
+                'id' => 'trip_planner',
+                'label' => 'Map & trip planner',
+                'hint' => 'Places of interest and trip planner',
+                'type' => 'navigate',
+                'screen' => 'TripPlanner',
+                'params' => [],
+            ],
+            [
+                'id' => 'wellness_spa',
+                'label' => 'Wellness & spa',
+                'hint' => 'Spa, pool, wellness list',
+                'type' => 'navigate',
+                'screen' => 'WellnessSpaList',
+                'params' => [],
+            ],
+            [
+                'id' => 'escalate_reception',
+                'label' => 'Connect to reception',
+                'hint' => 'Hand chat over to live reception staff',
+                'type' => 'escalate',
+            ],
+        ];
+
+        foreach ($static as $action) {
+            $catalog[$action['id']] = $action;
+        }
+
+        if (! $hotel) {
+            return $catalog;
+        }
+
+        try {
+            $venues = Venue::query()
+                ->where('hotel_id', $hotel->id)
+                ->where('is_active', true)
+                ->with(['menus' => function ($q) {
+                    $q->where('is_active', true)->orderBy('sort_order')->with(['categories' => function ($cq) {
+                        $cq->orderBy('sort_order');
+                    }]);
+                }])
+                ->orderBy('sort_order')
+                ->get();
+
+            foreach ($venues as $venue) {
+                $venueSlug = (string) $venue->slug;
+                $venueTitle = (string) $venue->title;
+
+                foreach ($venue->menus as $menu) {
+                    $menuSlug = (string) $menu->slug;
+                    $menuTitle = (string) $menu->title;
+                    $screen = (string) ($menu->navigation_screen ?: 'RestaurantMenu');
+                    if (! in_array($screen, ['LobbyBarMenu', 'RestaurantMenu'], true)) {
+                        $screen = $venue->venue_type === 'bar' ? 'LobbyBarMenu' : 'RestaurantMenu';
+                    }
+
+                    $menuActionId = Str::slug($venueSlug.'_'.$menuSlug, '_');
+                    if ($menuActionId === '') {
+                        continue;
+                    }
+
+                    $params = [
+                        'restaurantId' => $venueSlug,
+                        'menuSlug' => $menuSlug,
+                    ];
+
+                    $catalog[$menuActionId] = [
+                        'id' => $menuActionId,
+                        'label' => $venueTitle.' – '.$menuTitle,
+                        'hint' => 'Open '.$menuTitle.' for '.$venueTitle,
+                        'type' => 'navigate',
+                        'screen' => $screen,
+                        'params' => $params,
+                    ];
+
+                    if ($screen === 'LobbyBarMenu' || $menu->categories->count() > 1) {
+                        foreach ($menu->categories as $category) {
+                            $catSlug = (string) $category->slug;
+                            $catTitle = (string) $category->title;
+                            $catActionId = Str::slug($venueSlug.'_'.$menuSlug.'_'.$catSlug, '_');
+                            if ($catActionId === '' || isset($catalog[$catActionId])) {
+                                continue;
+                            }
+
+                            $catalog[$catActionId] = [
+                                'id' => $catActionId,
+                                'label' => $venueTitle.' – '.$catTitle,
+                                'hint' => 'Open '.$catTitle.' section in '.$venueTitle.' menu',
+                                'type' => 'navigate',
+                                'screen' => $screen,
+                                'params' => array_merge($params, ['categorySlug' => $catSlug]),
+                            ];
+                        }
+                    }
+                }
+            }
+        } catch (Throwable $e) {
+            Log::warning('Concierge bot: action catalog venues failed', [
+                'hotel_id' => $hotel->id,
+                'message' => $e->getMessage(),
+            ]);
+        }
+
+        return $catalog;
+    }
+
+    /**
+     * @param  array<string, mixed>  $result
+     * @param  array<string, array{id: string, label: string, hint: string, type: string, screen?: string, params?: array<string, mixed>}>  $actionCatalog
+     * @return array{card?: array{title: string, subtitle?: string}, actions?: list<array<string, mixed>>}
+     */
+    private function buildMessagePayloadFromLlm(array $result, array $actionCatalog): array
+    {
+        $actions = $this->sanitizeBotActions($result['actions'] ?? [], $actionCatalog);
+        $card = $this->sanitizeBotCard($result['card'] ?? null, $actions);
+
+        $payload = [];
+        if ($card !== null) {
+            $payload['card'] = $card;
+        }
+        if ($actions !== []) {
+            $payload['actions'] = $actions;
+        }
+
+        return $payload;
+    }
+
+    /**
+     * @param  mixed  $card
+     * @param  list<array<string, mixed>>  $actions
+     * @return array{title: string, subtitle?: string}|null
+     */
+    private function sanitizeBotCard(mixed $card, array $actions): ?array
+    {
+        if (! is_array($card)) {
+            if ($actions === []) {
+                return null;
+            }
+
+            $firstLabel = (string) ($actions[0]['label'] ?? 'Otevřít v appce');
+
+            return [
+                'title' => $firstLabel,
+                'subtitle' => 'Klepněte pro otevření',
+            ];
+        }
+
+        $title = trim((string) ($card['title'] ?? ''));
+        $subtitle = trim((string) ($card['subtitle'] ?? ''));
+
+        if ($title === '' && $actions !== []) {
+            $title = (string) ($actions[0]['label'] ?? 'Otevřít v appce');
+        }
+
+        if ($title === '') {
+            return null;
+        }
+
+        $out = ['title' => mb_substr($title, 0, 80)];
+        if ($subtitle !== '') {
+            $out['subtitle'] = mb_substr($subtitle, 0, 140);
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param  mixed  $rawActions
+     * @param  array<string, array{id: string, label: string, hint: string, type: string, screen?: string, params?: array<string, mixed>}>  $actionCatalog
+     * @return list<array<string, mixed>>
+     */
+    private function sanitizeBotActions(mixed $rawActions, array $actionCatalog): array
+    {
+        if (! is_array($rawActions)) {
+            return [];
+        }
+
+        $out = [];
+        $seen = [];
+
+        foreach ($rawActions as $item) {
+            if (count($out) >= 3) {
+                break;
+            }
+
+            $id = '';
+            $customLabel = '';
+
+            if (is_string($item)) {
+                $id = trim($item);
+            } elseif (is_array($item)) {
+                $id = trim((string) ($item['id'] ?? ''));
+                $customLabel = trim((string) ($item['label'] ?? ''));
+            }
+
+            if ($id === '' || isset($seen[$id]) || ! isset($actionCatalog[$id])) {
+                continue;
+            }
+
+            $seen[$id] = true;
+            $def = $actionCatalog[$id];
+            $label = $customLabel !== '' ? $customLabel : $def['label'];
+            $label = mb_substr($label, 0, 60);
+
+            $action = [
+                'id' => $def['id'],
+                'label' => $label,
+                'type' => $def['type'],
+            ];
+
+            if ($def['type'] === 'navigate') {
+                $action['screen'] = $def['screen'] ?? null;
+                $action['params'] = is_array($def['params'] ?? null) ? $def['params'] : [];
+            }
+
+            $out[] = $action;
+        }
+
+        return $out;
     }
 
     private function buildHotelContext(?Hotel $hotel): string

@@ -210,6 +210,23 @@ function MessageBubble({ message, guestLocale }) {
                         ? message.body_translated
                         : message.body}
                 </p>
+                {isBot && Array.isArray(message.payload?.actions) && message.payload.actions.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                        {message.payload.actions.map((action) => (
+                            <span
+                                key={action.id || action.label}
+                                className="rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-medium"
+                                title={
+                                    action.type === 'navigate'
+                                        ? `Navigace: ${action.screen || '—'}`
+                                        : 'Spojit s recepcí'
+                                }
+                            >
+                                {action.label}
+                            </span>
+                        ))}
+                    </div>
+                ) : null}
                 {!isStaff && !message.body_translated && message.locale && message.locale !== 'cs' ? (
                     <p className="mt-1 text-[10px] italic text-amber-600 dark:text-amber-400">
                         Překládám do češtiny…

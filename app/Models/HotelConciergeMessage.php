@@ -28,12 +28,14 @@ class HotelConciergeMessage extends Model
         'body_translated',
         'locale',
         'staff_display_name',
+        'payload',
         'read_by_staff_at',
         'read_by_guest_at',
         'created_at',
     ];
 
     protected $casts = [
+        'payload' => 'array',
         'read_by_staff_at' => 'datetime',
         'read_by_guest_at' => 'datetime',
         'created_at' => 'datetime',

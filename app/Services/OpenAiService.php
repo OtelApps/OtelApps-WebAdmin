@@ -174,10 +174,11 @@ class OpenAiService
         $to = $labels[$toLocale] ?? $toLocale;
 
         // Delší texty potřebují víc výstupních tokenů (Gemma bere i reasoning).
+        // Krátké chat zprávy držíme nízko — překlad má prioritu a musí doběhnout ASAP.
         $charLen = mb_strlen($text);
-        $maxTokens = min(4096, max(
-            (int) config('openai.max_tokens', 768),
-            (int) ceil($charLen * 1.6) + 256,
+        $maxTokens = min(2048, max(
+            256,
+            (int) ceil($charLen * 1.2) + 128,
         ));
         $timeout = (int) config('openai.translate_timeout', 90);
 
