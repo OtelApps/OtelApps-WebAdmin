@@ -1,9 +1,8 @@
-import React, { createContext, useCallback, useContext, useMemo } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 
 const ModulesContext = createContext(null);
 
-function readBootstrap() {
-    const data = typeof window !== 'undefined' ? window.__OTELAPPS_BOOTSTRAP__ : null;
+function normalizeBootstrap(data) {
     return {
         enabled: data?.enabled && typeof data.enabled === 'object' ? data.enabled : {},
         mainNavigation: {
@@ -17,8 +16,29 @@ function readBootstrap() {
     };
 }
 
+function readInitialBootstrap() {
+    const data = typeof window !== 'undefined' ? window.__OTELAPPS_BOOTSTRAP__ : null;
+    return normalizeBootstrap(data);
+}
+
 export function ModulesProvider({ children }) {
-    const bootstrap = useMemo(() => readBootstrap(), []);
+    const [bootstrap, setBootstrap] = useState(readInitialBootstrap);
+
+    const applyBootstrap = useCallback((data) => {
+        if (!data) return;
+        const next = normalizeBootstrap(data);
+        setBootstrap(next);
+        if (typeof window !== 'undefined') {
+            window.__OTELAPPS_BOOTSTRAP__ = {
+                ...(window.__OTELAPPS_BOOTSTRAP__ || {}),
+                ...data,
+                enabled: next.enabled,
+                mainNavigation: next.mainNavigation,
+                map: next.map,
+                sidebars: next.sidebars,
+            };
+        }
+    }, []);
 
     const isEnabled = useCallback(
         (moduleName) => {
@@ -71,8 +91,9 @@ export function ModulesProvider({ children }) {
             isEnabled,
             isModuleRouteEnabled,
             getSidebar,
+            applyBootstrap,
         }),
-        [bootstrap, isEnabled, isModuleRouteEnabled, getSidebar],
+        [bootstrap, isEnabled, isModuleRouteEnabled, getSidebar, applyBootstrap],
     );
 
     return <ModulesContext.Provider value={value}>{children}</ModulesContext.Provider>;

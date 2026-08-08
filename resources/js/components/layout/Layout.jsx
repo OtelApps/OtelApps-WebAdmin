@@ -17,7 +17,10 @@ export function Layout() {
         location.pathname !== '/dashboard' &&
         location.pathname !== '/' &&
         !location.pathname.startsWith('/concierge') &&
-        !location.pathname.startsWith('/activity');
+        !location.pathname.startsWith('/activity') &&
+        !location.pathname.startsWith('/recepce') &&
+        !location.pathname.startsWith('/ukoly') &&
+        !location.pathname.startsWith('/nastaveni');
 
     useEffect(() => {
         const handleSettingsToggle = (e) => {

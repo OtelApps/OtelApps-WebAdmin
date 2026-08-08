@@ -17,10 +17,16 @@ use App\Http\Controllers\Api\InsightsController;
 use App\Http\Controllers\Api\ConciergeBotController;
 use App\Http\Controllers\Api\ConciergeChatController;
 use App\Http\Controllers\Api\CrmController;
+use App\Http\Controllers\Api\ReceptionController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\HotelServiceRequestController;
+use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\UserAdminController;
+use App\Http\Controllers\Api\TicketController;
+use App\Http\Controllers\Api\FinancialClosingController;
 use App\Services\ModuleService;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -28,8 +34,25 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('api')->group(function () {
     Route::get('/csrf', fn () => response()->json(['token' => csrf_token()]));
 
+    // Auth (veřejné)
+    Route::post('/auth/login', [AuthController::class, 'login']);
+
+    // Concierge guest — mobilní app (bez session auth)
+    Route::post('/concierge/guest/on-message', [ConciergeBotController::class, 'onGuestMessage']);
+    Route::post('/concierge/guest/ensure-reply', [ConciergeBotController::class, 'ensureReply']);
+    Route::post('/concierge/guest/escalate', [ConciergeBotController::class, 'escalate']);
+    Route::post('/concierge/guest/satisfaction', [ConciergeBotController::class, 'satisfaction']);
+    Route::post('/concierge/guest/presence', [ConciergeBotController::class, 'presence']);
+
+    Route::middleware('auth')->group(function () {
+    Route::post('/auth/logout', [AuthController::class, 'logout']);
+    Route::get('/auth/me', [AuthController::class, 'me']);
+    Route::get('/auth/profiles', [AuthController::class, 'profiles']);
+    Route::post('/auth/switch/{user}', [AuthController::class, 'switchUser']);
+    Route::put('/auth/profile', [AuthController::class, 'updateProfile']);
+
     Route::get('/modules/main-navigation', function () {
-        $bootstrap = ModuleService::getClientBootstrap();
+        $bootstrap = ModuleService::getClientBootstrap(Auth::user());
 
         return response()->json([
             'modules' => $bootstrap['mainNavigation']['modules'],
@@ -52,10 +75,9 @@ Route::prefix('api')->group(function () {
     });
 
     Route::get('/modules/check/{type}/{module}', function ($type, $module) {
-        // Zkontroluj oba - type i module
         $typeEnabled = ModuleService::isEnabled($type);
         $moduleEnabled = ModuleService::isEnabled($module);
-        
+
         return response()->json([
             'enabled' => $typeEnabled && $moduleEnabled,
         ]);
@@ -187,6 +209,12 @@ Route::prefix('api')->group(function () {
     Route::get('/crm/history', [CrmController::class, 'history']);
     Route::post('/crm/interactions', [CrmController::class, 'storeInteraction']);
 
+    // Recepce — přehled pokojů
+    Route::get('/reception/rooms', [ReceptionController::class, 'rooms']);
+    Route::get('/reception/rooms/{roomNumber}', [ReceptionController::class, 'show']);
+    Route::post('/reception/rooms/{roomNumber}/checkout', [ReceptionController::class, 'checkout']);
+    Route::patch('/reception/rooms/{roomNumber}/requests/{requestId}', [ReceptionController::class, 'toggleRequest']);
+
     // WebAdmin notifikace
     Route::get('/notifications/summary', [NotificationController::class, 'summary']);
     Route::get('/notifications/settings', [NotificationController::class, 'settings']);
@@ -207,12 +235,6 @@ Route::prefix('api')->group(function () {
     Route::put('/activity/requests/{id}', [HotelServiceRequestController::class, 'update']);
     Route::delete('/activity/requests/{id}', [HotelServiceRequestController::class, 'destroy']);
 
-    // Concierge — chat host ↔ recepce / AI bot (volá mobilní app, bez CSRF session)
-    Route::post('/concierge/guest/on-message', [ConciergeBotController::class, 'onGuestMessage']);
-    Route::post('/concierge/guest/ensure-reply', [ConciergeBotController::class, 'ensureReply']);
-    Route::post('/concierge/guest/escalate', [ConciergeBotController::class, 'escalate']);
-    Route::post('/concierge/guest/satisfaction', [ConciergeBotController::class, 'satisfaction']);
-    Route::post('/concierge/guest/presence', [ConciergeBotController::class, 'presence']);
 
     // Concierge — chat host ↔ recepce
     Route::get('/concierge/realtime-config', [ConciergeChatController::class, 'realtimeConfig']);
@@ -227,6 +249,44 @@ Route::prefix('api')->group(function () {
     Route::post('/concierge/conversations/{id}/guest-ops', [ConciergeChatController::class, 'guestOps']);
     Route::post('/concierge/conversations/{id}/presence', [ConciergeChatController::class, 'presence']);
     Route::put('/concierge/conversations/{id}', [ConciergeChatController::class, 'update']);
+
+    // Úkoly — provozní tikety nad service requests
+    Route::get('/tickets', [TicketController::class, 'index']);
+    Route::get('/tickets/stats', [TicketController::class, 'stats']);
+    Route::get('/tickets/{id}', [TicketController::class, 'show']);
+    Route::post('/tickets', [TicketController::class, 'store']);
+    Route::post('/tickets/{id}/claim', [TicketController::class, 'claim']);
+    Route::post('/tickets/{id}/complete', [TicketController::class, 'complete']);
+    Route::post('/tickets/{id}/reassign', [TicketController::class, 'reassign']);
+    Route::patch('/tickets/{id}', [TicketController::class, 'update']);
+
+    // Finance — uzávěrky a platby
+    Route::get('/finance/dashboard', [FinancialClosingController::class, 'dashboard']);
+    Route::get('/finance/closings', [FinancialClosingController::class, 'index']);
+    Route::post('/finance/closings', [FinancialClosingController::class, 'store']);
+    Route::get('/finance/closings/{id}', [FinancialClosingController::class, 'show']);
+    Route::patch('/finance/closings/{id}', [FinancialClosingController::class, 'update']);
+    Route::post('/finance/closings/{id}/acknowledge-preflight', [FinancialClosingController::class, 'acknowledgePreflight']);
+    Route::post('/finance/closings/{id}/cash-count', [FinancialClosingController::class, 'cashCount']);
+    Route::post('/finance/closings/{id}/resolve-variance', [FinancialClosingController::class, 'resolveVariance']);
+    Route::get('/finance/closings/{id}/reconciliation-hints', [FinancialClosingController::class, 'reconciliationHints']);
+    Route::post('/finance/closings/{id}/deposit', [FinancialClosingController::class, 'deposit']);
+    Route::post('/finance/closings/{id}/complete', [FinancialClosingController::class, 'complete']);
+    Route::post('/finance/closings/{id}/reopen', [FinancialClosingController::class, 'reopen']);
+    Route::get('/finance/closings/{id}/transactions', [FinancialClosingController::class, 'transactions']);
+    Route::get('/finance/closings/{id}/report', [FinancialClosingController::class, 'report']);
+    Route::get('/finance/deposits', [FinancialClosingController::class, 'deposits']);
+    Route::get('/finance/payments', [FinancialClosingController::class, 'payments']);
+
+    // Správa typů / uživatelů (superadmin)
+    Route::get('/admin/permissions', [UserAdminController::class, 'permissions']);
+    Route::get('/admin/user-types', [UserAdminController::class, 'userTypes']);
+    Route::post('/admin/user-types', [UserAdminController::class, 'storeUserType']);
+    Route::put('/admin/user-types/{userType}', [UserAdminController::class, 'updateUserType']);
+    Route::delete('/admin/user-types/{userType}', [UserAdminController::class, 'destroyUserType']);
+    Route::get('/admin/users', [UserAdminController::class, 'users']);
+    Route::put('/admin/users/{user}', [UserAdminController::class, 'updateUser']);
+    });
 });
 
 // React SPA Route - všechny ostatní routes budou řešeny React Routerem
@@ -234,3 +294,4 @@ Route::prefix('api')->group(function () {
 Route::get('/{any}', function () {
     return view('app');
 })->where('any', '^(?!api).*$');
+

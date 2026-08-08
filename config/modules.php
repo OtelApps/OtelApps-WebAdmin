@@ -13,6 +13,9 @@ return [
 
     'enabled' => [
         // Hlavní sekce
+        'recepce' => true,
+        'ukoly' => true,
+        'finance' => true,
         'dashboard' => true,
         'content' => true,
         'my_app' => false,
@@ -61,6 +64,13 @@ return [
         'revenue' => true,
         'behavior' => true,
 
+        // Finance sub-moduly
+        'finance_overview' => true,
+        'finance_closings' => true,
+        'finance_transactions' => true,
+        'finance_deposits' => true,
+        'finance_reports' => true,
+
         // Facilities sub-moduly
         'restaurants_bars' => true,
         'relax_sport' => false,
@@ -105,6 +115,9 @@ return [
     */
 
     'labels' => [
+        'recepce' => 'Recepce',
+        'ukoly' => 'Úkoly',
+        'finance' => 'Finance',
         'dashboard' => 'Dashboard',
         'content' => 'Content',
         'my_app' => 'My App',
@@ -162,6 +175,13 @@ return [
         'revenue' => 'Revenue',
         'behavior' => 'Behavior',
         'image_gallery' => 'Image Gallery',
+
+        // Finance
+        'finance_overview' => 'Přehled',
+        'finance_closings' => 'Uzávěrky',
+        'finance_transactions' => 'Transakce',
+        'finance_deposits' => 'Odvody',
+        'finance_reports' => 'Reporty',
     ],
 
     /*
@@ -174,6 +194,9 @@ return [
     */
 
     'icons' => [
+        'recepce' => 'desk',
+        'ukoly' => 'task_alt',
+        'finance' => 'account_balance_wallet',
         'dashboard' => 'home',
         'content' => 'document-text',
         'my_app' => 'device-phone-mobile',
@@ -224,5 +247,12 @@ return [
         'revenue' => 'banknotes',
         'behavior' => 'finger-print',
         'image_gallery' => 'photo',
+
+        // Finance
+        'finance_overview' => 'dashboard',
+        'finance_closings' => 'lock_clock',
+        'finance_transactions' => 'payments',
+        'finance_deposits' => 'savings',
+        'finance_reports' => 'description',
     ],
 ];

@@ -76,14 +76,15 @@ Frontend nemá lint/test skripty nastavené v `package.json` — jen `build`, `d
 
 ## Frontend routing — dva vzory stránek
 
-1. **Pojmenované top-level route** v `resources/js/components/layout/App.jsx` (dashboard, content, activity, crm,
-   feedback, concierge, insights) — každá obalená `<ProtectedRoute moduleName="...">`.
+1. **Pojmenované top-level route** v `resources/js/components/layout/App.jsx` (recepce, ukoly, finance,
+   dashboard, content, activity, crm, feedback, concierge, insights) — každá obalená
+   `<ProtectedRoute moduleName="...">`.
 2. **Generický dynamický vzor** `module/:type/:module` (a `/:area`, `/:id/edit` varianty) obalený
    `ProtectedModuleRoute`, který renderuje `DynamicModulePage` / `DynamicEditRouter`
    (`resources/js/pages/shared/`). Tyto komponenty mapují `(type, module)` param páry na konkrétní React
-   komponentu přes ploché lookup objekty (`FACILITIES_PAGES`, `SERVICES_PAGES`, `OTHER_PAGES`, `switch` pro
-   surveys, …). Nová facility/service/content stránka se zapojuje přidáním do jednoho z těchto mapování, ne
-   přidáním nové `<Route>`.
+   komponentu přes ploché lookup objekty (`FACILITIES_PAGES`, `SERVICES_PAGES`, `OTHER_PAGES`, finance_*,
+   switch pro surveys, …). Nová facility/service/content stránka se zapojuje přidáním do jednoho z těchto
+   mapování, ne přidáním nové `<Route>`.
 - `ProtectedRoute` / `ProtectedModuleRoute` (`resources/js/components/ui/ProtectedRoute.jsx`) čtou stav z
   `ModulesContext`, ne z API — kontrola je synchronní.
 - Všechny mutace i GET požadavky z Reactu jdou přes sdílený klient `resources/js/lib/http.js` (`withCredentials`,
@@ -125,12 +126,21 @@ Frontend nemá lint/test skripty nastavené v `package.json` — jen `build`, `d
 - Guest push notifikace (Expo) jdou přes `GuestPushService`/`ExpoPushService`/`GuestPushAudienceResolver`; SQL
   schéma v `database/supabase/hotel_guest_push_tokens.sql`, přehled endpointů v `PUSH_SETUP.md`.
 
+## Finance (noční uzávěrka)
+
+- Top-level modul `finance` + sidebar (`finance_overview`, `finance_closings`, `finance_transactions`,
+  `finance_deposits`, `finance_reports`).
+- SoT plateb: `hotel_payments` (+ metody/terminály); uzávěrky: `hotel_financial_closings` + lines / cash counts /
+  deposits / events. SQL: `database/supabase/hotel_finance_closings.sql`.
+- Business logika: `FinancialClosingService` (+ preflight, reconciliation, cash count, audit). FE jen prezentuje.
+- Po `complete` je uzávěrka LOCKED s immutable JSON `snapshot` — historické reporty se nepřepočítávají z live DB.
+- Config: `config/otelapps.php` → `finance`; hotel override `hotel_finance_settings`.
+
 ## Ostatní konvence
 
 - `config_array()` (`app/helpers.php`) — vždy použij místo `config()`, když očekáváš pole (bezpečné pro statickou
   analýzu a `array_keys`/`array_filter`).
 - Čeština je primární jazyk komentářů, commit zpráv a uživatelsky viditelných textů v adminu; anglicky se píšou
   hlavně LLM prompty pro Concierge bota (protože musí fungovat napříč jazyky hosta).
-- `README.md` v rootu popisuje starší/obecnější verzi architektury (příklady modulů jako `my_new_module`,
-  `Reports`) — je užitečný jako úvod do konceptu modulárního systému, ale konkrétní seznam modulů a routes v něm
-  není aktuální; ověřuj vždy proti `config/modules.php` a `routes/web.php`.
+- Aktuální přehled modulů a setupu: `README.md`. Konkrétní zapnutí vždy ověř proti `config/modules.php` a
+  `routes/web.php`.

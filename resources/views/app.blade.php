@@ -20,7 +20,7 @@
         </div>
     </div>
     <script>
-        window.__OTELAPPS_BOOTSTRAP__ = @json(\App\Services\ModuleService::getClientBootstrap());
+        window.__OTELAPPS_BOOTSTRAP__ = @json(\App\Services\ModuleService::getClientBootstrap(auth()->user()));
     </script>
 </body>
 </html>

@@ -5,6 +5,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { App } from './components/layout/App';
 import { ModulesProvider } from './context/ModulesContext';
+import { AuthProvider } from './context/AuthContext';
 import { queryClient } from './lib/queryClient';
 import Alpine from 'alpinejs';
 import React from 'react';
@@ -28,7 +29,11 @@ function initReact() {
                 React.createElement(
                     ModulesProvider,
                     null,
-                    React.createElement(BrowserRouter, null, React.createElement(App)),
+                    React.createElement(
+                        AuthProvider,
+                        null,
+                        React.createElement(BrowserRouter, null, React.createElement(App)),
+                    ),
                 ),
             ),
         );

@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useNotifications } from "../../context/NotificationContext";
 import { useModules } from "../../context/ModulesContext";
 import { NotificationBell, NavBadge } from '../notifications/NotificationBell';
+import { UserMenu } from './UserMenu';
 
 export function MainNavigation({ settingsOpen, setSettingsOpen, onOpenNotificationSettings }) {
     const location = useLocation();
@@ -38,6 +39,9 @@ export function MainNavigation({ settingsOpen, setSettingsOpen, onOpenNotificati
     }, []);
 
     const moduleIcons = {
+        recepce: "desk",
+        ukoly: "task_alt",
+        finance: "account_balance_wallet",
         dashboard: "home",
         content: "article",
         my_app: "mobile_2",
@@ -115,6 +119,9 @@ export function MainNavigation({ settingsOpen, setSettingsOpen, onOpenNotificati
                                     <div className="flex flex-col items-center space-y-1">
                                         <span className="relative material-symbols-outlined text-[20px]">
                                             {moduleIcons[module] || "extension"}
+                                            {module === "ukoly" && (
+                                                <NavBadge count={badges.activity} />
+                                            )}
                                             {module === "activity" && (
                                                 <NavBadge count={badges.activity} />
                                             )}
@@ -129,9 +136,11 @@ export function MainNavigation({ settingsOpen, setSettingsOpen, onOpenNotificati
                         ) : null}
                     </div>
 
-                    {/* Notifications, Settings & Language */}
-                    <div className="flex-1 flex items-center justify-end space-x-4 relative">
+                    {/* Notifications, User, Settings & Language */}
+                    <div className="flex-1 flex items-center justify-end space-x-3 relative">
                         <NotificationBell />
+
+                        <UserMenu />
 
                         {/* Settings Button */}
                         <div className="relative">
@@ -357,26 +366,6 @@ export function MainNavigation({ settingsOpen, setSettingsOpen, onOpenNotificati
                                             />
                                         </svg>
                                         Product updates
-                                    </a>
-                                    <div className="my-1 border-t border-gray-200"></div>
-                                    <a
-                                        href="#"
-                                        className="flex items-center px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-100"
-                                    >
-                                        <svg
-                                            className="w-5 h-5 mr-3 text-gray-900"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            viewBox="0 0 24 24"
-                                        >
-                                            <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth="2"
-                                                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                                            />
-                                        </svg>
-                                        Logout
                                     </a>
                                 </div>
                             )}

@@ -128,9 +128,23 @@ class HotelServiceRequestController extends Controller
             'status_guest_note' => $data['status_guest_note'] ?? null,
             'staff_note' => $data['staff_note'] ?? null,
             'assigned_staff_name' => $data['assigned_staff_name'] ?? null,
+            'assigned_user_name' => $data['assigned_staff_name'] ?? null,
             'priority' => $data['priority'] ?? 0,
+            'queue_key' => \App\Services\PermissionCatalog::queueForServiceModule($data['service_module']),
+            'created_by_label' => $request->user()?->name ?? 'web_admin',
+            'created_by_user_id' => $request->user()?->id,
             'metadata' => $data['metadata'] ?? [],
             'created_via' => $data['created_via'] ?? 'web_admin',
+        ]);
+
+        \App\Models\HotelTicketEvent::query()->create([
+            'request_id' => $requestModel->id,
+            'event_type' => 'created',
+            'body' => 'Úkol vytvořen',
+            'actor_user_id' => $request->user()?->id,
+            'actor_label' => $request->user()?->name ?? 'system',
+            'metadata' => [],
+            'created_at' => now(),
         ]);
 
         return response()->json(['request' => $this->detailPayload($requestModel->fresh())], 201);

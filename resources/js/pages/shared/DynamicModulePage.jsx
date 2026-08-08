@@ -1,5 +1,5 @@
 import React from 'react';
-import { useParams } from 'react-router-dom';
+import { Navigate, useParams } from 'react-router-dom';
 import { useModules } from '../../context/ModulesContext';
 import { NotFound } from './NotFound';
 import { RestaurantsBars } from '../content/facilities/restaurants_bars/RestaurantsBars';
@@ -27,6 +27,10 @@ import { Revenue } from '../insights/Revenue';
 import { Users } from '../insights/Users';
 import { Transactions } from '../insights/Transactions';
 import { Behavior } from '../insights/Behavior';
+import { ClosingsList } from '../finance/closings/ClosingsList';
+import { PaymentsList } from '../finance/transactions/PaymentsList';
+import { DepositsPlaceholder } from '../finance/deposits/DepositsPlaceholder';
+import { ReportsPlaceholder } from '../finance/reports/ReportsPlaceholder';
 import { Guests } from '../crm/guests/Guests';
 import { Alerts } from '../crm/alerts/Alerts';
 import { Promotions } from '../crm/promotions/Promotions';
@@ -125,6 +129,26 @@ export function DynamicModulePage() {
 
     if (type === 'insights' && module === 'behavior') {
         return <Behavior />;
+    }
+
+    if (type === 'finance' && module === 'finance_overview') {
+        return <Navigate to="/finance" replace />;
+    }
+
+    if (type === 'finance' && module === 'finance_closings') {
+        return <ClosingsList />;
+    }
+
+    if (type === 'finance' && module === 'finance_transactions') {
+        return <PaymentsList />;
+    }
+
+    if (type === 'finance' && module === 'finance_deposits') {
+        return <DepositsPlaceholder />;
+    }
+
+    if (type === 'finance' && module === 'finance_reports') {
+        return <ReportsPlaceholder />;
     }
 
     if (type === 'crm' && module === 'guests') {

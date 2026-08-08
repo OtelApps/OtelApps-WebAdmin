@@ -64,6 +64,13 @@ class ModuleService
             'revenue',
             'behavior',
         ],
+        'finance' => [
+            'finance_overview',
+            'finance_closings',
+            'finance_transactions',
+            'finance_deposits',
+            'finance_reports',
+        ],
     ];
 
     /**
@@ -104,14 +111,24 @@ class ModuleService
 
     /**
      * Získá moduly pro hlavní navigaci
+     *
+     * @param  list<string>|null  $allowedModules  null = bez RBAC filtru, ['*'] = vše zapnuté, jinak whitelist
      */
-    public static function getMainNavigation(): array
+    public static function getMainNavigation(?array $allowedModules = null): array
     {
-        $mainModules = ['dashboard', 'content', 'my_app', 'activity', 'crm', 'feedback', 'concierge', 'insights'];
+        $mainModules = ['recepce', 'ukoly', 'finance', 'dashboard', 'content', 'my_app', 'activity', 'crm', 'feedback', 'concierge', 'insights'];
 
-        return array_filter($mainModules, function($module) {
-            return self::isEnabled($module);
-        });
+        return array_values(array_filter($mainModules, function ($module) use ($allowedModules) {
+            if (! self::isEnabled($module)) {
+                return false;
+            }
+
+            if ($allowedModules === null || in_array('*', $allowedModules, true)) {
+                return true;
+            }
+
+            return in_array($module, $allowedModules, true);
+        }));
     }
 
     /**
@@ -242,10 +259,13 @@ class ModuleService
 
     /**
      * Bootstrap pro SPA — bez dalšího HTTP round-tripu na module checky / navigaci.
+     *
+     * @param  \App\Models\User|null  $user
      */
-    public static function getClientBootstrap(): array
+    public static function getClientBootstrap($user = null): array
     {
-        $mainModules = array_values(self::getMainNavigation());
+        $allowedModules = $user ? $user->allowedModuleKeys() : null;
+        $mainModules = self::getMainNavigation($allowedModules);
         $labels = [];
         foreach ($mainModules as $module) {
             $labels[$module] = self::getLabel($module);
@@ -264,6 +284,8 @@ class ModuleService
             ],
             'map' => self::getFlatMap(),
             'sidebars' => $sidebars,
+            'user' => $user ? $user->toAuthArray() : null,
+            'demo_user_switcher' => (bool) config('otelapps.demo_user_switcher'),
         ];
     }
 }
