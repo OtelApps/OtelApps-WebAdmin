@@ -85,7 +85,8 @@ create index if not exists idx_hcc_guest_external
   where guest_external_id is not null;
 create unique index if not exists idx_hcc_one_conversation_per_guest
   on public.hotel_concierge_conversations (hotel_id, guest_external_id)
-  where guest_external_id is not null;
+  where guest_external_id is not null
+    and status = 'open';
 create index if not exists idx_hccm_conversation_created
   on public.hotel_concierge_messages (conversation_id, created_at asc);
 
