@@ -34,5 +34,6 @@ php artisan queue:work --tries=1 --sleep=1 &
 echo "Starting scheduler ..."
 php artisan schedule:work &
 
-echo "Starting FrankenPHP ..."
-exec frankenphp php-server --listen :80 --root /app/public
+LISTEN_PORT="${PORT:-8080}"
+echo "Starting FrankenPHP on :${LISTEN_PORT} ..."
+exec frankenphp php-server --listen ":${LISTEN_PORT}" --root /app/public
