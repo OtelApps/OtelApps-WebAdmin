@@ -55,6 +55,11 @@ if [ "$RAILPACK_SKIP_SEEDING" != "true" ]; then
     php artisan db:seed --force --class=AuthDemoSeeder
 fi
 
+if [ -z "${SUPABASE_DB_HOST:-}${SUPABASE_DB_URL:-}" ]; then
+    echo "WARNING: Supabase DB is not configured. Hotel pages will show Server Error." >&2
+    echo "WARNING: In Railway → Variables paste keys from local .env: OTELAPPS_DB_CONNECTION, SUPABASE_URL, SUPABASE_KEY, SUPABASE_DB_*" >&2
+fi
+
 php artisan storage:link --force || true
 php artisan package:discover --ansi || true
 php artisan optimize:clear

@@ -8,7 +8,13 @@ return [
     /** Celková kapacita pokojů pro výpočet obsazenosti na dashboardu */
     'room_capacity' => (int) env('OTELAPPS_ROOM_CAPACITY', 100),
 
-    'db_connection' => env('OTELAPPS_DB_CONNECTION', env('DB_CONNECTION', 'sqlite')),
+    // Hotel data lives in Supabase. Laravel auth/sessions stay on DB_CONNECTION
+    // (sqlite on Railway). Do not fall back to sqlite for hotel queries or
+    // dashboard/recepce return 500 ("Server Error") because rooms tables are missing.
+    'db_connection' => env(
+        'OTELAPPS_DB_CONNECTION',
+        (env('SUPABASE_DB_HOST') || env('SUPABASE_DB_URL')) ? 'supabase' : env('DB_CONNECTION', 'sqlite')
+    ),
 
     /**
      * Finanční uzávěrka — výchozí hodnoty (hotel může override přes hotel_finance_settings).
@@ -42,10 +48,10 @@ return [
 
     /**
      * Demo přepínač profilů v navbaru (bez hesla).
-     * Default: zapnuto mimo production.
+     * Zapnuto i v production — Railway demo potřebuje recepci / úklid / donášku.
      */
     'demo_user_switcher' => filter_var(
-        env('OTELAPPS_DEMO_USER_SWITCHER', env('APP_ENV', 'local') !== 'production' ? 'true' : 'false'),
+        env('OTELAPPS_DEMO_USER_SWITCHER', 'true'),
         FILTER_VALIDATE_BOOLEAN
     ),
 
