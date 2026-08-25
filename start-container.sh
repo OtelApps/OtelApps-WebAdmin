@@ -48,6 +48,13 @@ if [ "$RAILPACK_SKIP_MIGRATIONS" != "true" ]; then
     php artisan migrate --force
 fi
 
+# SQLite in the container starts empty. Without this, login always fails
+# ("Neplatné přihlašovací údaje") because superadmin@otelapps.test does not exist.
+if [ "$RAILPACK_SKIP_SEEDING" != "true" ]; then
+    echo "Seeding demo users ..."
+    php artisan db:seed --force --class=AuthDemoSeeder
+fi
+
 php artisan storage:link --force || true
 php artisan package:discover --ansi || true
 php artisan optimize:clear
