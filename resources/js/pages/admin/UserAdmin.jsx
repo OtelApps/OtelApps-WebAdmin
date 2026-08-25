@@ -13,8 +13,18 @@ export function UserAdmin() {
     const [draft, setDraft] = useState(null);
     const [error, setError] = useState('');
     const [saving, setSaving] = useState(false);
+    const [createOpen, setCreateOpen] = useState(false);
+    const [createForm, setCreateForm] = useState({
+        name: '',
+        email: '',
+        password: '',
+        job_title: '',
+        user_type_id: '',
+    });
+    const [creating, setCreating] = useState(false);
 
     const canManage = hasPermission('users.manage_types');
+    const canManageUsers = hasPermission('users.manage_users') || canManage;
 
     const load = async () => {
         const [permRes, typesRes, usersRes] = await Promise.all([
@@ -121,6 +131,44 @@ export function UserAdmin() {
     const updateUserType = async (userId, userTypeId) => {
         await http.put(`/api/admin/users/${userId}`, { user_type_id: Number(userTypeId) || null });
         await load();
+    };
+
+    const openCreateUser = () => {
+        setCreateForm({
+            name: '',
+            email: '',
+            password: '',
+            job_title: '',
+            user_type_id: selectedId ? String(selectedId) : (types[0] ? String(types[0].id) : ''),
+        });
+        setCreateOpen(true);
+        setError('');
+    };
+
+    const createUser = async (e) => {
+        e.preventDefault();
+        if (!canManageUsers) return;
+        setCreating(true);
+        setError('');
+        try {
+            await http.post('/api/admin/users', {
+                name: createForm.name.trim(),
+                email: createForm.email.trim(),
+                password: createForm.password,
+                job_title: createForm.job_title.trim() || null,
+                user_type_id: Number(createForm.user_type_id),
+            });
+            setCreateOpen(false);
+            await load();
+        } catch (err) {
+            const msg =
+                err.response?.data?.message
+                || Object.values(err.response?.data?.errors || {}).flat()?.[0]
+                || 'Vytvoření uživatele selhalo.';
+            setError(msg);
+        } finally {
+            setCreating(false);
+        }
     };
 
     return (
@@ -251,8 +299,17 @@ export function UserAdmin() {
             </div>
 
             <div className="mt-8 rounded-xl border border-gray-200 bg-white">
-                <div className="border-b border-gray-100 px-5 py-3">
+                <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-5 py-3">
                     <h2 className="text-sm font-semibold text-gray-900">Uživatelé</h2>
+                    {canManageUsers ? (
+                        <button
+                            type="button"
+                            onClick={openCreateUser}
+                            className="rounded-lg bg-orange-500 px-3 py-1.5 text-sm font-semibold text-white hover:bg-orange-600"
+                        >
+                            Nový uživatel
+                        </button>
+                    ) : null}
                 </div>
                 <div className="divide-y divide-gray-100">
                     {users.map((u) => (
@@ -263,6 +320,9 @@ export function UserAdmin() {
                             <div className="min-w-0 flex-1">
                                 <p className="truncate text-sm font-medium text-gray-900">{u.name}</p>
                                 <p className="truncate text-xs text-gray-500">{u.email}</p>
+                                {u.job_title ? (
+                                    <p className="truncate text-xs text-gray-400">{u.job_title}</p>
+                                ) : null}
                             </div>
                             <select
                                 className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
@@ -280,6 +340,90 @@ export function UserAdmin() {
                     ))}
                 </div>
             </div>
+
+            {createOpen ? (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+                    <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+                        <div className="mb-4 flex items-center justify-between">
+                            <h3 className="text-lg font-semibold text-gray-900">Nový uživatel</h3>
+                            <button
+                                type="button"
+                                onClick={() => setCreateOpen(false)}
+                                className="text-gray-400 hover:text-gray-600"
+                            >
+                                <span className="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+                        <p className="mb-4 text-sm text-gray-500">
+                            Práva se nastavují přes typ uživatele — vyberte roli níže (nebo nejdřív upravte typ vlevo).
+                        </p>
+                        <form onSubmit={createUser} className="space-y-3">
+                            <div>
+                                <label className="mb-1 block text-xs font-medium text-gray-500">Jméno</label>
+                                <input
+                                    required
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                                    value={createForm.name}
+                                    onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
+                                />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-medium text-gray-500">E-mail</label>
+                                <input
+                                    required
+                                    type="email"
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                                    value={createForm.email}
+                                    onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))}
+                                />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-medium text-gray-500">Heslo</label>
+                                <input
+                                    required
+                                    type="password"
+                                    minLength={8}
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                                    value={createForm.password}
+                                    onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))}
+                                />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-medium text-gray-500">Pozice</label>
+                                <input
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                                    value={createForm.job_title}
+                                    onChange={(e) => setCreateForm((f) => ({ ...f, job_title: e.target.value }))}
+                                    placeholder="např. Recepční"
+                                />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-medium text-gray-500">Typ / práva</label>
+                                <select
+                                    required
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                                    value={createForm.user_type_id}
+                                    onChange={(e) => setCreateForm((f) => ({ ...f, user_type_id: e.target.value }))}
+                                >
+                                    <option value="">— vyberte typ —</option>
+                                    {types.map((t) => (
+                                        <option key={t.id} value={t.id}>
+                                            {t.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <button
+                                type="submit"
+                                disabled={creating}
+                                className="w-full rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-60"
+                            >
+                                {creating ? 'Vytvářím…' : 'Vytvořit uživatele'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            ) : null}
         </div>
     );
 }

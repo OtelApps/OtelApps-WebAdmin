@@ -1,5 +1,8 @@
--- Aktualizace guest_locale při znovuotevření existující konverzace
--- (spusť v Supabase SQL Editor)
+-- =============================================================================
+-- Jeden concierge thread na hosta: znovu otevři existující chat (closed/archived),
+-- místo zakládání druhého inboxu.
+-- Spusť v Supabase → SQL Editor.
+-- =============================================================================
 
 create or replace function public.ensure_guest_concierge_conversation(
   p_hotel_slug text,
@@ -17,6 +20,7 @@ as $$
 declare
   v_hotel_id uuid;
   v_conversation_id uuid;
+  v_ban_reason text;
 begin
   if p_guest_external_id is null or trim(p_guest_external_id) = '' then
     raise exception 'Chybí guest_external_id.';
@@ -30,6 +34,18 @@ begin
     raise exception 'Hotel "%" nenalezen.', p_hotel_slug;
   end if;
 
+  begin
+    select r.reason into v_ban_reason
+    from public.active_concierge_ban_reason(v_hotel_id, p_guest_external_id) r;
+  exception
+    when undefined_function then
+      v_ban_reason := null;
+  end;
+
+  if v_ban_reason is not null then
+    raise exception 'CONCIERGE_BANNED:%', v_ban_reason;
+  end if;
+
   if p_conversation_id is not null then
     select c.id into v_conversation_id
     from public.hotel_concierge_conversations c
@@ -39,6 +55,9 @@ begin
     if v_conversation_id is not null then
       update public.hotel_concierge_conversations
       set guest_locale = coalesce(nullif(trim(p_guest_locale), ''), guest_locale),
+          guest_display_name = coalesce(nullif(trim(p_guest_display_name), ''), guest_display_name),
+          room_number = coalesce(nullif(trim(p_room_number), ''), room_number),
+          status = 'open',
           updated_at = now()
       where id = v_conversation_id;
       return v_conversation_id;
@@ -85,3 +104,5 @@ begin
   return v_conversation_id;
 end;
 $$;
+
+grant execute on function public.ensure_guest_concierge_conversation(text, text, text, text, text, uuid) to anon, authenticated;

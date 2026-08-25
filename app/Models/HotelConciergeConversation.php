@@ -58,4 +58,18 @@ class HotelConciergeConversation extends Model
     {
         return $this->hasMany(HotelConciergeMessage::class, 'conversation_id')->orderBy('created_at');
     }
+
+    /**
+     * Host jen otevřel chat, nebo tam jsou jen system/bot hlášky (ban, unban).
+     * V adminu a v notifikacích to nemá viset, dokud host něco nenapíše.
+     */
+    public function scopeHasGuestMessages($query)
+    {
+        return $query->whereExists(function ($q) {
+            $q->selectRaw('1')
+                ->from('hotel_concierge_messages as m')
+                ->whereColumn('m.conversation_id', 'hotel_concierge_conversations.id')
+                ->where('m.sender_type', 'guest');
+        });
+    }
 }

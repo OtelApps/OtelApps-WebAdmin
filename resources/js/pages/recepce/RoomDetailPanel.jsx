@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import http from '../../lib/http';
 import { useHttpQuery } from '../../hooks/useHttpQuery';
 import { HashTabs } from '../../components/ui/HashTabs';
+import { useAuth } from '../../context/AuthContext';
+import { CreateTicketModal } from '../ukoly/CreateTicketModal';
 import { OCCUPANCY_DOT, OCCUPANCY_LABELS } from './receptionLabels';
 import { OverviewTab } from './tabs/OverviewTab';
 import { GuestsTab } from './tabs/GuestsTab';
@@ -20,13 +22,16 @@ const TABS = [
 
 export function RoomDetailPanel({ roomNumber, onClose, onCheckedOut }) {
     const queryClient = useQueryClient();
+    const { hasPermission } = useAuth();
     const [activeTab, setActiveTab] = useState('overview');
     const [checkoutLoading, setCheckoutLoading] = useState(false);
     const [actionError, setActionError] = useState(null);
+    const [createTicketOpen, setCreateTicketOpen] = useState(false);
 
     useEffect(() => {
         setActiveTab('overview');
         setActionError(null);
+        setCreateTicketOpen(false);
     }, [roomNumber]);
 
     useEffect(() => {
@@ -81,6 +86,14 @@ export function RoomDetailPanel({ roomNumber, onClose, onCheckedOut }) {
 
     const occupancy = data?.room?.occupancy_status;
     const guestCount = data?.stay?.guest_count;
+    const canCreateTicket = hasPermission('tickets.create');
+    const ticketInitialValues = useMemo(
+        () => ({
+            room_number: String(roomNumber || ''),
+            guest_display_name: data?.guest?.display_name || data?.guest?.full_name || '',
+        }),
+        [roomNumber, data?.guest?.display_name, data?.guest?.full_name],
+    );
 
     return (
         <>
@@ -157,7 +170,16 @@ export function RoomDetailPanel({ roomNumber, onClose, onCheckedOut }) {
                     )}
                 </div>
 
-                <footer className="flex shrink-0 items-center gap-3 border-t border-gray-200 px-5 py-4 dark:border-gray-700">
+                <footer className="flex shrink-0 flex-wrap items-center gap-3 border-t border-gray-200 px-5 py-4 dark:border-gray-700">
+                    {canCreateTicket ? (
+                        <button
+                            type="button"
+                            onClick={() => setCreateTicketOpen(true)}
+                            className="flex-1 rounded-xl border border-orange-200 bg-orange-50 px-4 py-2.5 text-sm font-semibold text-orange-700 hover:bg-orange-100"
+                        >
+                            Vytvořit úkol
+                        </button>
+                    ) : null}
                     <button
                         type="button"
                         disabled={!data?.stay || checkoutLoading}
@@ -175,6 +197,14 @@ export function RoomDetailPanel({ roomNumber, onClose, onCheckedOut }) {
                     </button>
                 </footer>
             </aside>
+
+            <CreateTicketModal
+                open={createTicketOpen}
+                onClose={() => setCreateTicketOpen(false)}
+                initialValues={ticketInitialValues}
+                lockRoom
+                lockGuest={Boolean(ticketInitialValues.guest_display_name)}
+            />
         </>
     );
 }

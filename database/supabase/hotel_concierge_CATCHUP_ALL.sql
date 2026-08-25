@@ -66,13 +66,16 @@ begin
   from public.hotel_concierge_conversations c
   where c.hotel_id = v_hotel_id
     and c.guest_external_id = p_guest_external_id
-    and c.status = 'open'
-  order by coalesce(c.last_message_at, c.created_at) desc
+  order by case when c.status = 'open' then 0 else 1 end,
+           coalesce(c.last_message_at, c.created_at) desc
   limit 1;
 
   if v_conversation_id is not null then
     update public.hotel_concierge_conversations
     set guest_locale = coalesce(nullif(trim(p_guest_locale), ''), guest_locale),
+        guest_display_name = coalesce(nullif(trim(p_guest_display_name), ''), guest_display_name),
+        room_number = coalesce(nullif(trim(p_room_number), ''), room_number),
+        status = 'open',
         updated_at = now()
     where id = v_conversation_id;
     return v_conversation_id;

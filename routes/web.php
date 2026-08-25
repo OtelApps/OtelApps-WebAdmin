@@ -294,6 +294,7 @@ Route::prefix('api')->group(function () {
     Route::put('/admin/user-types/{userType}', [UserAdminController::class, 'updateUserType']);
     Route::delete('/admin/user-types/{userType}', [UserAdminController::class, 'destroyUserType']);
     Route::get('/admin/users', [UserAdminController::class, 'users']);
+    Route::post('/admin/users', [UserAdminController::class, 'storeUser']);
     Route::put('/admin/users/{user}', [UserAdminController::class, 'updateUser']);
     });
 });

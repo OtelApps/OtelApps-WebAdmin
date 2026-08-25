@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { PRIORITY_STYLES, SECTION_META, formatTicketTime } from './ticketLabels';
 import { StatusCell } from './ticketStatus';
 
-function TicketRow({ ticket, selected, onSelect, onStatus, onEdit, onDelete, canEdit }) {
+function TicketRow({ ticket, selected, onSelect }) {
     const priority = PRIORITY_STYLES[ticket.priority] || PRIORITY_STYLES[1];
     const time =
         ticket.section === 'done'
@@ -48,42 +48,16 @@ function TicketRow({ ticket, selected, onSelect, onStatus, onEdit, onDelete, can
                 </span>
             </button>
             <div className="flex shrink-0 items-center gap-1">
-                <StatusCell
-                    status={ticket.status}
-                    note={ticket.status_guest_note}
-                    onClick={canEdit ? () => onStatus(ticket) : undefined}
-                />
+                <StatusCell status={ticket.status} note={ticket.status_guest_note} />
                 <span className={`hidden rounded-md px-2 py-0.5 text-[11px] font-semibold sm:inline ${priority.className}`}>
                     {priority.label}
                 </span>
-                {canEdit ? (
-                    <>
-                        <button
-                            type="button"
-                            onClick={() => onEdit(ticket)}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-blue-500 hover:bg-blue-50"
-                            aria-label="Upravit"
-                            title="Upravit"
-                        >
-                            <span className="material-symbols-outlined text-[20px]">edit</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => onDelete(ticket)}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50"
-                            aria-label="Smazat"
-                            title="Smazat"
-                        >
-                            <span className="material-symbols-outlined text-[20px]">cancel</span>
-                        </button>
-                    </>
-                ) : null}
             </div>
         </div>
     );
 }
 
-function Section({ sectionKey, tickets, open, onToggle, selectedId, onSelect, onStatus, onEdit, onDelete, canEdit }) {
+function Section({ sectionKey, tickets, open, onToggle, selectedId, onSelect }) {
     const meta = SECTION_META[sectionKey];
     return (
         <div className="border-b border-gray-200 last:border-0">
@@ -113,10 +87,6 @@ function Section({ sectionKey, tickets, open, onToggle, selectedId, onSelect, on
                                 ticket={t}
                                 selected={selectedId === t.id}
                                 onSelect={onSelect}
-                                onStatus={onStatus}
-                                onEdit={onEdit}
-                                onDelete={onDelete}
-                                canEdit={canEdit}
                             />
                         ))
                     )}
@@ -126,7 +96,7 @@ function Section({ sectionKey, tickets, open, onToggle, selectedId, onSelect, on
     );
 }
 
-export function TicketList({ tickets, selectedId, onSelect, onStatus, onEdit, onDelete, canEdit }) {
+export function TicketList({ tickets, selectedId, onSelect }) {
     const [openSections, setOpenSections] = useState({
         new: true,
         in_progress: true,
@@ -158,10 +128,6 @@ export function TicketList({ tickets, selectedId, onSelect, onStatus, onEdit, on
                         onToggle={toggle}
                         selectedId={selectedId}
                         onSelect={onSelect}
-                        onStatus={onStatus}
-                        onEdit={onEdit}
-                        onDelete={onDelete}
-                        canEdit={canEdit}
                     />
                 ))}
             </div>

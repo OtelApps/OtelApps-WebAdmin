@@ -89,8 +89,6 @@ export function Ukoly() {
         }
     };
 
-    const canEdit = hasPermission('tickets.edit');
-
     const statCards = useMemo(
         () => [
             {
@@ -165,10 +163,6 @@ export function Ukoly() {
                     tickets={tickets}
                     selectedId={selectedId}
                     onSelect={setSelectedId}
-                    onStatus={setStatusTicket}
-                    onEdit={(ticket) => setEditId(ticket.id)}
-                    onDelete={handleDelete}
-                    canEdit={canEdit}
                 />
                 <TicketDetail
                     detail={detailQuery.data}
@@ -178,6 +172,7 @@ export function Ukoly() {
                     onStatus={setStatusTicket}
                     onEdit={(ticket) => setEditId(ticket.id)}
                     onDelete={handleDelete}
+                    onCommented={invalidateAll}
                     acting={acting}
                 />
             </div>
