@@ -11,7 +11,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // Railway (and any TLS-terminating proxy) sends X-Forwarded-Proto.
+        // Without this, Vite assets are generated as http:// and the browser
+        // blocks them on the https:// site — the UI stays on "Loading...".
+        $middleware->trustProxies(at: '*');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
