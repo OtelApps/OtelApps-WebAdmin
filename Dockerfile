@@ -14,10 +14,6 @@ RUN install-php-extensions pdo_pgsql pdo_sqlite zip intl opcache
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# region agent log
-RUN php -v && echo "DEBUG_PHP_VERSION=$(php -r 'echo PHP_VERSION;')"
-# endregion
-
 COPY . /app
 
 RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts \
@@ -35,13 +31,10 @@ RUN composer install --no-dev --optimize-autoloader --no-interaction --no-script
     && chmod +x /app/start-container.sh
 
 ENV IS_LARAVEL=true
-ENV PORT=8080
-ENV SERVER_NAME=:8080
+ENV SERVER_NAME=:80
 ENV APP_ENV=production
 ENV APP_DEBUG=false
-ENV LOG_CHANNEL=stderr
-ENV LOG_LEVEL=error
 
-EXPOSE 8080
+EXPOSE 80
 
 CMD ["/app/start-container.sh"]

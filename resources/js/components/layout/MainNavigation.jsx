@@ -1,0 +1,667 @@
+import React, { useEffect, useRef, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { useNotifications } from "../../context/NotificationContext";
+import { useModules } from "../../context/ModulesContext";
+import { NotificationBell, NavBadge } from '../notifications/NotificationBell';
+import { UserMenu } from './UserMenu';
+
+export function MainNavigation({ settingsOpen, setSettingsOpen, onOpenNotificationSettings }) {
+    const location = useLocation();
+    const { mainModules: modules, labels, moduleMap, navGroups } = useModules();
+    const [languageOpen, setLanguageOpen] = useState(false);
+    const [currentLanguage, setCurrentLanguage] = useState("English");
+    const [editLanguagesOpen, setEditLanguagesOpen] = useState(false);
+    const [openGroup, setOpenGroup] = useState(null);
+    const languageButtonRef = useRef(null);
+    const groupsRef = useRef(null);
+    const { badges } = useNotifications();
+
+    useEffect(() => {
+        const handleDocumentClick = (event) => {
+            if (languageOpen && languageButtonRef.current && !languageButtonRef.current.contains(event.target)) {
+                setLanguageOpen(false);
+            }
+            if (openGroup && groupsRef.current && !groupsRef.current.contains(event.target)) {
+                setOpenGroup(null);
+            }
+        };
+
+        document.addEventListener("click", handleDocumentClick);
+        return () => document.removeEventListener("click", handleDocumentClick);
+    }, [languageOpen, openGroup]);
+
+    useEffect(() => {
+        const onKeyDown = (e) => {
+            if (e.key === "Escape") {
+                setLanguageOpen(false);
+                setEditLanguagesOpen(false);
+                setOpenGroup(null);
+            }
+        };
+        document.addEventListener("keydown", onKeyDown);
+        return () => document.removeEventListener("keydown", onKeyDown);
+    }, []);
+
+    const moduleIcons = {
+        recepce: "desk",
+        ukoly: "task_alt",
+        finance: "account_balance_wallet",
+        dashboard: "home",
+        content: "article",
+        my_app: "mobile_2",
+        activity: "moving",
+        crm: "group",
+        feedback: "thumb_up",
+        concierge: "chat",
+        insights: "bar_chart",
+    };
+
+    const handleSettingsClick = () => {
+        const newState = !settingsOpen;
+        setSettingsOpen(newState);
+        window.dispatchEvent(
+            new CustomEvent("settings-toggle", { detail: newState }),
+        );
+    };
+
+    const handleLanguageSelect = (lang) => {
+        setCurrentLanguage(lang);
+        setLanguageOpen(false);
+    };
+
+    const isActive = (module) => {
+        if (module === "dashboard") {
+            return (
+                location.pathname === "/" || location.pathname === "/dashboard"
+            );
+        }
+        
+        const pathParts = location.pathname.split('/').filter(Boolean);
+        const currentSection = pathParts[0] === 'module' ? pathParts[1] : pathParts[0];
+        
+        // Use the map to resolve the parent module (e.g. 'requests' -> 'activity')
+        const resolvedSection = moduleMap[currentSection] || currentSection;
+        
+        return resolvedSection === module;
+    };
+
+    const isGroupActive = (groupModules) => (groupModules || []).some((m) => isActive(m));
+
+    const groupBadgeCount = (groupModules) => {
+        const set = new Set(groupModules || []);
+        let count = 0;
+        if (set.has("ukoly")) count += badges.activity || 0;
+        if (set.has("concierge")) count += badges.concierge || 0;
+        return count;
+    };
+
+    const moduleBadgeCount = (module) => {
+        if (module === "ukoly") return badges.activity || 0;
+        if (module === "concierge") return badges.concierge || 0;
+        return 0;
+    };
+
+    const renderModuleLink = (module, { inDropdown = false } = {}) => (
+        <Link
+            key={module}
+            to={`/${module}`}
+            onClick={() => setOpenGroup(null)}
+            className={
+                inDropdown
+                    ? `flex items-center gap-3 px-3 py-2 text-sm ${
+                          isActive(module)
+                              ? "bg-orange-500 text-white"
+                              : "text-gray-200 hover:bg-gray-600 hover:text-white"
+                      }`
+                    : `relative px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                          isActive(module)
+                              ? "bg-orange-500 text-white"
+                              : "text-gray-300 hover:bg-gray-700 hover:text-white"
+                      }`
+            }
+        >
+            {inDropdown ? (
+                <>
+                    <span className="relative material-symbols-outlined text-[20px]">
+                        {moduleIcons[module] || "extension"}
+                        <NavBadge count={moduleBadgeCount(module)} />
+                    </span>
+                    <span>{labels[module] || module}</span>
+                </>
+            ) : (
+                <div className="flex flex-col items-center space-y-1">
+                    <span className="relative material-symbols-outlined text-[20px]">
+                        {moduleIcons[module] || "extension"}
+                        <NavBadge count={moduleBadgeCount(module)} />
+                    </span>
+                    <span>{labels[module] || module}</span>
+                </div>
+            )}
+        </Link>
+    );
+
+    const allowed = new Set(Array.isArray(modules) ? modules : []);
+    const sourceGroups = Array.isArray(navGroups) && navGroups.length > 0
+        ? navGroups
+        : [
+            { key: "provoz", label: "Provoz", icon: "desk", modules: ["recepce", "ukoly", "finance"] },
+            { key: "hoste", label: "Hosté", icon: "group", modules: ["crm", "concierge", "feedback"] },
+            { key: "hotel", label: "Hotel", icon: "apartment", modules: ["content", "insights", "my_app"] },
+        ];
+    const groups = sourceGroups
+        .map((group) => ({
+            ...group,
+            modules: (group.modules || []).filter((m) => allowed.has(m)),
+        }))
+        .filter((group) => group.modules.length > 0);
+    const grouped = new Set(groups.flatMap((group) => group.modules));
+    const standalone = (Array.isArray(modules) ? modules : [])
+        .filter((m) => allowed.has(m) && !grouped.has(m))
+        .sort((a, b) => (a === "dashboard" ? -1 : b === "dashboard" ? 1 : 0));
+
+    return (
+        <nav className="relative z-50 bg-gray-800 text-white shadow-lg">
+            <div className="max-w-screen-2xl mx-auto px-0.5 sm:px-1 lg:px-1.5">
+                <div className="flex items-center justify-between h-16">
+                    {/* Logo */}
+                    <div className="flex-1 flex items-center justify-start">
+                        <Link to="/dashboard" className="flex items-center">
+                            <div className="shrink-0 h-10 w-10 flex items-center justify-center">
+                                <img
+                                    src="/logo.png"
+                                    alt="Otel Apps Hotel"
+                                    className="max-h-10 max-w-10 object-contain"
+                                />
+                            </div>
+                            <div className="ml-3">
+                                <span className="text-xl font-semibold">
+                                    Otel Apps Hotel
+                                </span>
+                            </div>
+                        </Link>
+                    </div>
+
+                    {/* Navigation groups */}
+                    <div ref={groupsRef} className="flex items-center space-x-1">
+                        {standalone.map((module) => renderModuleLink(module))}
+                        {groups.map((group) => {
+                            const groupModules = group.modules || [];
+                            if (groupModules.length === 1) {
+                                return renderModuleLink(groupModules[0]);
+                            }
+
+                            const active = isGroupActive(groupModules);
+                            const open = openGroup === group.key;
+
+                            return (
+                                <div key={group.key} className="relative">
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setOpenGroup((prev) => (prev === group.key ? null : group.key));
+                                        }}
+                                        className={`relative px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                                            active
+                                                ? "bg-orange-500 text-white"
+                                                : "text-gray-300 hover:bg-gray-700 hover:text-white"
+                                        }`}
+                                    >
+                                        <div className="flex flex-col items-center space-y-1">
+                                            <span className="relative material-symbols-outlined text-[20px]">
+                                                {group.icon || "menu"}
+                                                <NavBadge count={groupBadgeCount(groupModules)} />
+                                            </span>
+                                            <span className="inline-flex items-center gap-0.5">
+                                                {group.label}
+                                                <svg
+                                                    className="w-3 h-3 opacity-70"
+                                                    viewBox="0 0 20 20"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    strokeWidth="2"
+                                                >
+                                                    <path d="M6 8l4 4 4-4" />
+                                                </svg>
+                                            </span>
+                                        </div>
+                                    </button>
+                                    {open ? (
+                                        <div className="absolute left-1/2 top-full z-50 mt-1 min-w-[12rem] -translate-x-1/2 overflow-hidden rounded-lg border border-gray-600 bg-gray-700 py-1 shadow-xl">
+                                            {groupModules.map((module) => renderModuleLink(module, { inDropdown: true }))}
+                                        </div>
+                                    ) : null}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Notifications, User, Settings & Language */}
+                    <div className="flex-1 flex items-center justify-end space-x-3 relative">
+                        <NotificationBell />
+
+                        <UserMenu />
+
+                        {/* Settings Button */}
+                        <div className="relative">
+                            <button
+                                type="button"
+                                onClick={handleSettingsClick}
+                                className="relative text-gray-300 hover:text-white"
+                            >
+                                <svg
+                                    className="w-6 h-6"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth="2"
+                                        d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                                    />
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth="2"
+                                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                                    />
+                                </svg>
+                            </button>
+
+                            {/* Settings Dropdown Menu — nad backdropem (nav z-50, backdrop z-40) */}
+                            {settingsOpen && (
+                                <div
+                                    className="absolute right-0 top-full z-50 mt-2 w-56 rounded-lg border border-gray-200 bg-white py-2"
+                                    style={{
+                                        minWidth: "14rem",
+                                        boxShadow:
+                                            "0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2)",
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            if (typeof onOpenNotificationSettings === "function") {
+                                                onOpenNotificationSettings();
+                                            } else {
+                                                window.dispatchEvent(
+                                                    new CustomEvent("open-notification-settings"),
+                                                );
+                                            }
+                                        }}
+                                        className="flex w-full items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-orange-50"
+                                    >
+                                        <span className="material-symbols-outlined mr-3 text-[20px] text-orange-500">
+                                            notifications_active
+                                        </span>
+                                        <span className="flex-1 text-left">
+                                            <span className="block font-medium">Oznámení</span>
+                                            <span className="block text-[11px] text-gray-400">
+                                                Zvuk, toast, desktop…
+                                            </span>
+                                        </span>
+                                        <span className="material-symbols-outlined text-[18px] text-gray-400">
+                                            chevron_right
+                                        </span>
+                                    </button>
+                                    <a
+                                        href="#"
+                                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                    >
+                                        <svg
+                                            className="w-5 h-5 mr-3 text-gray-400"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth="2"
+                                                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                                            />
+                                        </svg>
+                                        Segmentation
+                                    </a>
+                                    <a
+                                        href="#"
+                                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                    >
+                                        <svg
+                                            className="w-5 h-5 mr-3 text-gray-400"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth="2"
+                                                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+                                            />
+                                        </svg>
+                                        Employees
+                                    </a>
+                                    <a
+                                        href="#"
+                                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                    >
+                                        <svg
+                                            className="w-5 h-5 mr-3 text-gray-400"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth="2"
+                                                d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                                            />
+                                        </svg>
+                                        Subscription
+                                    </a>
+                                    <a
+                                        href="#"
+                                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                    >
+                                        <svg
+                                            className="w-5 h-5 mr-3 text-gray-400"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth="2"
+                                                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                                            />
+                                        </svg>
+                                        Corporate
+                                    </a>
+                                    <a
+                                        href="#"
+                                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                    >
+                                        <svg
+                                            className="w-5 h-5 mr-3 text-gray-400"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth="2"
+                                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                            />
+                                        </svg>
+                                        Terms and conditions
+                                    </a>
+                                    <a
+                                        href="#"
+                                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                    >
+                                        <svg
+                                            className="w-5 h-5 mr-3 text-gray-400"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth="2"
+                                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                                            />
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth="2"
+                                                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                                            />
+                                        </svg>
+                                        Review Mode
+                                    </a>
+                                    <a
+                                        href="#"
+                                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                    >
+                                        <svg
+                                            className="w-5 h-5 mr-3 text-gray-400"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth="2"
+                                                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                                            />
+                                        </svg>
+                                        Uptime Stats
+                                    </a>
+                                    <a
+                                        href="#"
+                                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                    >
+                                        <svg
+                                            className="w-5 h-5 mr-3 text-gray-400"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth="2"
+                                                d="M13 10V3L4 14h7v7l9-11h-7z"
+                                            />
+                                        </svg>
+                                        Product updates
+                                    </a>
+                                </div>
+                            )}
+                        </div>
+
+                        <div ref={languageButtonRef} className="relative">
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    setLanguageOpen((prev) => !prev)
+                                }
+                                className="flex items-center gap-2 text-gray-300 hover:text-white relative z-9999"
+                            >
+                                <span className="select-none">
+                                    {currentLanguage === "English"
+                                        ? "ENG"
+                                        : "CZE"}
+                                </span>
+                                <svg
+                                    className="w-4 h-4"
+                                    viewBox="0 0 20 20"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                >
+                                    <path d="M6 8l4 4 4-4" />
+                                </svg>
+                            </button>
+
+                            {languageOpen && (
+                                <div
+                                    className="absolute right-0 top-full mt-2 w-56 bg-white rounded-lg border border-gray-200 py-2 z-9999"
+                                    style={{
+                                        boxShadow:
+                                            "0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2)",
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            handleLanguageSelect("English")
+                                        }
+                                        className="w-full text-left px-4 py-2 text-sm text-gray-900 hover:bg-gray-100 flex items-center justify-between"
+                                    >
+                                        <span>English</span>
+                                        <span className="text-xs text-gray-500">
+                                            Default
+                                        </span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            handleLanguageSelect("Czech")
+                                        }
+                                        className="w-full text-left px-4 py-2 text-sm text-gray-900 hover:bg-gray-100 flex items-center justify-between"
+                                    >
+                                        <span>Czech</span>
+                                    </button>
+                                    <div className="border-t border-gray-200 my-1"></div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setLanguageOpen(false);
+                                            setEditLanguagesOpen(true);
+                                        }}
+                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                    >
+                                        Edit languages
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {editLanguagesOpen && (
+                <>
+                    <div
+                        onClick={() => setEditLanguagesOpen(false)}
+                        className="fixed inset-0 z-10000 transition-opacity duration-200"
+                        style={{
+                            backgroundColor: "rgba(0, 0, 0, 0.25)",
+                        }}
+                    />
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="Edit languages"
+                        className="fixed inset-0 z-10001 flex items-start justify-center px-4 pt-20"
+                        onClick={() => setEditLanguagesOpen(false)}
+                    >
+                        <div
+                            className="w-full max-w-2xl bg-white rounded-lg overflow-hidden"
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                                boxShadow:
+                                    "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+                            }}
+                        >
+                            <div className="bg-gray-700 text-white text-center py-4">
+                                <div className="text-2xl font-semibold tracking-wide">
+                                    EDIT LANGUAGES
+                                </div>
+                            </div>
+
+                            <div className="px-8 py-6">
+                                <div className="flex items-center justify-between">
+                                    <div className="grid grid-cols-2 gap-10 items-end">
+                                        <div className="text-xl font-semibold text-gray-700">
+                                            Language Name
+                                        </div>
+                                        <div className="text-xl font-semibold text-gray-700">
+                                            ISO Code
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-full px-5 py-2.5 text-sm"
+                                        onClick={() => {}}
+                                    >
+                                        <span className="text-xl leading-none">
+                                            +
+                                        </span>
+                                        <span>ADD LANGUAGE</span>
+                                    </button>
+                                </div>
+
+                                <div className="mt-4 border-t border-gray-200" />
+
+                                <div className="divide-y divide-gray-200">
+                                    <div className="py-5 flex items-center">
+                                        <div className="flex-1 grid grid-cols-2 gap-10">
+                                            <div className="flex items-center gap-6">
+                                                <div className="text-2xl text-gray-700">
+                                                    Czech
+                                                </div>
+                                                <div className="text-sm font-semibold text-orange-500">
+                                                    Default
+                                                </div>
+                                            </div>
+                                            <div className="text-xl text-gray-700">
+                                                cz
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="py-5 flex items-center">
+                                        <div className="flex-1 grid grid-cols-2 gap-10">
+                                            <div className="text-2xl text-gray-700">
+                                                English
+                                            </div>
+                                            <div className="text-xl text-gray-700 flex items-center justify-between">
+                                                <span>en</span>
+                                                <button
+                                                    type="button"
+                                                    className="w-12 h-12 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-50"
+                                                    onClick={() => {}}
+                                                    aria-label="Delete language"
+                                                >
+                                                    <span class="material-symbols-outlined">delete</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="mt-8 flex items-center justify-end gap-6">
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setEditLanguagesOpen(false)
+                                        }
+                                        className="rounded-full px-9 py-3 border-2 border-orange-400 text-orange-500 font-semibold text-lg hover:bg-orange-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setEditLanguagesOpen(false)
+                                        }
+                                        className="rounded-full px-9 py-3 bg-orange-500 hover:bg-orange-600 text-white font-semibold text-lg"
+                                    >
+                                        Confirm
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </>
+            )}
+        </nav>
+    );
+}
