@@ -130,7 +130,10 @@ class HotelServiceRequestController extends Controller
             'assigned_staff_name' => $data['assigned_staff_name'] ?? null,
             'assigned_user_name' => $data['assigned_staff_name'] ?? null,
             'priority' => $data['priority'] ?? 0,
-            'queue_key' => \App\Services\PermissionCatalog::queueForServiceModule($data['service_module']),
+            'queue_key' => \App\Services\PermissionCatalog::queueForServiceModule(
+                $data['service_module'],
+                $hotel->id,
+            ),
             'created_by_label' => $request->user()?->name ?? 'web_admin',
             'created_by_user_id' => $request->user()?->id,
             'metadata' => $data['metadata'] ?? [],
@@ -180,6 +183,13 @@ class HotelServiceRequestController extends Controller
         ]);
 
         $previousStatus = $requestModel->status;
+
+        if (isset($data['service_module'])) {
+            $data['queue_key'] = \App\Services\PermissionCatalog::queueForServiceModule(
+                $data['service_module'],
+                $requestModel->hotel_id,
+            );
+        }
 
         $requestModel->update($data);
 
@@ -238,6 +248,7 @@ class HotelServiceRequestController extends Controller
             'status_note' => $request->status_guest_note,
             'staff_note' => $request->staff_note,
             'priority' => $request->priority,
+            'queue_key' => $request->queue_key,
             'assigned_staff_name' => $request->assigned_staff_name,
         ];
     }

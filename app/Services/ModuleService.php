@@ -63,6 +63,7 @@ class ModuleService
             'transactions',
             'revenue',
             'behavior',
+            'staff',
         ],
         'finance' => [
             'finance_overview',
@@ -70,6 +71,25 @@ class ModuleService
             'finance_transactions',
             'finance_deposits',
             'finance_reports',
+        ],
+    ];
+
+    /** @var array<string, array{label: string, icon: string, modules: list<string>}> */
+    private static $navGroups = [
+        'provoz' => [
+            'label' => 'Provoz',
+            'icon' => 'desk',
+            'modules' => ['recepce', 'ukoly', 'finance'],
+        ],
+        'hoste' => [
+            'label' => 'Hosté',
+            'icon' => 'group',
+            'modules' => ['crm', 'concierge', 'feedback'],
+        ],
+        'hotel' => [
+            'label' => 'Hotel',
+            'icon' => 'apartment',
+            'modules' => ['content', 'insights', 'my_app'],
         ],
     ];
 
@@ -116,19 +136,58 @@ class ModuleService
      */
     public static function getMainNavigation(?array $allowedModules = null): array
     {
-        $mainModules = ['recepce', 'ukoly', 'finance', 'dashboard', 'content', 'my_app', 'activity', 'crm', 'feedback', 'concierge', 'insights'];
+        $mainModules = ['recepce', 'ukoly', 'finance', 'dashboard', 'content', 'my_app', 'crm', 'feedback', 'concierge', 'insights'];
 
         return array_values(array_filter($mainModules, function ($module) use ($allowedModules) {
-            if (! self::isEnabled($module)) {
-                return false;
-            }
-
-            if ($allowedModules === null || in_array('*', $allowedModules, true)) {
-                return true;
-            }
-
-            return in_array($module, $allowedModules, true);
+            return self::isNavModuleVisible($module, $allowedModules);
         }));
+    }
+
+    /**
+     * Skupiny hlavní navigace — jen ty, které mají aspoň jeden povolený modul.
+     *
+     * @param  list<string>|null  $allowedModules
+     * @return list<array{key: string, label: string, icon: string, modules: list<string>}>
+     */
+    public static function getMainNavigationGroups(?array $allowedModules = null): array
+    {
+        $groups = [];
+
+        foreach (self::$navGroups as $key => $group) {
+            $modules = array_values(array_filter(
+                $group['modules'],
+                fn ($module) => self::isNavModuleVisible($module, $allowedModules)
+            ));
+
+            if ($modules === []) {
+                continue;
+            }
+
+            $groups[] = [
+                'key' => $key,
+                'label' => $group['label'],
+                'icon' => $group['icon'],
+                'modules' => $modules,
+            ];
+        }
+
+        return $groups;
+    }
+
+    /**
+     * @param  list<string>|null  $allowedModules
+     */
+    private static function isNavModuleVisible(string $module, ?array $allowedModules): bool
+    {
+        if (! self::isEnabled($module)) {
+            return false;
+        }
+
+        if ($allowedModules === null || in_array('*', $allowedModules, true)) {
+            return true;
+        }
+
+        return in_array($module, $allowedModules, true);
     }
 
     /**
@@ -281,6 +340,7 @@ class ModuleService
             'mainNavigation' => [
                 'modules' => $mainModules,
                 'labels' => $labels,
+                'groups' => self::getMainNavigationGroups($allowedModules),
             ],
             'map' => self::getFlatMap(),
             'sidebars' => $sidebars,

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { PRIORITY_STYLES, formatTicketTime, eventLabel } from './ticketLabels';
+import { StatusCell } from './ticketStatus';
 
 const AVAIL = {
     available: { label: 'Dostupná', className: 'text-emerald-600' },
@@ -7,7 +8,7 @@ const AVAIL = {
     offline: { label: 'Offline', className: 'text-gray-400' },
 };
 
-export function TicketDetail({ detail, loading, onClaim, onComplete, acting }) {
+export function TicketDetail({ detail, loading, onClaim, onComplete, onStatus, onEdit, onDelete, acting }) {
     const [note, setNote] = useState('');
 
     if (loading && !detail) {
@@ -37,14 +38,48 @@ export function TicketDetail({ detail, loading, onClaim, onComplete, acting }) {
     const canComplete =
         permissions.complete &&
         ticket.status === 'in_progress';
+    const canEdit = Boolean(permissions.edit);
 
     return (
         <div className="flex h-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white">
             <div className="border-b border-gray-100 px-5 py-4">
-                <h2 className="text-lg font-semibold text-gray-900">{ticket.title}</h2>
-                <p className="mt-0.5 text-sm text-gray-500">
-                    {ticket.service_label || ticket.queue_key} · {ticket.guest_display_name}
-                </p>
+                <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                        <h2 className="text-lg font-semibold text-gray-900">{ticket.title}</h2>
+                        <p className="mt-0.5 text-sm text-gray-500">
+                            {ticket.service_label || 'Úkol'}
+                            {ticket.queue_label ? ` · ${ticket.queue_label}` : ''}
+                            {ticket.guest_display_name ? ` · ${ticket.guest_display_name}` : ''}
+                        </p>
+                    </div>
+                    {canEdit ? (
+                        <div className="flex shrink-0 items-center gap-1">
+                            <button
+                                type="button"
+                                onClick={() => onEdit(ticket)}
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-blue-500 hover:bg-blue-50"
+                                title="Upravit"
+                            >
+                                <span className="material-symbols-outlined text-[22px]">edit</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => onDelete(ticket)}
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-red-500 hover:bg-red-50"
+                                title="Smazat"
+                            >
+                                <span className="material-symbols-outlined text-[22px]">cancel</span>
+                            </button>
+                        </div>
+                    ) : null}
+                </div>
+                <div className="mt-3">
+                    <StatusCell
+                        status={ticket.status}
+                        note={ticket.status_guest_note}
+                        onClick={canEdit ? () => onStatus(ticket) : undefined}
+                    />
+                </div>
             </div>
 
             <div className="grid grid-cols-3 gap-2 border-b border-gray-100 px-5 py-3 text-center">

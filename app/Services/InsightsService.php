@@ -6,6 +6,8 @@ use App\Models\Hotel;
 use App\Models\HotelConciergeConversation;
 use App\Models\HotelConciergeMessage;
 use App\Models\HotelServiceRequest;
+use App\Models\HotelTicketEvent;
+use App\Models\HotelTicketQueue;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Support\Collection;
@@ -44,6 +46,8 @@ class InsightsService
 
         $uniqueGuests = $this->uniqueGuestKeys($requests, $conversations)->count();
 
+        $staffTickets = $this->ticketsTouchedInRange($hotel, $bounds['from'], $bounds['to']);
+
         return [
             'period' => $period,
             'currency' => config('otelapps.currency', 'CZK'),
@@ -56,6 +60,8 @@ class InsightsService
                 'revenue' => $revenue['period_total'],
                 'conversations' => $conversations->count(),
                 'messages' => $messageCount,
+                'completed_tickets' => $this->completedInPeriod($staffTickets, $bounds['from'], $bounds['to'])->count(),
+                'active_staff' => $staffTickets->pluck('assigned_user_id')->filter()->unique()->count(),
             ],
             'requests_timeline' => $this->buildTimeline($requests, $bounds, fn (HotelServiceRequest $_) => 1),
             'revenue_timeline' => $this->buildRevenueTimeline($requests, $bounds),
@@ -284,6 +290,257 @@ class InsightsService
         ];
     }
 
+    public function staff(Hotel $hotel, string $period = 'week'): array
+    {
+        $bounds = $this->periodBounds($period);
+        $from = $bounds['from'];
+        $to = $bounds['to'];
+        $ticketsEnabled = ModuleService::isEnabled('ukoly') || ModuleService::isEnabled('activity');
+
+        $tickets = $this->ticketsTouchedInRange($hotel, $from, $to);
+        $openNow = $ticketsEnabled
+            ? HotelServiceRequest::query()
+                ->where('hotel_id', $hotel->id)
+                ->whereIn('status', ['new', 'pending', 'in_progress'])
+                ->get()
+            : collect();
+        $events = $this->ticketEventsInRange($hotel, $from, $to);
+        $queueLabels = $this->queueLabels($hotel);
+
+        $staff = [];
+        $counted = [];
+
+        $ensure = function (mixed $userId, ?string $label) use (&$staff): string {
+            $userId = $userId !== null && $userId !== '' ? (int) $userId : null;
+            $key = $this->staffKey($userId, $label);
+            if (! isset($staff[$key])) {
+                $staff[$key] = [
+                    'key' => $key,
+                    'user_id' => $userId,
+                    'name' => $this->staffDisplayName($userId, $label),
+                    'created' => 0,
+                    'claimed' => 0,
+                    'completed' => 0,
+                    'rejected' => 0,
+                    'reassigned' => 0,
+                    'open_assigned' => 0,
+                    'claim_minutes' => [],
+                    'complete_minutes' => [],
+                ];
+            } else {
+                if ($userId && $staff[$key]['user_id'] === null) {
+                    $staff[$key]['user_id'] = $userId;
+                }
+                $name = $this->staffDisplayName($userId, $label);
+                if ($name !== 'Personál' && ($staff[$key]['name'] === 'Personál' || $staff[$key]['name'] === 'Nepřiřazeno')) {
+                    $staff[$key]['name'] = $name;
+                }
+            }
+
+            return $key;
+        };
+
+        $bump = function (string $key, string $type, string $requestId) use (&$staff, &$counted): void {
+            $id = $key.'|'.$type.'|'.$requestId;
+            if (isset($counted[$id])) {
+                return;
+            }
+            $counted[$id] = true;
+            $staff[$key][$type]++;
+        };
+
+        foreach ($events as $event) {
+            $requestId = (string) $event->request_id;
+            $key = $ensure($event->actor_user_id, $event->actor_label);
+
+            match ($event->event_type) {
+                'created' => $bump($key, 'created', $requestId),
+                'claimed' => $bump($key, 'claimed', $requestId),
+                'completed' => $bump($key, 'completed', $requestId),
+                'reassigned' => $bump($key, 'reassigned', $requestId),
+                default => null,
+            };
+
+            if ($event->event_type === 'status_changed') {
+                $toStatus = $event->metadata['to'] ?? null;
+                if ($toStatus === 'rejected') {
+                    $bump($key, 'rejected', $requestId);
+                }
+            }
+        }
+
+        foreach ($tickets as $ticket) {
+            $requestId = (string) $ticket->id;
+            $createdIn = $ticket->created_at && $ticket->created_at->between($from, $to);
+            $claimedIn = $ticket->claimed_at && $ticket->claimed_at->between($from, $to);
+            $completedAt = $ticket->completed_at ?? $ticket->solved_at;
+            $completedIn = $completedAt && $completedAt->between($from, $to);
+
+            if ($createdIn && ($ticket->created_by_user_id || trim((string) $ticket->created_by_label) !== '')) {
+                $key = $ensure($ticket->created_by_user_id, $ticket->created_by_label);
+                $bump($key, 'created', $requestId);
+            }
+
+            $assigneeKey = null;
+            if ($ticket->assigned_user_id || trim((string) ($ticket->assigned_user_name ?: $ticket->assigned_staff_name)) !== '') {
+                $assigneeKey = $ensure(
+                    $ticket->assigned_user_id,
+                    $ticket->assigned_user_name ?: $ticket->assigned_staff_name,
+                );
+            }
+
+            if ($assigneeKey && $claimedIn) {
+                $bump($assigneeKey, 'claimed', $requestId);
+            }
+            if ($assigneeKey && $completedIn) {
+                $bump($assigneeKey, 'completed', $requestId);
+            }
+            if ($assigneeKey && $ticket->status === 'rejected' && $ticket->updated_at?->between($from, $to)) {
+                $bump($assigneeKey, 'rejected', $requestId);
+            }
+
+            $start = $ticket->created_at;
+            if ($assigneeKey && $start && $ticket->claimed_at && $claimedIn) {
+                $staff[$assigneeKey]['claim_minutes'][] = max(0, $start->diffInMinutes($ticket->claimed_at));
+            }
+            if ($assigneeKey && $start && $completedAt && $completedIn) {
+                $staff[$assigneeKey]['complete_minutes'][] = max(0, $start->diffInMinutes($completedAt));
+            }
+        }
+
+        foreach ($openNow as $ticket) {
+            if (! $ticket->assigned_user_id && trim((string) ($ticket->assigned_user_name ?: $ticket->assigned_staff_name)) === '') {
+                continue;
+            }
+            $key = $ensure(
+                $ticket->assigned_user_id,
+                $ticket->assigned_user_name ?: $ticket->assigned_staff_name,
+            );
+            $staff[$key]['open_assigned']++;
+        }
+
+        $people = collect($staff)
+            ->reject(fn (array $row) => $row['key'] === 'unassigned')
+            ->map(function (array $row) {
+                $avgClaim = $this->avgMinutes($row['claim_minutes']);
+                $avgComplete = $this->avgMinutes($row['complete_minutes']);
+                unset($row['claim_minutes'], $row['complete_minutes']);
+
+                return $row + [
+                    'avg_claim_minutes' => $avgClaim,
+                    'avg_complete_minutes' => $avgComplete,
+                    'avg_claim_label' => $this->formatMinutes($avgClaim),
+                    'avg_complete_label' => $this->formatMinutes($avgComplete),
+                ];
+            })
+            ->filter(fn (array $row) => $row['created'] + $row['claimed'] + $row['completed'] + $row['rejected'] + $row['reassigned'] + $row['open_assigned'] > 0)
+            ->sortByDesc(fn (array $row) => [$row['completed'], $row['claimed'], $row['created']])
+            ->values()
+            ->all();
+
+        $completed = $this->completedInPeriod($tickets, $from, $to);
+        $createdInPeriod = $tickets->filter(fn (HotelServiceRequest $t) => $t->created_at && $t->created_at->between($from, $to));
+        $claimedInPeriod = $tickets->filter(fn (HotelServiceRequest $t) => $t->claimed_at && $t->claimed_at->between($from, $to));
+
+        $allClaimMinutes = $claimedInPeriod
+            ->map(function (HotelServiceRequest $t) {
+                if (! $t->created_at || ! $t->claimed_at) {
+                    return null;
+                }
+
+                return max(0, $t->created_at->diffInMinutes($t->claimed_at));
+            })
+            ->filter(fn ($v) => $v !== null);
+        $allCompleteMinutes = $completed
+            ->map(function (HotelServiceRequest $t) {
+                $start = $t->created_at;
+                $end = $t->completed_at ?? $t->solved_at;
+                if (! $start || ! $end) {
+                    return null;
+                }
+
+                return max(0, $start->diffInMinutes($end));
+            })
+            ->filter(fn ($v) => $v !== null);
+
+        $unassignedOpen = $openNow->filter(
+            fn (HotelServiceRequest $t) => ! $t->assigned_user_id && trim((string) ($t->assigned_user_name ?: $t->assigned_staff_name)) === '',
+        )->count();
+
+        $byQueue = $completed
+            ->groupBy(fn (HotelServiceRequest $t) => $t->queue_key ?: 'other')
+            ->map(fn (Collection $group, string $key) => [
+                'key' => $key,
+                'label' => $queueLabels[$key] ?? $this->queueFallbackLabel($key),
+                'count' => $group->count(),
+            ])
+            ->sortByDesc('count')
+            ->values()
+            ->all();
+
+        $hourly = array_fill(0, 24, 0);
+        foreach ($tickets as $ticket) {
+            foreach ([$ticket->claimed_at, $ticket->completed_at ?? $ticket->solved_at] as $stamp) {
+                if (! $stamp || ! $stamp->between($from, $to)) {
+                    continue;
+                }
+                $hourly[(int) $stamp->format('G')]++;
+            }
+        }
+        $peakHours = collect($hourly)
+            ->map(fn (int $count, int $hour) => [
+                'hour' => $hour,
+                'label' => sprintf('%02d:00', $hour),
+                'count' => $count,
+            ])
+            ->values()
+            ->all();
+
+        $completionStamps = $completed
+            ->map(fn (HotelServiceRequest $t) => $t->completed_at ?? $t->solved_at)
+            ->filter();
+
+        return [
+            'period' => $period,
+            'ukoly_enabled' => $ticketsEnabled,
+            'kpis' => [
+                'active_staff' => collect($people)->filter(fn (array $p) => $p['claimed'] + $p['completed'] + $p['open_assigned'] > 0)->count(),
+                'created' => $createdInPeriod->count(),
+                'claimed' => $claimedInPeriod->count(),
+                'completed' => $completed->count(),
+                'open_now' => $openNow->count(),
+                'unassigned' => $unassignedOpen,
+                'avg_complete_minutes' => $this->avgMinutes($allCompleteMinutes->all()),
+                'avg_complete_label' => $this->formatMinutes($this->avgMinutes($allCompleteMinutes->all())),
+                'avg_claim_minutes' => $this->avgMinutes($allClaimMinutes->all()),
+                'avg_claim_label' => $this->formatMinutes($this->avgMinutes($allClaimMinutes->all())),
+            ],
+            'staff' => $people,
+            'by_queue' => $byQueue,
+            'workload' => collect($people)
+                ->filter(fn (array $p) => $p['open_assigned'] > 0)
+                ->map(fn (array $p) => [
+                    'label' => $p['name'],
+                    'count' => $p['open_assigned'],
+                ])
+                ->sortByDesc('count')
+                ->values()
+                ->all(),
+            'completed_by_staff' => collect($people)
+                ->filter(fn (array $p) => $p['completed'] > 0 || $p['claimed'] > 0)
+                ->map(fn (array $p) => [
+                    'label' => $p['name'],
+                    'count' => $p['completed'],
+                    'claimed' => $p['claimed'],
+                    'completed' => $p['completed'],
+                ])
+                ->values()
+                ->all(),
+            'completions_timeline' => $this->buildTimestampTimeline($completionStamps, $bounds),
+            'peak_hours' => $peakHours,
+        ];
+    }
+
     private function requestsInRange(Hotel $hotel, Carbon $from, Carbon $to): Collection
     {
         if (! ModuleService::isEnabled('activity')) {
@@ -295,6 +552,155 @@ class InsightsService
             ->whereBetween('created_at', [$from, $to])
             ->orderBy('created_at')
             ->get();
+    }
+
+    private function ticketsTouchedInRange(Hotel $hotel, Carbon $from, Carbon $to): Collection
+    {
+        if (! ModuleService::isEnabled('ukoly') && ! ModuleService::isEnabled('activity')) {
+            return collect();
+        }
+
+        return HotelServiceRequest::query()
+            ->where('hotel_id', $hotel->id)
+            ->where(function ($q) use ($from, $to) {
+                $q->whereBetween('created_at', [$from, $to])
+                    ->orWhereBetween('claimed_at', [$from, $to])
+                    ->orWhereBetween('completed_at', [$from, $to])
+                    ->orWhereBetween('solved_at', [$from, $to]);
+            })
+            ->get();
+    }
+
+    private function ticketEventsInRange(Hotel $hotel, Carbon $from, Carbon $to): Collection
+    {
+        if (! ModuleService::isEnabled('ukoly') && ! ModuleService::isEnabled('activity')) {
+            return collect();
+        }
+
+        return HotelTicketEvent::query()
+            ->whereHas('request', fn ($q) => $q->where('hotel_id', $hotel->id))
+            ->whereBetween('created_at', [$from, $to])
+            ->get();
+    }
+
+    private function completedInPeriod(Collection $tickets, Carbon $from, Carbon $to): Collection
+    {
+        return $tickets->filter(function (HotelServiceRequest $ticket) use ($from, $to) {
+            $done = $ticket->completed_at ?? $ticket->solved_at;
+
+            return $done && $done->between($from, $to);
+        });
+    }
+
+    private function staffKey(?int $userId, ?string $label): string
+    {
+        if ($userId) {
+            return 'user:'.$userId;
+        }
+
+        $name = trim((string) $label);
+
+        return $name !== '' ? 'name:'.mb_strtolower($name) : 'unassigned';
+    }
+
+    private function staffDisplayName(?int $userId, ?string $label): string
+    {
+        $name = trim((string) $label);
+        if ($name !== '') {
+            return $name;
+        }
+
+        return $userId ? 'Uživatel #'.$userId : 'Nepřiřazeno';
+    }
+
+    /**
+     * @param  list<float|int>  $values
+     */
+    private function avgMinutes(array $values): ?float
+    {
+        if ($values === []) {
+            return null;
+        }
+
+        return round(array_sum($values) / count($values), 1);
+    }
+
+    private function formatMinutes(?float $minutes): string
+    {
+        if ($minutes === null) {
+            return '—';
+        }
+
+        $m = (int) round($minutes);
+        if ($m < 60) {
+            return $m.' min';
+        }
+
+        $h = intdiv($m, 60);
+        $rest = $m % 60;
+
+        return $rest === 0 ? $h.' h' : $h.' h '.$rest.' min';
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function queueLabels(Hotel $hotel): array
+    {
+        $fromDb = HotelTicketQueue::query()
+            ->where('hotel_id', $hotel->id)
+            ->get()
+            ->mapWithKeys(fn (HotelTicketQueue $q) => [(string) $q->key => (string) $q->label])
+            ->all();
+
+        $fromCatalog = [];
+        foreach (PermissionCatalog::all() as $perm) {
+            $key = $perm['key'] ?? '';
+            if (! str_starts_with($key, 'tickets.queue.')) {
+                continue;
+            }
+            $queueKey = substr($key, strlen('tickets.queue.'));
+            $fromCatalog[$queueKey] = $perm['label'] ?? $queueKey;
+        }
+
+        return $fromDb + $fromCatalog;
+    }
+
+    private function queueFallbackLabel(string $key): string
+    {
+        return match ($key) {
+            'housekeeping' => 'Úklid',
+            'room_delivery' => 'Donáška do pokoje',
+            'maintenance' => 'Údržba',
+            'reception' => 'Recepce',
+            'other' => 'Ostatní',
+            default => $key,
+        };
+    }
+
+    private function buildTimestampTimeline(Collection $timestamps, array $bounds): array
+    {
+        $labels = $this->timelineLabels($bounds['from'], $bounds['to'], $bounds['bucket']);
+        $buckets = [];
+        foreach ($labels as $row) {
+            $buckets[$row['key']] = [
+                'key' => $row['key'],
+                'label' => $row['label'],
+                'value' => 0,
+            ];
+        }
+
+        foreach ($timestamps as $time) {
+            if (! $time instanceof Carbon) {
+                continue;
+            }
+            $key = $this->bucketKey($time, $bounds['bucket']);
+            if (isset($buckets[$key])) {
+                $buckets[$key]['value']++;
+            }
+        }
+
+        return array_values($buckets);
     }
 
     private function conversationsInRange(Hotel $hotel, Carbon $from, Carbon $to): Collection

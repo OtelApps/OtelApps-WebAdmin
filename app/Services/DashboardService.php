@@ -232,7 +232,7 @@ class DashboardService
             'crm_enabled' => $crmEnabled,
             'links' => [
                 'rooms' => $roomsModuleEnabled ? '/module/facilities/hotel_rooms' : null,
-                'guests' => $crmEnabled ? '/module/crm/guests' : '/activity',
+                'guests' => $crmEnabled ? '/module/crm/guests' : '/ukoly',
             ],
             'highlights' => $this->highlights($hotel),
         ];

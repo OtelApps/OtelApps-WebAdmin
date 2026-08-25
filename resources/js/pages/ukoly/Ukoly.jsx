@@ -6,6 +6,8 @@ import { useAuth } from '../../context/AuthContext';
 import { TicketList } from './TicketList';
 import { TicketDetail } from './TicketDetail';
 import { CreateTicketModal } from './CreateTicketModal';
+import { TicketStatusModal } from './TicketStatusModal';
+import { EditTicketModal } from './EditTicketModal';
 
 export function Ukoly() {
     const { hasPermission } = useAuth();
@@ -13,6 +15,8 @@ export function Ukoly() {
     const [selectedId, setSelectedId] = useState(null);
     const [createOpen, setCreateOpen] = useState(false);
     const [acting, setActing] = useState(false);
+    const [statusTicket, setStatusTicket] = useState(null);
+    const [editId, setEditId] = useState(null);
 
     const listQuery = useHttpQuery(['tickets', 'list'], '/api/tickets', {
         refetchInterval: 15000,
@@ -31,6 +35,7 @@ export function Ukoly() {
 
     const tickets = listQuery.data?.tickets || [];
     const queues = listQuery.data?.queues || [];
+    const serviceTypes = listQuery.data?.service_types || [];
     const stats = statsQuery.data || { new: 0, in_progress: 0, done_today: 0 };
 
     useEffect(() => {
@@ -71,6 +76,20 @@ export function Ukoly() {
             setActing(false);
         }
     };
+
+    const handleDelete = async (ticket) => {
+        if (!ticket?.id) return;
+        if (!window.confirm('Opravdu smazat tento úkol?')) return;
+        try {
+            await http.delete(`/api/tickets/${ticket.id}`);
+            if (selectedId === ticket.id) setSelectedId(null);
+            await invalidateAll();
+        } catch {
+            window.alert('Smazání se nezdařilo.');
+        }
+    };
+
+    const canEdit = hasPermission('tickets.edit');
 
     const statCards = useMemo(
         () => [
@@ -146,12 +165,19 @@ export function Ukoly() {
                     tickets={tickets}
                     selectedId={selectedId}
                     onSelect={setSelectedId}
+                    onStatus={setStatusTicket}
+                    onEdit={(ticket) => setEditId(ticket.id)}
+                    onDelete={handleDelete}
+                    canEdit={canEdit}
                 />
                 <TicketDetail
                     detail={detailQuery.data}
                     loading={detailQuery.isLoading}
                     onClaim={handleClaim}
                     onComplete={handleComplete}
+                    onStatus={setStatusTicket}
+                    onEdit={(ticket) => setEditId(ticket.id)}
+                    onDelete={handleDelete}
                     acting={acting}
                 />
             </div>
@@ -160,11 +186,27 @@ export function Ukoly() {
                 open={createOpen}
                 onClose={() => setCreateOpen(false)}
                 queues={queues}
+                serviceTypes={serviceTypes}
                 onCreated={async (data) => {
                     await invalidateAll();
                     if (data?.ticket?.id) setSelectedId(data.ticket.id);
                 }}
             />
+            {statusTicket ? (
+                <TicketStatusModal
+                    ticket={statusTicket}
+                    onClose={() => setStatusTicket(null)}
+                    onSaved={invalidateAll}
+                />
+            ) : null}
+            {editId ? (
+                <EditTicketModal
+                    ticketId={editId}
+                    serviceTypes={serviceTypes}
+                    onClose={() => setEditId(null)}
+                    onSaved={invalidateAll}
+                />
+            ) : null}
         </div>
     );
 }

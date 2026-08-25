@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import http from '../../lib/http';
 import { useModules } from '../../context/ModulesContext';
 import { NotFound } from '../shared/NotFound';
-import { STATUS_CELL } from '../activity/activityStatus';
+import { STATUS_CELL } from '../ukoly/ticketStatus';
 import { DEFAULT_LAYOUT, reorderWidgets } from './dashboardWidgetConfig';
 import { DashboardCustomizeBar, DashboardWidgetShell } from './DashboardCustomizeBar';
 import { renderDashboardWidget } from './DashboardWidgets';

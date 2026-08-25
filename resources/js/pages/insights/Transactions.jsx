@@ -4,7 +4,7 @@ import { INSIGHT_SEGMENTS } from './insightsTheme';
 import { ChartCard, InsightsShell, StatCard } from './InsightsShell';
 import { DonutChart, RevenueTimelineChart, TimelineAreaChart } from './InsightsCharts';
 import { formatMoney } from '../../utils/formatMoney';
-import { STATUS_CELL } from '../activity/activityStatus';
+import { STATUS_CELL } from '../ukoly/ticketStatus';
 
 const SEG = INSIGHT_SEGMENTS.find((s) => s.key === 'transactions');
 

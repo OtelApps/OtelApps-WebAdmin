@@ -27,6 +27,7 @@ import { Revenue } from '../insights/Revenue';
 import { Users } from '../insights/Users';
 import { Transactions } from '../insights/Transactions';
 import { Behavior } from '../insights/Behavior';
+import { Staff } from '../insights/Staff';
 import { ClosingsList } from '../finance/closings/ClosingsList';
 import { PaymentsList } from '../finance/transactions/PaymentsList';
 import { DepositsPlaceholder } from '../finance/deposits/DepositsPlaceholder';
@@ -129,6 +130,10 @@ export function DynamicModulePage() {
 
     if (type === 'insights' && module === 'behavior') {
         return <Behavior />;
+    }
+
+    if (type === 'insights' && module === 'staff') {
+        return <Staff />;
     }
 
     if (type === 'finance' && module === 'finance_overview') {

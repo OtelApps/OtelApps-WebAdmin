@@ -54,6 +54,15 @@ export const INSIGHT_SEGMENTS = [
         color: 'from-emerald-500 to-teal-600',
         accent: 'emerald',
     },
+    {
+        key: 'staff',
+        label: 'Personál',
+        title: 'Personál',
+        description: 'Kdo kolik tiketů převzal a dokončil, časy a vytížení',
+        path: '/module/insights/staff',
+        color: 'from-slate-500 to-indigo-600',
+        accent: 'violet',
+    },
 ];
 
 /** @deprecated použij INSIGHT_SEGMENTS */

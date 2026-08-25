@@ -95,6 +95,47 @@ export function HorizontalBarChart({ data, dataKey = 'count', nameKey = 'label',
     );
 }
 
+export function GroupedBarChart({
+    data,
+    leftKey = 'claimed',
+    rightKey = 'completed',
+    leftName = 'Převzaté',
+    rightName = 'Dokončené',
+    nameKey = 'label',
+    height = 280,
+}) {
+    if (!data?.length) {
+        return <EmptyChart />;
+    }
+
+    const chartData = [...data].reverse();
+
+    return (
+        <ResponsiveContainer width="100%" height={height}>
+            <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }}>
+                <CartesianGrid {...gridStyle} horizontal={false} />
+                <XAxis type="number" {...axisStyle} tickLine={false} axisLine={false} />
+                <YAxis
+                    type="category"
+                    dataKey={nameKey}
+                    {...axisStyle}
+                    tickLine={false}
+                    axisLine={false}
+                    width={110}
+                />
+                <Tooltip {...chartTooltipStyle} />
+                <Legend
+                    verticalAlign="bottom"
+                    height={32}
+                    formatter={(value) => <span className="text-xs text-gray-600 dark:text-gray-300">{value}</span>}
+                />
+                <Bar dataKey={leftKey} name={leftName} fill={CHART_COLORS[1]} radius={[0, 6, 6, 0]} maxBarSize={14} />
+                <Bar dataKey={rightKey} name={rightName} fill={CHART_COLORS[0]} radius={[0, 6, 6, 0]} maxBarSize={14} />
+            </BarChart>
+        </ResponsiveContainer>
+    );
+}
+
 export function DonutChart({ data, nameKey = 'label', valueKey = 'count', height = 280 }) {
     if (!data?.length) {
         return <EmptyChart />;

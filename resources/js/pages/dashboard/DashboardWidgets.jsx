@@ -62,7 +62,7 @@ export function GuestRequestsWidget({
                         <button
                             key={row.id}
                             type="button"
-                            onClick={() => onNavigate('/activity')}
+                            onClick={() => onNavigate('/ukoly')}
                             className="flex w-full items-center justify-between gap-2 rounded-lg bg-gray-50 p-3 text-left transition hover:bg-gray-100 dark:bg-gray-600 dark:hover:bg-gray-500/80"
                         >
                             <span className="line-clamp-2 text-sm text-gray-700 dark:text-gray-300">
@@ -77,7 +77,7 @@ export function GuestRequestsWidget({
                 <button
                     type="button"
                     disabled={!activityEnabled}
-                    onClick={() => onNavigate('/activity')}
+                    onClick={() => onNavigate('/ukoly')}
                     className="flex-1 rounded-lg bg-gray-200 px-4 py-2 text-gray-700 transition hover:bg-gray-300 disabled:opacity-50 dark:bg-gray-600 dark:text-gray-300"
                 >
                     Create New
@@ -85,7 +85,7 @@ export function GuestRequestsWidget({
                 <button
                     type="button"
                     disabled={!activityEnabled}
-                    onClick={() => onNavigate('/activity')}
+                    onClick={() => onNavigate('/ukoly')}
                     className="flex-1 rounded-lg bg-orange-500 px-4 py-2 text-white transition hover:bg-orange-600 disabled:opacity-50"
                 >
                     View All
@@ -112,10 +112,10 @@ export function RevenueUpsellWidget({ activityEnabled, revenueData, loading, err
                 <button
                     type="button"
                     disabled={!activityEnabled}
-                    onClick={() => onNavigate('/activity')}
+                    onClick={() => onNavigate('/ukoly')}
                     className="flex-1 rounded-lg bg-gray-200 px-4 py-2 text-gray-700 transition hover:bg-gray-300 disabled:opacity-50 dark:bg-gray-600 dark:text-gray-300"
                 >
-                    Activity
+                    Úkoly
                 </button>
                 <button
                     type="button"
@@ -254,7 +254,7 @@ export function renderDashboardWidget(id, props) {
                         if (props.overviewData?.links?.rooms) props.onNavigate(props.overviewData.links.rooms);
                     }}
                     onViewGuests={() => {
-                        props.onNavigate(props.overviewData?.links?.guests ?? '/activity');
+                        props.onNavigate(props.overviewData?.links?.guests ?? '/ukoly');
                     }}
                 />
             );
@@ -285,10 +285,10 @@ export function renderDashboardWidget(id, props) {
                 <ShortcutCard
                     icon="checklist"
                     title="Manage Requests"
-                    description="Spravujte požadavky a rezervace z Activity"
+                    description="Spravujte požadavky hostů v Úkolech"
                     primaryLabel="MANAGE REQUESTS"
                     disabled={!props.activityEnabled}
-                    onPrimary={() => props.onNavigate('/activity')}
+                    onPrimary={() => props.onNavigate('/ukoly')}
                 />
             );
         case 'concierge_inbox':

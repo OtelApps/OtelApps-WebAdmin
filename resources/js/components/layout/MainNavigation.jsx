@@ -7,31 +7,35 @@ import { UserMenu } from './UserMenu';
 
 export function MainNavigation({ settingsOpen, setSettingsOpen, onOpenNotificationSettings }) {
     const location = useLocation();
-    const { mainModules: modules, labels, moduleMap } = useModules();
+    const { mainModules: modules, labels, moduleMap, navGroups } = useModules();
     const [languageOpen, setLanguageOpen] = useState(false);
     const [currentLanguage, setCurrentLanguage] = useState("English");
     const [editLanguagesOpen, setEditLanguagesOpen] = useState(false);
+    const [openGroup, setOpenGroup] = useState(null);
     const languageButtonRef = useRef(null);
+    const groupsRef = useRef(null);
     const { badges } = useNotifications();
 
     useEffect(() => {
         const handleDocumentClick = (event) => {
-            if (!languageOpen) return;
-            if (!languageButtonRef.current) return;
-            if (!languageButtonRef.current.contains(event.target)) {
+            if (languageOpen && languageButtonRef.current && !languageButtonRef.current.contains(event.target)) {
                 setLanguageOpen(false);
+            }
+            if (openGroup && groupsRef.current && !groupsRef.current.contains(event.target)) {
+                setOpenGroup(null);
             }
         };
 
         document.addEventListener("click", handleDocumentClick);
         return () => document.removeEventListener("click", handleDocumentClick);
-    }, [languageOpen]);
+    }, [languageOpen, openGroup]);
 
     useEffect(() => {
         const onKeyDown = (e) => {
             if (e.key === "Escape") {
                 setLanguageOpen(false);
                 setEditLanguagesOpen(false);
+                setOpenGroup(null);
             }
         };
         document.addEventListener("keydown", onKeyDown);
@@ -81,6 +85,80 @@ export function MainNavigation({ settingsOpen, setSettingsOpen, onOpenNotificati
         return resolvedSection === module;
     };
 
+    const isGroupActive = (groupModules) => (groupModules || []).some((m) => isActive(m));
+
+    const groupBadgeCount = (groupModules) => {
+        const set = new Set(groupModules || []);
+        let count = 0;
+        if (set.has("ukoly")) count += badges.activity || 0;
+        if (set.has("concierge")) count += badges.concierge || 0;
+        return count;
+    };
+
+    const moduleBadgeCount = (module) => {
+        if (module === "ukoly") return badges.activity || 0;
+        if (module === "concierge") return badges.concierge || 0;
+        return 0;
+    };
+
+    const renderModuleLink = (module, { inDropdown = false } = {}) => (
+        <Link
+            key={module}
+            to={`/${module}`}
+            onClick={() => setOpenGroup(null)}
+            className={
+                inDropdown
+                    ? `flex items-center gap-3 px-3 py-2 text-sm ${
+                          isActive(module)
+                              ? "bg-orange-500 text-white"
+                              : "text-gray-200 hover:bg-gray-600 hover:text-white"
+                      }`
+                    : `relative px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                          isActive(module)
+                              ? "bg-orange-500 text-white"
+                              : "text-gray-300 hover:bg-gray-700 hover:text-white"
+                      }`
+            }
+        >
+            {inDropdown ? (
+                <>
+                    <span className="relative material-symbols-outlined text-[20px]">
+                        {moduleIcons[module] || "extension"}
+                        <NavBadge count={moduleBadgeCount(module)} />
+                    </span>
+                    <span>{labels[module] || module}</span>
+                </>
+            ) : (
+                <div className="flex flex-col items-center space-y-1">
+                    <span className="relative material-symbols-outlined text-[20px]">
+                        {moduleIcons[module] || "extension"}
+                        <NavBadge count={moduleBadgeCount(module)} />
+                    </span>
+                    <span>{labels[module] || module}</span>
+                </div>
+            )}
+        </Link>
+    );
+
+    const allowed = new Set(Array.isArray(modules) ? modules : []);
+    const sourceGroups = Array.isArray(navGroups) && navGroups.length > 0
+        ? navGroups
+        : [
+            { key: "provoz", label: "Provoz", icon: "desk", modules: ["recepce", "ukoly", "finance"] },
+            { key: "hoste", label: "Hosté", icon: "group", modules: ["crm", "concierge", "feedback"] },
+            { key: "hotel", label: "Hotel", icon: "apartment", modules: ["content", "insights", "my_app"] },
+        ];
+    const groups = sourceGroups
+        .map((group) => ({
+            ...group,
+            modules: (group.modules || []).filter((m) => allowed.has(m)),
+        }))
+        .filter((group) => group.modules.length > 0);
+    const grouped = new Set(groups.flatMap((group) => group.modules));
+    const standalone = (Array.isArray(modules) ? modules : [])
+        .filter((m) => allowed.has(m) && !grouped.has(m))
+        .sort((a, b) => (a === "dashboard" ? -1 : b === "dashboard" ? 1 : 0));
+
     return (
         <nav className="relative z-50 bg-gray-800 text-white shadow-lg">
             <div className="max-w-screen-2xl mx-auto px-0.5 sm:px-1 lg:px-1.5">
@@ -103,37 +181,59 @@ export function MainNavigation({ settingsOpen, setSettingsOpen, onOpenNotificati
                         </Link>
                     </div>
 
-                    {/* Navigation Links */}
-                    <div className="flex items-center space-x-1">
-                        {Array.isArray(modules) && modules.length > 0 ? (
-                            modules.map((module) => (
-                                <Link
-                                    key={module}
-                                    to={`/${module}`}
-                                    className={`relative px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                                        isActive(module)
-                                            ? "bg-orange-500 text-white"
-                                            : "text-gray-300 hover:bg-gray-700 hover:text-white"
-                                    }`}
-                                >
-                                    <div className="flex flex-col items-center space-y-1">
-                                        <span className="relative material-symbols-outlined text-[20px]">
-                                            {moduleIcons[module] || "extension"}
-                                            {module === "ukoly" && (
-                                                <NavBadge count={badges.activity} />
-                                            )}
-                                            {module === "activity" && (
-                                                <NavBadge count={badges.activity} />
-                                            )}
-                                            {module === "concierge" && (
-                                                <NavBadge count={badges.concierge} />
-                                            )}
-                                        </span>
-                                        <span>{labels[module] || module}</span>
-                                    </div>
-                                </Link>
-                            ))
-                        ) : null}
+                    {/* Navigation groups */}
+                    <div ref={groupsRef} className="flex items-center space-x-1">
+                        {standalone.map((module) => renderModuleLink(module))}
+                        {groups.map((group) => {
+                            const groupModules = group.modules || [];
+                            if (groupModules.length === 1) {
+                                return renderModuleLink(groupModules[0]);
+                            }
+
+                            const active = isGroupActive(groupModules);
+                            const open = openGroup === group.key;
+
+                            return (
+                                <div key={group.key} className="relative">
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setOpenGroup((prev) => (prev === group.key ? null : group.key));
+                                        }}
+                                        className={`relative px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                                            active
+                                                ? "bg-orange-500 text-white"
+                                                : "text-gray-300 hover:bg-gray-700 hover:text-white"
+                                        }`}
+                                    >
+                                        <div className="flex flex-col items-center space-y-1">
+                                            <span className="relative material-symbols-outlined text-[20px]">
+                                                {group.icon || "menu"}
+                                                <NavBadge count={groupBadgeCount(groupModules)} />
+                                            </span>
+                                            <span className="inline-flex items-center gap-0.5">
+                                                {group.label}
+                                                <svg
+                                                    className="w-3 h-3 opacity-70"
+                                                    viewBox="0 0 20 20"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    strokeWidth="2"
+                                                >
+                                                    <path d="M6 8l4 4 4-4" />
+                                                </svg>
+                                            </span>
+                                        </div>
+                                    </button>
+                                    {open ? (
+                                        <div className="absolute left-1/2 top-full z-50 mt-1 min-w-[12rem] -translate-x-1/2 overflow-hidden rounded-lg border border-gray-600 bg-gray-700 py-1 shadow-xl">
+                                            {groupModules.map((module) => renderModuleLink(module, { inDropdown: true }))}
+                                        </div>
+                                    ) : null}
+                                </div>
+                            );
+                        })}
                     </div>
 
                     {/* Notifications, User, Settings & Language */}

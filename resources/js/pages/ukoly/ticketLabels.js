@@ -9,6 +9,7 @@ export const SECTION_META = {
     new: { label: 'Nové', key: 'new' },
     in_progress: { label: 'Probíhá', key: 'in_progress' },
     done: { label: 'Hotovo', key: 'done' },
+    other: { label: 'Ostatní', key: 'other' },
 };
 
 export function formatTicketTime(iso) {

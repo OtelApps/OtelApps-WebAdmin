@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useNotifications } from '../../context/NotificationContext';
 
 const SOURCE_LABELS = {
-    activity: 'Activity',
+    activity: 'Úkoly',
     concierge: 'Concierge',
 };
 
@@ -122,11 +122,11 @@ export function NotificationBell() {
 
                     <div className="border-t border-gray-100 px-4 py-2 dark:border-gray-700">
                         <Link
-                            to="/activity"
+                            to="/ukoly"
                             onClick={() => setOpen(false)}
                             className="block py-1.5 text-xs text-gray-500 hover:text-orange-500"
                         >
-                            Activity
+                            Úkoly
                         </Link>
                         <Link
                             to="/concierge"

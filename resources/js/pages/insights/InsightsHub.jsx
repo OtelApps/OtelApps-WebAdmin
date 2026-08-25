@@ -68,6 +68,10 @@ export function InsightsHub() {
             { label: 'Top služba', value: topModule?.label ?? '—' },
             { label: 'Počet', value: topModule?.count ?? 0 },
         ],
+        staff: [
+            { label: 'Dokončené tikety', value: kpis.completed_tickets ?? 0 },
+            { label: 'Aktivní personál', value: kpis.active_staff ?? 0 },
+        ],
     };
 
     return (
@@ -76,7 +80,7 @@ export function InsightsHub() {
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Insights</h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-2xl">
-                        Přehled rozdělený do sekcí sidebaru — Users, Transactions, Revenue a Behavior.
+                        Přehled rozdělený do sekcí sidebaru — Users, Transactions, Revenue, Behavior a Personál.
                     </p>
                 </div>
                 <div className="flex gap-2 shrink-0">

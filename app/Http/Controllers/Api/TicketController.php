@@ -8,6 +8,7 @@ use App\Services\ModuleService;
 use App\Services\TicketService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class TicketController extends Controller
 {
@@ -102,13 +103,29 @@ class TicketController extends Controller
             'priority' => ['sometimes', 'integer', 'between:0,3'],
             'due_at' => ['sometimes', 'nullable', 'date'],
             'request_text' => ['sometimes', 'string', 'max:2000'],
-            'staff_note' => ['sometimes', 'nullable', 'string', 'max:1000'],
+            'staff_note' => ['sometimes', 'nullable', 'string', 'max:2000'],
+            'status' => ['sometimes', Rule::in(['new', 'pending', 'in_progress', 'solved', 'rejected', 'archived'])],
+            'guest_display_name' => ['sometimes', 'string', 'max:255'],
+            'room_number' => ['sometimes', 'string', 'max:40'],
+            'guest_phone' => ['nullable', 'string', 'max:40'],
+            'status_guest_note' => ['nullable', 'string', 'max:500'],
+            'assigned_staff_name' => ['nullable', 'string', 'max:255'],
+            'service_module' => ['sometimes', 'string', 'max:64'],
+            'service_label' => ['sometimes', 'string', 'max:120'],
         ]);
 
         $hotel = $this->resolveHotel($request);
         $this->tickets->update($hotel, $request->user(), $id, $data);
 
         return response()->json($this->tickets->show($hotel, $request->user(), $id));
+    }
+
+    public function destroy(Request $request, string $id): JsonResponse
+    {
+        $hotel = $this->resolveHotel($request);
+        $this->tickets->destroy($hotel, $request->user(), $id);
+
+        return response()->json(['success' => true]);
     }
 
     private function resolveHotel(Request $request): Hotel

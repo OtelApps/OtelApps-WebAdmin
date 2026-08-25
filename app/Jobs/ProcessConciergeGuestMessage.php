@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\HotelConciergeConversation;
 use App\Models\HotelConciergeMessage;
+use App\Services\ConciergeBanService;
 use App\Services\ConciergeBotService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -151,6 +152,13 @@ class ProcessConciergeGuestMessage implements ShouldQueue
         $message = HotelConciergeMessage::query()->find($this->messageId);
 
         if (! $conversation || ! $message) {
+            return;
+        }
+
+        if (app(ConciergeBanService::class)->isBanned(
+            (string) $conversation->hotel_id,
+            (string) $conversation->guest_external_id,
+        )) {
             return;
         }
 

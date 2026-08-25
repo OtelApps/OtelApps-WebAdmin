@@ -25,6 +25,7 @@ class HotelServiceRequestType extends Model
         'module_key',
         'label',
         'icon_name',
+        'queue_key',
         'sort_order',
         'is_active',
     ];

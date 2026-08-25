@@ -338,7 +338,7 @@ export function NotificationProvider({ children }) {
             source: 'activity',
             title: 'Test oznámení · Otel Apps',
             body: 'Takto uvidíte nový požadavek nebo zprávu od hosta.',
-            link_path: '/activity',
+            link_path: '/ukoly',
         };
 
         if (prefs.toast_enabled !== false) {

@@ -4,7 +4,7 @@ import http from '../../lib/http';
 import { useModules } from '../../context/ModulesContext';
 import { RevenueUpsellPanel } from '../../components/dashboard/RevenueUpsellPanel';
 import { formatMoney } from '../../utils/formatMoney';
-import { STATUS_CELL } from '../activity/activityStatus';
+import { STATUS_CELL } from '../ukoly/ticketStatus';
 import { useInsightsData } from './useInsightsData';
 import { INSIGHT_SEGMENTS } from './insightsTheme';
 import { ChartCard, InsightsShell } from './InsightsShell';
@@ -73,10 +73,10 @@ export function Revenue() {
                             />
                             <button
                                 type="button"
-                                onClick={() => navigate('/activity')}
+                                onClick={() => navigate('/ukoly')}
                                 className="mt-6 w-full px-4 py-2.5 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition font-medium"
                             >
-                                Otevřít Activity
+                                Otevřít Úkoly
                             </button>
                         </div>
 

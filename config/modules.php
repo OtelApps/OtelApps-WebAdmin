@@ -63,6 +63,7 @@ return [
         'transactions' => true,
         'revenue' => true,
         'behavior' => true,
+        'staff' => true,
 
         // Finance sub-moduly
         'finance_overview' => true,
@@ -174,6 +175,7 @@ return [
         'transactions' => 'Transactions',
         'revenue' => 'Revenue',
         'behavior' => 'Behavior',
+        'staff' => 'Personál',
         'image_gallery' => 'Image Gallery',
 
         // Finance
@@ -246,6 +248,7 @@ return [
         'transactions' => 'credit-card',
         'revenue' => 'banknotes',
         'behavior' => 'finger-print',
+        'staff' => 'badge',
         'image_gallery' => 'photo',
 
         // Finance

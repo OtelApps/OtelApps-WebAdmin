@@ -38,6 +38,7 @@ Route::prefix('api')->group(function () {
     Route::post('/auth/login', [AuthController::class, 'login']);
 
     // Concierge guest — mobilní app (bez session auth)
+    Route::post('/concierge/guest/access', [ConciergeBotController::class, 'access']);
     Route::post('/concierge/guest/on-message', [ConciergeBotController::class, 'onGuestMessage']);
     Route::post('/concierge/guest/ensure-reply', [ConciergeBotController::class, 'ensureReply']);
     Route::post('/concierge/guest/escalate', [ConciergeBotController::class, 'escalate']);
@@ -226,6 +227,7 @@ Route::prefix('api')->group(function () {
     Route::get('/insights/users', [InsightsController::class, 'users']);
     Route::get('/insights/transactions', [InsightsController::class, 'transactions']);
     Route::get('/insights/behavior', [InsightsController::class, 'behavior']);
+    Route::get('/insights/staff', [InsightsController::class, 'staff']);
 
     // Activity — požadavky hostů (tiketovací systém)
     Route::get('/activity/revenue-summary', [ActivityRevenueController::class, 'summary']);
@@ -238,6 +240,9 @@ Route::prefix('api')->group(function () {
 
     // Concierge — chat host ↔ recepce
     Route::get('/concierge/realtime-config', [ConciergeChatController::class, 'realtimeConfig']);
+    Route::get('/concierge/bans', [ConciergeChatController::class, 'bansIndex']);
+    Route::get('/concierge/bans/{id}', [ConciergeChatController::class, 'bansShow']);
+    Route::post('/concierge/bans/{id}/unban', [ConciergeChatController::class, 'unbanById']);
     Route::get('/concierge/conversations', [ConciergeChatController::class, 'index']);
     Route::get('/concierge/conversations/{id}', [ConciergeChatController::class, 'show']);
     Route::post('/concierge/conversations/{id}/messages', [ConciergeChatController::class, 'storeMessage']);
@@ -247,6 +252,8 @@ Route::prefix('api')->group(function () {
     Route::post('/concierge/conversations/{id}/satisfaction-check', [ConciergeChatController::class, 'sendSatisfactionCheck']);
     Route::get('/concierge/conversations/{id}/guest-card', [ConciergeChatController::class, 'guestCard']);
     Route::post('/concierge/conversations/{id}/guest-ops', [ConciergeChatController::class, 'guestOps']);
+    Route::post('/concierge/conversations/{id}/ban', [ConciergeChatController::class, 'banGuest']);
+    Route::post('/concierge/conversations/{id}/unban', [ConciergeChatController::class, 'unbanGuest']);
     Route::post('/concierge/conversations/{id}/presence', [ConciergeChatController::class, 'presence']);
     Route::put('/concierge/conversations/{id}', [ConciergeChatController::class, 'update']);
 
@@ -259,6 +266,8 @@ Route::prefix('api')->group(function () {
     Route::post('/tickets/{id}/complete', [TicketController::class, 'complete']);
     Route::post('/tickets/{id}/reassign', [TicketController::class, 'reassign']);
     Route::patch('/tickets/{id}', [TicketController::class, 'update']);
+    Route::put('/tickets/{id}', [TicketController::class, 'update']);
+    Route::delete('/tickets/{id}', [TicketController::class, 'destroy']);
 
     // Finance — uzávěrky a platby
     Route::get('/finance/dashboard', [FinancialClosingController::class, 'dashboard']);

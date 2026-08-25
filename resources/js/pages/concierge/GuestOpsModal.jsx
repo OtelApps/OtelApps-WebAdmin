@@ -31,7 +31,7 @@ function formatDate(iso) {
 /**
  * Operátorský modal: karta hosta + rychlé akce (pokoj, checkout, poplatky).
  */
-export function GuestOpsModal({ conversationId, onClose, onUpdated }) {
+export function GuestOpsModal({ conversationId, guestBanned, onClose, onUpdated, onOpenBan, onUnbanned }) {
     const [card, setCard] = useState(null);
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState(false);
@@ -425,6 +425,60 @@ export function GuestOpsModal({ conversationId, onClose, onUpdated }) {
                                 >
                                     Uložit poznámku
                                 </button>
+                            </section>
+
+                            <section className="rounded-xl border border-red-200 p-3 dark:border-red-900/50">
+                                <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-gray-900 dark:text-white">
+                                    <span className="material-symbols-outlined text-[18px] text-red-600">
+                                        block
+                                    </span>
+                                    Chat — ban hosta
+                                </h3>
+                                {guestBanned ? (
+                                    <>
+                                        <p className="mb-2 text-xs text-gray-500">
+                                            Host má aktivní ban a chat nevidí.
+                                        </p>
+                                        <button
+                                            type="button"
+                                            disabled={busy}
+                                            onClick={async () => {
+                                                setBusy(true);
+                                                setError(null);
+                                                try {
+                                                    const { data } = await http.post(
+                                                        `/api/concierge/conversations/${conversationId}/unban`,
+                                                    );
+                                                    onUnbanned?.(data?.conversation);
+                                                    onUpdated?.(data);
+                                                } catch (err) {
+                                                    setError(
+                                                        err.response?.data?.message ||
+                                                            'Ban se nepodařilo zrušit.',
+                                                    );
+                                                } finally {
+                                                    setBusy(false);
+                                                }
+                                            }}
+                                            className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                                        >
+                                            Zrušit ban
+                                        </button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <p className="mb-2 text-xs text-gray-500">
+                                            Host uvidí důvod na obrazovce místo chatu. Chat se uzavře.
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={onOpenBan}
+                                            className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+                                        >
+                                            Zabanovat hosta
+                                        </button>
+                                    </>
+                                )}
                             </section>
                         </div>
                     ) : null}

@@ -10,6 +10,7 @@ function normalizeBootstrap(data) {
             labels: data?.mainNavigation?.labels && typeof data.mainNavigation.labels === 'object'
                 ? data.mainNavigation.labels
                 : {},
+            groups: Array.isArray(data?.mainNavigation?.groups) ? data.mainNavigation.groups : [],
         },
         map: data?.map && typeof data.map === 'object' ? data.map : {},
         sidebars: data?.sidebars && typeof data.sidebars === 'object' ? data.sidebars : {},
@@ -87,6 +88,7 @@ export function ModulesProvider({ children }) {
             enabled: bootstrap.enabled,
             mainModules: bootstrap.mainNavigation.modules,
             labels: bootstrap.mainNavigation.labels,
+            navGroups: bootstrap.mainNavigation.groups,
             moduleMap: bootstrap.map,
             isEnabled,
             isModuleRouteEnabled,

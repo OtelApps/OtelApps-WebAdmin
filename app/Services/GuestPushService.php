@@ -159,6 +159,10 @@ class GuestPushService
             return ['sent' => 0, 'tickets' => []];
         }
 
+        if (app(ConciergeBanService::class)->isBanned((string) $hotel->id, $guestExternalId)) {
+            return ['sent' => 0, 'tickets' => []];
+        }
+
         $tokens = $this->audienceResolver->loadTokens($hotel, collect([$guestExternalId]));
         if ($tokens->isEmpty()) {
             return ['sent' => 0, 'tickets' => []];

@@ -3,7 +3,6 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './Layout';
 import { Dashboard } from '../../pages/dashboard/Dashboard';
 import { Content } from '../../pages/content/Content';
-import { Activity } from '../../pages/activity/Activity';
 import { Concierge } from '../../pages/concierge/Concierge';
 import { InsightsHub } from '../../pages/insights/InsightsHub';
 import { CrmHub } from '../../pages/crm/CrmHub';
@@ -104,14 +103,7 @@ export function App() {
                             </ProtectedRoute>
                         }
                     />
-                    <Route
-                        path="activity"
-                        element={
-                            <ProtectedRoute moduleName="activity">
-                                <Activity />
-                            </ProtectedRoute>
-                        }
-                    />
+                    <Route path="activity" element={<Navigate to="/ukoly" replace />} />
                     <Route
                         path="crm"
                         element={

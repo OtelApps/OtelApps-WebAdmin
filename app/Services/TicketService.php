@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Hotel;
 use App\Models\HotelRoom;
 use App\Models\HotelServiceRequest;
+use App\Models\HotelServiceRequestType;
 use App\Models\HotelStay;
 use App\Models\HotelTicketEvent;
 use App\Models\HotelTicketQueue;
@@ -14,11 +15,24 @@ use Illuminate\Validation\ValidationException;
 
 class TicketService
 {
+    public function __construct(
+        private readonly GuestPushService $guestPushService,
+    ) {}
+
     public const PRIORITY_LABELS = [
         0 => 'Nízká',
         1 => 'Střední',
         2 => 'Vysoká',
         3 => 'Kritická',
+    ];
+
+    public const STATUS_LABELS = [
+        'new' => 'Nový',
+        'pending' => 'Čeká',
+        'in_progress' => 'Probíhá',
+        'solved' => 'Hotovo',
+        'rejected' => 'Zamítnuto',
+        'archived' => 'Archivováno',
     ];
 
     public function list(Hotel $hotel, User $user, array $filters = []): array
@@ -39,10 +53,16 @@ class TicketService
         }
 
         $tickets = $query->orderByDesc('priority')->orderBy('due_at')->orderByDesc('created_at')->get();
+        $queues = $this->queuesForHotel($hotel);
+        $queueLabels = collect($queues)->mapWithKeys(fn ($q) => [$q['key'] => $q['label']]);
 
         return [
-            'tickets' => $tickets->map(fn (HotelServiceRequest $t) => $this->listItem($t))->values()->all(),
-            'queues' => $this->queuesForHotel($hotel),
+            'tickets' => $tickets
+                ->map(fn (HotelServiceRequest $t) => $this->listItem($t, $queueLabels->all()))
+                ->values()
+                ->all(),
+            'queues' => $queues,
+            'service_types' => $this->serviceTypesForHotel($hotel, $queueLabels->all()),
         ];
     }
 
@@ -82,8 +102,10 @@ class TicketService
             $assignee = User::query()->with('userType')->find($ticket->assigned_user_id);
         }
 
+        $queueLabels = collect($this->queuesForHotel($hotel))->mapWithKeys(fn ($q) => [$q['key'] => $q['label']])->all();
+
         return [
-            'ticket' => $this->detailItem($ticket, $assignee),
+            'ticket' => $this->detailItem($ticket, $assignee, $queueLabels),
             'events' => $ticket->ticketEvents->map(fn (HotelTicketEvent $e) => [
                 'id' => $e->id,
                 'event_type' => $e->event_type,
@@ -99,6 +121,7 @@ class TicketService
                 'reassign' => $user->hasPermission('tickets.reassign'),
                 'edit' => $user->hasPermission('tickets.edit'),
                 'create' => $user->hasPermission('tickets.create'),
+                'delete' => $user->hasPermission('tickets.edit'),
             ],
         ];
     }
@@ -113,24 +136,32 @@ class TicketService
         if (! $serviceModule) {
             $serviceModule = match ($data['queue_key'] ?? '') {
                 'housekeeping' => 'laundry',
-                'room_delivery' => 'amenities',
+                'room_delivery' => 'room_service',
                 'maintenance' => 'issues_repairs',
                 'reception' => 'check_in_out',
                 default => 'other',
             };
         }
-        $queueKey = $data['queue_key'] ?? PermissionCatalog::queueForServiceModule($serviceModule);
+        $queueKey = PermissionCatalog::queueForServiceModule($serviceModule, $hotel->id);
+        if (! empty($data['queue_key']) && empty($data['service_module'])) {
+            $queueKey = $data['queue_key'];
+        }
+
+        $type = HotelServiceRequestType::query()
+            ->where('hotel_id', $hotel->id)
+            ->where('module_key', $serviceModule)
+            ->first();
 
         if (! $this->canSeeQueue($user, $queueKey) && ! $user->hasPermission('tickets.view_all')) {
             throw ValidationException::withMessages(['queue_key' => 'Nemáte přístup k této frontě.']);
         }
 
-        return DB::connection(config('otelapps.db_connection'))->transaction(function () use ($hotel, $user, $data, $serviceModule, $queueKey) {
+        return DB::connection(config('otelapps.db_connection'))->transaction(function () use ($hotel, $user, $data, $serviceModule, $queueKey, $type) {
             $ticket = HotelServiceRequest::query()->create([
                 'hotel_id' => $hotel->id,
                 'service_module' => $serviceModule,
-                'service_label' => $data['service_label'] ?? $this->labelForModule($serviceModule),
-                'service_icon' => $data['service_icon'] ?? 'task_alt',
+                'service_label' => $data['service_label'] ?? $this->labelForModule($serviceModule, $type?->label),
+                'service_icon' => $data['service_icon'] ?? $type?->icon_name ?? 'task_alt',
                 'request_text' => $data['request_text'],
                 'guest_display_name' => $data['guest_display_name'] ?? '—',
                 'room_number' => $data['room_number'],
@@ -260,9 +291,101 @@ class TicketService
             }
         }
 
+        if (array_key_exists('guest_display_name', $data) && $data['guest_display_name']) {
+            $ticket->guest_display_name = $data['guest_display_name'];
+        }
+
+        if (array_key_exists('room_number', $data) && $data['room_number']) {
+            $ticket->room_number = $data['room_number'];
+        }
+
+        if (array_key_exists('guest_phone', $data)) {
+            $ticket->guest_phone = $data['guest_phone'];
+        }
+
+        if (array_key_exists('status_guest_note', $data)) {
+            $ticket->status_guest_note = $data['status_guest_note'];
+        }
+
+        if (array_key_exists('assigned_staff_name', $data)) {
+            $ticket->assigned_staff_name = $data['assigned_staff_name'];
+            if (! $ticket->assigned_user_id) {
+                $ticket->assigned_user_name = $data['assigned_staff_name'];
+            }
+        }
+
+        if (array_key_exists('service_module', $data) && $data['service_module']) {
+            $ticket->service_module = $data['service_module'];
+            $type = HotelServiceRequestType::query()
+                ->where('hotel_id', $hotel->id)
+                ->where('module_key', $data['service_module'])
+                ->first();
+            $ticket->service_label = $data['service_label']
+                ?? $this->labelForModule($data['service_module'], $type?->label);
+            $ticket->service_icon = $type?->icon_name ?? $ticket->service_icon;
+            $ticket->queue_key = PermissionCatalog::queueForServiceModule($data['service_module'], $hotel->id);
+        }
+
+        if (array_key_exists('status', $data) && $data['status'] !== $ticket->status) {
+            $this->applyStatus($hotel, $ticket, $user, (string) $data['status'], $data['staff_note'] ?? null);
+        }
+
         $ticket->save();
 
         return $ticket->fresh();
+    }
+
+    public function destroy(Hotel $hotel, User $user, string $id): void
+    {
+        if (! $user->hasPermission('tickets.edit')) {
+            throw ValidationException::withMessages(['ticket' => 'Nemáte oprávnění smazat tiket.']);
+        }
+
+        $ticket = $this->findVisibleOrFail($hotel, $user, $id);
+        $ticket->delete();
+    }
+
+    private function applyStatus(
+        Hotel $hotel,
+        HotelServiceRequest $ticket,
+        User $user,
+        string $newStatus,
+        ?string $staffNote = null,
+    ): void {
+        $from = $ticket->status;
+        $ticket->status = $newStatus;
+
+        if ($newStatus === 'solved') {
+            $ticket->solved_at = $ticket->solved_at ?: now();
+            $ticket->completed_at = $ticket->completed_at ?: now();
+        }
+        if ($newStatus === 'archived') {
+            $ticket->archived_at = now();
+        }
+        if ($newStatus === 'in_progress' && ! $ticket->claimed_at) {
+            $ticket->claimed_at = now();
+        }
+
+        $label = self::STATUS_LABELS[$newStatus] ?? $newStatus;
+        $this->addEvent($ticket, 'status_changed', 'Status → '.$label, $user, [
+            'from' => $from,
+            'to' => $newStatus,
+        ]);
+
+        if (is_string($staffNote) && trim($staffNote) !== '') {
+            $ticket->staff_note = trim($staffNote);
+        }
+
+        if ($ticket->guest_external_id) {
+            $this->guestPushService->sendStatusChange(
+                $hotel,
+                (string) $ticket->guest_external_id,
+                (string) $ticket->service_label,
+                $ticket->request_number,
+                (string) $ticket->id,
+                $newStatus,
+            );
+        }
     }
 
     private function visibleQuery(Hotel $hotel, User $user)
@@ -339,8 +462,43 @@ class TicketService
             ->all();
     }
 
-    private function listItem(HotelServiceRequest $t): array
+    /**
+     * @param  array<string, string>  $queueLabels
+     * @return list<array<string, mixed>>
+     */
+    private function serviceTypesForHotel(Hotel $hotel, array $queueLabels): array
     {
+        return HotelServiceRequestType::query()
+            ->where('hotel_id', $hotel->id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('label')
+            ->get()
+            ->map(function (HotelServiceRequestType $type) use ($hotel, $queueLabels) {
+                $queueKey = is_string($type->queue_key) && trim($type->queue_key) !== ''
+                    ? trim($type->queue_key)
+                    : PermissionCatalog::queueForServiceModule($type->module_key, $hotel->id);
+
+                return [
+                    'module_key' => $type->module_key,
+                    'label' => $this->labelForModule($type->module_key, $type->label),
+                    'icon_name' => $type->icon_name,
+                    'queue_key' => $queueKey,
+                    'queue_label' => $queueLabels[$queueKey] ?? $queueKey,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<string, string>  $queueLabels
+     * @return array<string, mixed>
+     */
+    private function listItem(HotelServiceRequest $t, array $queueLabels = []): array
+    {
+        $queueKey = $t->queue_key;
+
         return [
             'id' => $t->id,
             'request_number' => $t->request_number,
@@ -352,11 +510,16 @@ class TicketService
             'section' => $this->sectionForStatus($t),
             'priority' => (int) $t->priority,
             'priority_label' => self::PRIORITY_LABELS[(int) $t->priority] ?? 'Střední',
-            'queue_key' => $t->queue_key,
+            'queue_key' => $queueKey,
+            'queue_label' => $queueKey ? ($queueLabels[$queueKey] ?? $queueKey) : null,
             'service_module' => $t->service_module,
             'service_label' => $t->service_label,
             'assigned_user_id' => $t->assigned_user_id,
             'assigned_user_name' => $t->assigned_user_name ?: $t->assigned_staff_name,
+            'staff_note' => $t->staff_note,
+            'status_guest_note' => $t->status_guest_note,
+            'guest_phone' => $t->guest_phone,
+            'service_icon' => $t->service_icon,
             'due_at' => optional($t->due_at)?->toIso8601String(),
             'created_at' => optional($t->created_at)?->toIso8601String(),
             'created_by_label' => $t->created_by_label,
@@ -364,9 +527,13 @@ class TicketService
         ];
     }
 
-    private function detailItem(HotelServiceRequest $t, ?User $assignee): array
+    /**
+     * @param  array<string, string>  $queueLabels
+     * @return array<string, mixed>
+     */
+    private function detailItem(HotelServiceRequest $t, ?User $assignee, array $queueLabels = []): array
     {
-        $base = $this->listItem($t);
+        $base = $this->listItem($t, $queueLabels);
         $base['staff_note'] = $t->staff_note;
         $base['status_guest_note'] = $t->status_guest_note;
         $base['created_by_user_id'] = $t->created_by_user_id;
@@ -406,6 +573,9 @@ class TicketService
         }
         if ($t->status === 'solved') {
             return 'done';
+        }
+        if (in_array($t->status, ['rejected', 'archived'], true)) {
+            return 'other';
         }
 
         return 'other';
@@ -468,14 +638,15 @@ class TicketService
         ];
     }
 
-    private function labelForModule(string $module): string
+    private function labelForModule(string $module, ?string $fallback = null): string
     {
         return match ($module) {
             'laundry', 'housekeeping' => 'Úklid',
             'amenities', 'supplies' => 'Doplňky',
             'room_service' => 'Pokojová služba',
             'issues_repairs', 'maintenance' => 'Údržba',
-            default => 'Úkol',
+            'check_in_out', 'reception' => 'Recepce',
+            default => $fallback ?: 'Úkol',
         };
     }
 }

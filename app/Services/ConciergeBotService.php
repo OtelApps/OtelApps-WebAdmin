@@ -702,6 +702,54 @@ class ConciergeBotService
     }
 
     /**
+     * Kontrola spokojenosti bez odpovědi hosta → stejné jako „Ano“ (chat se uzavře).
+     */
+    public function timeoutUnansweredSatisfactionChecks(int $afterMinutes = 5): int
+    {
+        $cutoff = now()->subMinutes($afterMinutes);
+
+        $pending = HotelConciergeMessage::query()
+            ->where('sender_type', 'system')
+            ->where('staff_display_name', self::SATISFACTION_CHECK_MARKER)
+            ->where('created_at', '<=', $cutoff)
+            ->get();
+
+        $resolved = 0;
+        foreach ($pending as $message) {
+            $conversation = HotelConciergeConversation::query()->find($message->conversation_id);
+            if (! $conversation) {
+                continue;
+            }
+
+            try {
+                $conversationId = (string) $conversation->id;
+                $this->answerSatisfactionCheck($conversation, $message, 'yes');
+                $resolved++;
+                Log::info('Concierge: kontrola spokojenosti vypršela, chat uzavřen', [
+                    'conversation_id' => $conversationId,
+                    'message_id' => $message->id,
+                ]);
+            } catch (Throwable $e) {
+                Log::warning('Concierge: auto-uzavření kontroly spokojenosti selhalo', [
+                    'conversation_id' => $message->conversation_id,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $resolved;
+    }
+
+    public static function hasPendingSatisfaction(HotelConciergeConversation $conversation): bool
+    {
+        return HotelConciergeMessage::query()
+            ->where('conversation_id', $conversation->id)
+            ->where('sender_type', 'system')
+            ->where('staff_display_name', self::SATISFACTION_CHECK_MARKER)
+            ->exists();
+    }
+
+    /**
      * Heslovité shrnutí → kartička historie → smazání celého chatu.
      *
      * @return array{status: string, summary: array{id: string, summary: string}}

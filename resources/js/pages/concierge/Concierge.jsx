@@ -4,6 +4,8 @@ import { useModules } from '../../context/ModulesContext';
 import { NotFound } from '../shared/NotFound';
 import { GuestLocaleFlag } from './GuestLocaleFlag';
 import { GuestOpsModal } from './GuestOpsModal';
+import { BanGuestModal } from './BanGuestModal';
+import { ConciergeBanDetail, ConciergeBanList } from './ConciergeBans';
 import { GuestPresenceBadge, WaitingForGuestEyes } from './GuestPresenceBadge';
 import { GUEST_LOCALES, localeMeta } from './conciergeLocales';
 import {
@@ -126,6 +128,11 @@ function ConversationListItem({ item, active, onClick }) {
                     <GuestLocaleFlag locale={item.guest_locale} size="sm" />
                     {item.guest_room ? (
                         <span className="text-xs text-gray-400">pokoj {item.guest_room}</span>
+                    ) : null}
+                    {item.guest_banned ? (
+                        <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-800 dark:bg-red-900/50 dark:text-red-200">
+                            Zabanován
+                        </span>
                     ) : null}
                 </div>
                 <p
@@ -255,7 +262,7 @@ function MessageBubble({ message, guestLocale }) {
     );
 }
 
-function ConversationThread({ conversationId, onListRefresh, realtimeMode, pollThreadRef }) {
+function ConversationThread({ conversationId, onListRefresh, onLeaveThread, realtimeMode, pollThreadRef }) {
     const [conversation, setConversation] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -265,6 +272,8 @@ function ConversationThread({ conversationId, onListRefresh, realtimeMode, pollT
     const [sendingCheck, setSendingCheck] = useState(false);
     const [live, setLive] = useState(true);
     const [guestOpsOpen, setGuestOpsOpen] = useState(false);
+    const [banOpen, setBanOpen] = useState(false);
+    const [unbanning, setUnbanning] = useState(false);
     const { guestOnline, guestTyping, notifyTyping, stopTyping } = useConciergeLiveChannel({
         conversationId,
         enabled: Boolean(conversationId),
@@ -635,7 +644,41 @@ function ConversationThread({ conversationId, onListRefresh, realtimeMode, pollT
                         Host preferuje {guestMeta.label} · klikni pro kartu hosta
                     </button>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                    {conversation.guest_banned ? (
+                        <button
+                            type="button"
+                            onClick={async () => {
+                                if (!window.confirm('Zrušit ban a obnovit hostovi přístup k chatu?')) return;
+                                setUnbanning(true);
+                                try {
+                                    const { data } = await http.post(
+                                        `/api/concierge/conversations/${conversation.id}/unban`,
+                                    );
+                                    if (data?.conversation) applyConversation(data.conversation);
+                                    onListRefresh?.({ silent: true });
+                                } finally {
+                                    setUnbanning(false);
+                                }
+                            }}
+                            disabled={unbanning}
+                            className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                            title="Zrušit ban hosta"
+                        >
+                            <span className="material-symbols-outlined text-[18px]">lock_open</span>
+                            {unbanning ? 'Ruším…' : 'Zrušit ban'}
+                        </button>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={() => setBanOpen(true)}
+                            className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+                            title="Zabanovat hosta"
+                        >
+                            <span className="material-symbols-outlined text-[18px]">block</span>
+                            Zabanovat
+                        </button>
+                    )}
                     <button
                         type="button"
                         onClick={() => setGuestOpsOpen(true)}
@@ -643,7 +686,7 @@ function ConversationThread({ conversationId, onListRefresh, realtimeMode, pollT
                         title="Karta hosta a rychlé akce"
                     >
                         <span className="material-symbols-outlined text-[18px]">badge</span>
-                        <span className="hidden sm:inline">Karta hosta</span>
+                        Karta hosta
                     </button>
                     {isWaiting && !isClosed ? (
                         <button
@@ -784,15 +827,27 @@ function ConversationThread({ conversationId, onListRefresh, realtimeMode, pollT
                                 appce, že živá obsluha převzala kontrolu (tuto zprávu v adminu neuvidíš).
                             </p>
                         </div>
-                        <button
-                            type="button"
-                            onClick={handleTakeOver}
-                            disabled={takingOver}
-                            className="inline-flex min-w-[220px] items-center justify-center gap-2 rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-violet-800 disabled:opacity-60"
-                        >
-                            <span className="material-symbols-outlined">handshake</span>
-                            {takingOver ? 'Přebírám kontrolu…' : 'Převzít kontrolu'}
-                        </button>
+                        <div className="flex flex-wrap items-center justify-center gap-2">
+                            <button
+                                type="button"
+                                onClick={handleTakeOver}
+                                disabled={takingOver}
+                                className="inline-flex min-w-[220px] items-center justify-center gap-2 rounded-xl bg-violet-700 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-violet-800 disabled:opacity-60"
+                            >
+                                <span className="material-symbols-outlined">handshake</span>
+                                {takingOver ? 'Přebírám kontrolu…' : 'Převzít kontrolu'}
+                            </button>
+                            {conversation.guest_banned ? null : (
+                                <button
+                                    type="button"
+                                    onClick={() => setBanOpen(true)}
+                                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-300 bg-white px-5 py-3 text-sm font-semibold text-red-700 hover:bg-red-50 dark:border-red-800 dark:bg-violet-950/40 dark:text-red-200"
+                                >
+                                    <span className="material-symbols-outlined">block</span>
+                                    Zabanovat hosta
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
             ) : (
@@ -877,6 +932,7 @@ function ConversationThread({ conversationId, onListRefresh, realtimeMode, pollT
             {guestOpsOpen ? (
                 <GuestOpsModal
                     conversationId={conversation.id}
+                    guestBanned={Boolean(conversation.guest_banned)}
                     onClose={() => setGuestOpsOpen(false)}
                     onUpdated={(data) => {
                         if (data?.conversation) {
@@ -886,11 +942,32 @@ function ConversationThread({ conversationId, onListRefresh, realtimeMode, pollT
                                           ...prev,
                                           guest_room: data.conversation.guest_room ?? prev.guest_room,
                                           guest_name: data.conversation.guest_name ?? prev.guest_name,
+                                          guest_banned: data.conversation.guest_banned ?? prev.guest_banned,
+                                          status: data.conversation.status ?? prev.status,
                                       }
                                     : prev,
                             );
                             onListRefresh?.({ silent: true });
                         }
+                    }}
+                    onOpenBan={() => {
+                        setGuestOpsOpen(false);
+                        setBanOpen(true);
+                    }}
+                    onUnbanned={(conv) => {
+                        if (conv) applyConversation(conv);
+                        onListRefresh?.({ silent: true });
+                    }}
+                />
+            ) : null}
+            {banOpen ? (
+                <BanGuestModal
+                    conversationId={conversation.id}
+                    guestName={conversation.guest_name}
+                    onClose={() => setBanOpen(false)}
+                    onBanned={() => {
+                        onListRefresh?.({ silent: true });
+                        onLeaveThread?.();
                     }}
                 />
             ) : null}
@@ -911,6 +988,8 @@ export function Concierge() {
     const [localeFilter, setLocaleFilter] = useState('');
     const [searchQ, setSearchQ] = useState('');
     const [debouncedQ, setDebouncedQ] = useState('');
+    const [panel, setPanel] = useState('chat');
+    const [selectedBanId, setSelectedBanId] = useState(null);
 
     useEffect(() => {
         const t = setTimeout(() => setDebouncedQ(searchQ), 400);
@@ -967,6 +1046,13 @@ export function Concierge() {
         if (isEnabled) loadConversations();
     }, [isEnabled, loadConversations]);
 
+    useEffect(() => {
+        if (!selectedId || listLoading) return;
+        if (!conversations.some((c) => c.id === selectedId)) {
+            setSelectedId(null);
+        }
+    }, [conversations, selectedId, listLoading]);
+
     const modeCounts = conversations.reduce(
         (acc, c) => {
             const mode = resolveHandlerMode(c.handler_mode);
@@ -1001,7 +1087,7 @@ export function Concierge() {
             {/* --- LEVÝ PANEL (Sidebar) --- */}
             <aside
                 className={`flex h-full w-full shrink-0 flex-col border-r border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800 lg:w-[360px] xl:w-[400px] ${
-                    selectedId ? 'hidden lg:flex' : 'flex'
+                    (panel === 'bans' ? selectedBanId : selectedId) ? 'hidden lg:flex' : 'flex'
                 }`}
             >
                 {/* Mobilní hlavička (zobrazena pouze na mobilu, pokud není otevřen chat) */}
@@ -1016,20 +1102,44 @@ export function Concierge() {
                     </div>
                     <button
                         type="button"
-                        onClick={() => loadConversations()}
+                        onClick={() => (panel === 'bans' ? null : loadConversations())}
                         className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                     >
                         <span className="material-symbols-outlined text-xl">refresh</span>
                     </button>
                 </div>
                     <div className="shrink-0 space-y-3 border-b border-gray-100 p-3 dark:border-gray-700">
+                        <div className="flex rounded-lg bg-gray-100 p-0.5 dark:bg-gray-900">
+                            {[
+                                { key: 'chat', label: 'Chat' },
+                                { key: 'bans', label: 'Bany' },
+                            ].map((p) => (
+                                <button
+                                    key={p.key}
+                                    type="button"
+                                    onClick={() => {
+                                        setPanel(p.key);
+                                        if (p.key === 'chat') setSelectedBanId(null);
+                                    }}
+                                    className={`flex-1 rounded-md px-3 py-1.5 text-xs font-semibold ${
+                                        panel === p.key
+                                            ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
+                                            : 'text-gray-500 hover:text-gray-800 dark:text-gray-400'
+                                    }`}
+                                >
+                                    {p.label}
+                                </button>
+                            ))}
+                        </div>
                         <input
                             type="search"
                             value={searchQ}
                             onChange={(e) => setSearchQ(e.target.value)}
-                            placeholder="Hledat hosta, pokoj…"
+                            placeholder={panel === 'bans' ? 'Hledat ban, hosta, důvod…' : 'Hledat hosta, pokoj…'}
                             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900 dark:text-white"
                         />
+                        {panel === 'chat' ? (
+                            <>
                         <div className="flex flex-wrap gap-2">
                             {[
                                 { key: 'all', label: 'Vše' },
@@ -1123,10 +1233,18 @@ export function Concierge() {
                                 Obnovit
                             </button>
                         </div>
+                            </>
+                        ) : null}
                     </div>
 
                     <div className="min-h-0 flex-1 overflow-y-auto">
-                        {listLoading ? (
+                        {panel === 'bans' ? (
+                            <ConciergeBanList
+                                searchQ={debouncedQ}
+                                selectedId={selectedBanId}
+                                onSelect={setSelectedBanId}
+                            />
+                        ) : listLoading ? (
                             <p className="p-6 text-center text-sm text-gray-500">Načítání…</p>
                         ) : visibleConversations.length === 0 ? (
                             <p className="p-6 text-center text-sm text-gray-500">Žádné konverzace.</p>
@@ -1145,11 +1263,28 @@ export function Concierge() {
 
                 <main
                     className={`flex min-h-0 min-w-0 flex-1 flex-col ${
-                        selectedId ? 'flex' : 'hidden lg:flex'
+                        (panel === 'bans' ? selectedBanId : selectedId) ? 'flex' : 'hidden lg:flex'
                     }`}
                 >
-
-
+                    {panel === 'bans' ? (
+                        <>
+                            {selectedBanId ? (
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedBanId(null)}
+                                    className="flex items-center gap-1 border-b border-gray-200 px-4 py-2 text-sm text-gray-600 lg:hidden dark:border-gray-700"
+                                >
+                                    <span className="material-symbols-outlined text-lg">arrow_back</span>
+                                    Zpět na seznam
+                                </button>
+                            ) : null}
+                            <ConciergeBanDetail
+                                banId={selectedBanId}
+                                onUnbanned={() => loadConversations({ silent: true })}
+                            />
+                        </>
+                    ) : (
+                        <>
                     {listError ? (
                         <div className="m-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
                             {listError}
@@ -1169,9 +1304,12 @@ export function Concierge() {
                         key={selectedId ?? 'none'}
                         conversationId={selectedId}
                         onListRefresh={loadConversations}
+                        onLeaveThread={() => setSelectedId(null)}
                         realtimeMode={realtimeMode}
                         pollThreadRef={pollThreadRef}
                     />
+                        </>
+                    )}
                 </main>
         </div>
     );

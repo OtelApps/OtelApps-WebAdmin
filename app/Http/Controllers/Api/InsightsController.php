@@ -35,6 +35,11 @@ class InsightsController extends Controller
         return $this->respond($request, fn (Hotel $hotel, string $period) => $this->insightsService->behavior($hotel, $period));
     }
 
+    public function staff(Request $request): JsonResponse
+    {
+        return $this->respond($request, fn (Hotel $hotel, string $period) => $this->insightsService->staff($hotel, $period));
+    }
+
     /**
      * @param  callable(Hotel, string): array  $builder
      */

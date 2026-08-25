@@ -7,6 +7,7 @@ use App\Jobs\ProcessConciergeGuestMessage;
 use App\Models\Hotel;
 use App\Models\HotelConciergeConversation;
 use App\Models\HotelConciergeMessage;
+use App\Services\ConciergeBanService;
 use App\Services\ConciergeBotService;
 use App\Services\ConciergeGuestOpsService;
 use App\Services\ConciergePresenceService;
@@ -22,6 +23,7 @@ class ConciergeChatController extends Controller
         private readonly ConciergeBotService $botService,
         private readonly ConciergeGuestOpsService $guestOpsService,
         private readonly ConciergePresenceService $presenceService,
+        private readonly ConciergeBanService $banService,
     ) {}
 
     private const LOCALES = ['cs', 'en', 'de', 'fr', 'pl'];
@@ -71,17 +73,31 @@ class ConciergeChatController extends Controller
             ->orderByDesc('updated_at')
             ->get();
 
-        $unreadTotal = HotelConciergeConversation::query()
+        $bannedGuests = $this->banService->activeGuestExternalIds(
+            (string) $hotel->id,
+            $conversations->pluck('guest_external_id')->filter()->all(),
+        );
+        $bannedLookup = array_fill_keys($bannedGuests, true);
+        $conversations = $conversations
+            ->reject(fn ($c) => isset($bannedLookup[trim((string) $c->guest_external_id)]))
+            ->values();
+
+        $unreadQuery = HotelConciergeConversation::query()
             ->where('hotel_id', $hotel->id)
             ->where('status', '!=', 'archived')
             ->where(function ($q) {
                 $q->where('metadata->mode', ConciergeBotService::MODE_STAFF)
                     ->orWhere('metadata->mode', ConciergeBotService::MODE_WAITING);
-            })
-            ->sum('unread_staff_count');
+            });
+        if ($bannedGuests !== []) {
+            $unreadQuery->whereNotIn('guest_external_id', $bannedGuests);
+        }
+        $unreadTotal = $unreadQuery->sum('unread_staff_count');
 
         return response()->json([
-            'conversations' => $conversations->map(fn ($c) => $this->listItem($c))->values(),
+            'conversations' => $conversations
+                ->map(fn ($c) => $this->listItem($c, isset($bannedLookup[$c->guest_external_id])))
+                ->values(),
             'unread_total' => (int) $unreadTotal,
         ]);
     }
@@ -353,6 +369,96 @@ class ConciergeChatController extends Controller
         ]);
     }
 
+    public function banGuest(Request $request, string $id): JsonResponse
+    {
+        $hotel = $this->resolveHotel($request);
+        $conversation = $this->findConversation($id);
+
+        if ($conversation->hotel_id !== $hotel->id) {
+            abort(404);
+        }
+
+        $data = $request->validate([
+            'duration_key' => ['required', 'string', Rule::in(ConciergeBanService::DURATIONS)],
+            'reason' => ['required', 'string', 'min:3', 'max:2000'],
+        ]);
+
+        try {
+            $this->banService->ban(
+                $hotel,
+                $conversation,
+                $data['duration_key'],
+                $data['reason'],
+                $request->user(),
+            );
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        $conversation->refresh()->load('messages');
+
+        return response()->json([
+            'conversation' => $this->detailPayload($conversation),
+        ], 201);
+    }
+
+    public function unbanGuest(Request $request, string $id): JsonResponse
+    {
+        $hotel = $this->resolveHotel($request);
+        $conversation = $this->findConversation($id);
+
+        if ($conversation->hotel_id !== $hotel->id) {
+            abort(404);
+        }
+
+        try {
+            $this->banService->unbanByConversation($hotel, $conversation, $request->user());
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        $conversation->refresh()->load('messages');
+
+        return response()->json([
+            'conversation' => $this->detailPayload($conversation),
+        ]);
+    }
+
+    public function bansIndex(Request $request): JsonResponse
+    {
+        $hotel = $this->resolveHotel($request);
+        $bans = $this->banService->listForHotel($hotel, $request->query('q'));
+
+        return response()->json([
+            'bans' => $bans->map(fn ($ban) => $this->banService->listPayload($ban))->values(),
+        ]);
+    }
+
+    public function bansShow(Request $request, string $id): JsonResponse
+    {
+        $hotel = $this->resolveHotel($request);
+        $ban = $this->banService->findForHotel($hotel, $id);
+
+        return response()->json([
+            'ban' => $this->banService->detailPayload($ban),
+        ]);
+    }
+
+    public function unbanById(Request $request, string $id): JsonResponse
+    {
+        $hotel = $this->resolveHotel($request);
+
+        try {
+            $ban = $this->banService->unbanById($hotel, $id, $request->user());
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'ban' => $this->banService->detailPayload($ban),
+        ]);
+    }
+
     /**
      * Heartbeat presence recepce + snapshot stavu hosta.
      */
@@ -423,7 +529,7 @@ class ConciergeChatController extends Controller
         return HotelConciergeConversation::where('id', $id)->firstOrFail();
     }
 
-    private function listItem(HotelConciergeConversation $c): array
+    private function listItem(HotelConciergeConversation $c, ?bool $guestBanned = null): array
     {
         $mode = data_get($c->metadata, 'mode', ConciergeBotService::MODE_BOT);
         if ($mode !== ConciergeBotService::MODE_STAFF && $mode !== ConciergeBotService::MODE_WAITING) {
@@ -431,6 +537,9 @@ class ConciergeChatController extends Controller
         }
         $needsAttention = ConciergeBotService::needsStaffAttention($mode);
         $guestPresence = $this->presenceService->peerSnapshot($c, 'guest');
+        if ($guestBanned === null) {
+            $guestBanned = $this->banService->isBanned((string) $c->hotel_id, (string) $c->guest_external_id);
+        }
 
         return [
             'id' => $c->id,
@@ -446,6 +555,7 @@ class ConciergeChatController extends Controller
             'assigned_staff_name' => $c->assigned_staff_name,
             'guest_online' => $guestPresence['in_chat'],
             'guest_typing' => $guestPresence['typing'],
+            'guest_banned' => $guestBanned,
         ];
     }
 

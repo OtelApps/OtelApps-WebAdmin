@@ -57,7 +57,10 @@ return [
         'admin' => 'Administrace',
     ],
 
-    /** Mapování service_module → queue_key */
+    /**
+     * Výchozí mapování service_module → queue_key.
+     * Hotel může přepsat sloupcem hotel_service_request_types.queue_key.
+     */
     'service_module_queues' => [
         'laundry' => 'housekeeping',
         'housekeeping' => 'housekeeping',

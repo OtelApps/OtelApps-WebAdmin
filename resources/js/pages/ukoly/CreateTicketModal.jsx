@@ -1,11 +1,21 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import http from '../../lib/http';
 
-export function CreateTicketModal({ open, onClose, onCreated, queues = [] }) {
+const FALLBACK_TYPES = [
+    { module_key: 'room_service', label: 'Pokojová služba', queue_key: 'room_delivery', queue_label: 'Donáška do pokoje' },
+    { module_key: 'amenities', label: 'Doplňky', queue_key: 'room_delivery', queue_label: 'Donáška do pokoje' },
+    { module_key: 'laundry', label: 'Úklid', queue_key: 'housekeeping', queue_label: 'Úklid' },
+    { module_key: 'issues_repairs', label: 'Údržba', queue_key: 'maintenance', queue_label: 'Údržba' },
+];
+
+export function CreateTicketModal({ open, onClose, onCreated, queues = [], serviceTypes = [] }) {
+    const types = serviceTypes.length ? serviceTypes : FALLBACK_TYPES;
+    const defaultModule = types.find((t) => t.module_key === 'room_service')?.module_key || types[0]?.module_key || 'room_service';
+
     const [form, setForm] = useState({
         room_number: '',
         request_text: '',
-        queue_key: queues[0]?.key || 'housekeeping',
+        service_module: defaultModule,
         priority: 2,
         due_at: '',
         guest_display_name: '',
@@ -13,9 +23,29 @@ export function CreateTicketModal({ open, onClose, onCreated, queues = [] }) {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
 
+    const selectedType = useMemo(
+        () => types.find((t) => t.module_key === form.service_module) || types[0],
+        [types, form.service_module],
+    );
+    const derivedQueue =
+        queues.find((q) => q.key === selectedType?.queue_key) ||
+        (selectedType
+            ? { key: selectedType.queue_key, label: selectedType.queue_label || selectedType.queue_key }
+            : null);
+
     if (!open) return null;
 
     const update = (key, value) => setForm((f) => ({ ...f, [key]: value }));
+
+    const resetForm = () =>
+        setForm({
+            room_number: '',
+            request_text: '',
+            service_module: defaultModule,
+            priority: 2,
+            due_at: '',
+            guest_display_name: '',
+        });
 
     const submit = async (e) => {
         e.preventDefault();
@@ -26,28 +56,11 @@ export function CreateTicketModal({ open, onClose, onCreated, queues = [] }) {
                 ...form,
                 due_at: form.due_at || null,
                 guest_display_name: form.guest_display_name || 'Host',
-                service_module:
-                    form.queue_key === 'housekeeping'
-                        ? 'laundry'
-                        : form.queue_key === 'room_delivery'
-                          ? 'amenities'
-                          : form.queue_key === 'maintenance'
-                            ? 'issues_repairs'
-                            : form.queue_key === 'reception'
-                              ? 'check_in_out'
-                              : 'other',
             };
             const { data } = await http.post('/api/tickets', payload);
             onCreated(data);
             onClose();
-            setForm({
-                room_number: '',
-                request_text: '',
-                queue_key: queues[0]?.key || 'housekeeping',
-                priority: 2,
-                due_at: '',
-                guest_display_name: '',
-            });
+            resetForm();
         } catch (err) {
             setError(err.response?.data?.message || 'Vytvoření úkolu selhalo.');
         } finally {
@@ -91,22 +104,24 @@ export function CreateTicketModal({ open, onClose, onCreated, queues = [] }) {
                         </div>
                     </div>
                     <div>
-                        <label className="mb-1 block text-xs font-medium text-gray-500">Fronta</label>
+                        <label className="mb-1 block text-xs font-medium text-gray-500">Typ služby</label>
                         <select
                             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                            value={form.queue_key}
-                            onChange={(e) => update('queue_key', e.target.value)}
+                            value={form.service_module}
+                            onChange={(e) => update('service_module', e.target.value)}
                         >
-                            {(queues.length ? queues : [
-                                { key: 'housekeeping', label: 'Úklid' },
-                                { key: 'room_delivery', label: 'Donáška' },
-                                { key: 'maintenance', label: 'Údržba' },
-                            ]).map((q) => (
-                                <option key={q.key} value={q.key}>
-                                    {q.label}
+                            {types.map((t) => (
+                                <option key={t.module_key} value={t.module_key}>
+                                    {t.label}
                                 </option>
                             ))}
                         </select>
+                        {derivedQueue ? (
+                            <p className="mt-1.5 text-xs text-gray-500">
+                                Fronta se přiřadí automaticky:{' '}
+                                <span className="font-medium text-gray-700">{derivedQueue.label}</span>
+                            </p>
+                        ) : null}
                     </div>
                     <div>
                         <label className="mb-1 block text-xs font-medium text-gray-500">Popis</label>
@@ -116,7 +131,7 @@ export function CreateTicketModal({ open, onClose, onCreated, queues = [] }) {
                             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
                             value={form.request_text}
                             onChange={(e) => update('request_text', e.target.value)}
-                            placeholder="Host požaduje 4 extra ručníky do pokoje."
+                            placeholder="Snídaně a cappuccino na pokoj."
                         />
                     </div>
                     <div className="grid grid-cols-2 gap-3">

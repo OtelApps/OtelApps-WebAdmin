@@ -259,7 +259,7 @@ class NotificationService
                     $row->forceFill([
                         'title' => $title,
                         'body' => $body,
-                        'link_path' => '/activity',
+                        'link_path' => '/ukoly',
                         'read_at' => null,
                     ])->save();
                 }
@@ -273,7 +273,7 @@ class NotificationService
                 'source_id' => $request->id,
                 'title' => $title,
                 'body' => $body,
-                'link_path' => '/activity',
+                'link_path' => '/ukoly',
                 'created_at' => now(),
             ]);
         }
