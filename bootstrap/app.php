@@ -11,6 +11,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Railway terminates TLS at the edge. Trust X-Forwarded-Proto so Vite
+        // assets are https:// — otherwise the browser blocks them (mixed content)
+        // and the UI stays on "Loading...".
+        $middleware->trustProxies(at: '*');
         $middleware->validateCsrfTokens(except: [
             'api/concierge/guest/*',
         ]);

@@ -31,10 +31,13 @@ RUN composer install --no-dev --optimize-autoloader --no-interaction --no-script
     && chmod +x /app/start-container.sh
 
 ENV IS_LARAVEL=true
-ENV SERVER_NAME=:80
+ENV PORT=8080
+ENV SERVER_NAME=:8080
 ENV APP_ENV=production
 ENV APP_DEBUG=false
+ENV LOG_CHANNEL=stderr
+ENV LOG_LEVEL=error
 
-EXPOSE 80
+EXPOSE 8080
 
 CMD ["/app/start-container.sh"]
