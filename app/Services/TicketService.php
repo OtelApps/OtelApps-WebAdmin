@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Hotel;
+use App\Models\HotelCrmGuestProfile;
 use App\Models\HotelRoom;
 use App\Models\HotelServiceRequest;
 use App\Models\HotelServiceRequestType;
@@ -103,6 +104,7 @@ class TicketService
         }
 
         $queueLabels = collect($this->queuesForHotel($hotel))->mapWithKeys(fn ($q) => [$q['key'] => $q['label']])->all();
+        $canMutate = $this->canMutateAssigned($user, $ticket);
 
         return [
             'ticket' => $this->detailItem($ticket, $assignee, $queueLabels),
@@ -117,11 +119,12 @@ class TicketService
             'room' => $this->roomContext($hotel, $ticket->room_number),
             'permissions' => [
                 'claim' => $user->hasPermission('tickets.claim'),
-                'complete' => $user->hasPermission('tickets.close'),
+                'complete' => $user->hasPermission('tickets.close') && $canMutate,
                 'reassign' => $user->hasPermission('tickets.reassign'),
-                'edit' => $user->hasPermission('tickets.edit'),
+                'edit' => $user->hasPermission('tickets.edit') && $canMutate,
                 'create' => $user->hasPermission('tickets.create'),
-                'delete' => $user->hasPermission('tickets.edit'),
+                'delete' => $user->hasPermission('tickets.edit') && $canMutate,
+                'comment' => $user->hasPermission('tickets.edit') && $canMutate,
             ],
         ];
     }
@@ -218,6 +221,8 @@ class TicketService
         }
 
         $ticket = $this->findVisibleOrFail($hotel, $user, $id);
+        $this->assertCanMutateAssigned($user, $ticket);
+
         $from = $ticket->status;
         $ticket->status = 'solved';
         $ticket->solved_at = now();
@@ -265,6 +270,7 @@ class TicketService
         }
 
         $ticket = $this->findVisibleOrFail($hotel, $user, $id);
+        $this->assertCanMutateAssigned($user, $ticket);
 
         if (array_key_exists('priority', $data) && (int) $data['priority'] !== (int) $ticket->priority) {
             $from = $ticket->priority;
@@ -289,6 +295,11 @@ class TicketService
             if ($data['staff_note']) {
                 $this->addEvent($ticket, 'note', $data['staff_note'], $user);
             }
+        }
+
+        if (array_key_exists('comment', $data) && filled($data['comment'])) {
+            $this->addEvent($ticket, 'note', (string) $data['comment'], $user);
+            $ticket->staff_note = (string) $data['comment'];
         }
 
         if (array_key_exists('guest_display_name', $data) && $data['guest_display_name']) {
@@ -342,7 +353,43 @@ class TicketService
         }
 
         $ticket = $this->findVisibleOrFail($hotel, $user, $id);
+        $this->assertCanMutateAssigned($user, $ticket);
         $ticket->delete();
+    }
+
+    public function addComment(Hotel $hotel, User $user, string $id, string $body): HotelServiceRequest
+    {
+        if (! $user->hasPermission('tickets.edit')) {
+            throw ValidationException::withMessages(['ticket' => 'Nemáte oprávnění přidat komentář.']);
+        }
+
+        $ticket = $this->findVisibleOrFail($hotel, $user, $id);
+        $this->assertCanMutateAssigned($user, $ticket);
+
+        $ticket->staff_note = $body;
+        $ticket->save();
+        $this->addEvent($ticket, 'note', $body, $user);
+
+        return $ticket->fresh();
+    }
+
+    private function canMutateAssigned(User $user, HotelServiceRequest $ticket): bool
+    {
+        if ($user->isSuperAdmin()) {
+            return true;
+        }
+
+        return $ticket->assigned_user_id !== null
+            && (int) $ticket->assigned_user_id === (int) $user->id;
+    }
+
+    private function assertCanMutateAssigned(User $user, HotelServiceRequest $ticket): void
+    {
+        if (! $this->canMutateAssigned($user, $ticket)) {
+            throw ValidationException::withMessages([
+                'ticket' => 'Upravit lze jen úkol přiřazený vám.',
+            ]);
+        }
     }
 
     private function applyStatus(
@@ -595,6 +642,8 @@ class TicketService
                 'floor' => null,
                 'room_type' => null,
                 'guest_name' => null,
+                'guest_key' => null,
+                'guest_phone' => null,
                 'stay_range' => null,
             ];
         }
@@ -605,6 +654,8 @@ class TicketService
                 'floor' => null,
                 'room_type' => null,
                 'guest_name' => null,
+                'guest_key' => null,
+                'guest_phone' => null,
                 'stay_range' => null,
             ];
         }
@@ -624,6 +675,15 @@ class TicketService
             ?? $primaryGuest?->full_name
             ?? null;
 
+        $guestKey = null;
+        $profileId = $primaryGuest?->guest_profile_id ?: $stay?->primary_guest_profile_id;
+        if ($profileId) {
+            $guestKey = HotelCrmGuestProfile::query()
+                ->where('hotel_id', $hotel->id)
+                ->where('id', $profileId)
+                ->value('guest_key');
+        }
+
         $stayRange = null;
         if ($stay?->check_in_at && $stay?->check_out_at) {
             $stayRange = $stay->check_in_at->format('j. n. Y').' – '.$stay->check_out_at->format('j. n. Y');
@@ -634,6 +694,8 @@ class TicketService
             'floor' => $room->floor,
             'room_type' => $room->roomType?->title ?? null,
             'guest_name' => $guestName,
+            'guest_key' => $guestKey,
+            'guest_phone' => $primaryGuest?->phone,
             'stay_range' => $stayRange,
         ];
     }

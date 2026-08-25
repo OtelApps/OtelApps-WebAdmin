@@ -262,9 +262,14 @@ function MessageBubble({ message, guestLocale }) {
     );
 }
 
-function ConversationThread({ conversationId, onListRefresh, onLeaveThread, realtimeMode, pollThreadRef }) {
-    const [conversation, setConversation] = useState(null);
-    const [loading, setLoading] = useState(false);
+function ConversationThread({ conversationId, listSeed, onListRefresh, onLeaveThread, realtimeMode, pollThreadRef }) {
+    const [conversation, setConversation] = useState(() =>
+        listSeed?.id === conversationId
+            ? { ...listSeed, messages: listSeed.messages ?? [] }
+            : null,
+    );
+    const [loading, setLoading] = useState(Boolean(conversationId));
+    const [messagesLoading, setMessagesLoading] = useState(Boolean(conversationId));
     const [error, setError] = useState(null);
     const [reply, setReply] = useState('');
     const [sending, setSending] = useState(false);
@@ -370,6 +375,7 @@ function ConversationThread({ conversationId, onListRefresh, onLeaveThread, real
         const id = conversationIdRef.current;
         if (!id) return;
         setLoading(true);
+        setMessagesLoading(true);
         setError(null);
         http
             .get(`/api/concierge/conversations/${id}`)
@@ -384,7 +390,10 @@ function ConversationThread({ conversationId, onListRefresh, onLeaveThread, real
                 setError(err.response?.data?.message || 'Konverzaci se nepodařilo načíst.');
             })
             .finally(() => {
-                if (id === conversationIdRef.current) setLoading(false);
+                if (id === conversationIdRef.current) {
+                    setLoading(false);
+                    setMessagesLoading(false);
+                }
             });
     }, [applyConversation]);
 
@@ -392,7 +401,6 @@ function ConversationThread({ conversationId, onListRefresh, onLeaveThread, real
         const id = conversationId;
         const controller = new AbortController();
 
-        setConversation(null);
         setReply('');
         setError(null);
         setTakingOver(false);
@@ -400,11 +408,26 @@ function ConversationThread({ conversationId, onListRefresh, onLeaveThread, real
         fingerprintRef.current = '';
 
         if (!id) {
+            setConversation(null);
             setLoading(false);
+            setMessagesLoading(false);
             return undefined;
         }
 
+        // Okamžitý shell z položky seznamu — header hned, zprávy dopozději.
+        if (listSeed?.id === id) {
+            setConversation((prev) => {
+                if (prev?.id === id && (prev.messages?.length ?? 0) > 0) {
+                    return prev;
+                }
+                return { ...listSeed, messages: listSeed.messages ?? [] };
+            });
+        } else {
+            setConversation(null);
+        }
+
         setLoading(true);
+        setMessagesLoading(true);
 
         (async () => {
             try {
@@ -415,6 +438,8 @@ function ConversationThread({ conversationId, onListRefresh, onLeaveThread, real
 
                 applyConversation(data.conversation, { scrollIfNearBottom: false });
                 setLive(true);
+                setMessagesLoading(false);
+                setLoading(false);
 
                 const readRes = await http.post(`/api/concierge/conversations/${id}/read`, null, {
                     signal: controller.signal,
@@ -429,12 +454,14 @@ function ConversationThread({ conversationId, onListRefresh, onLeaveThread, real
                 if (err?.code === 'ERR_CANCELED' || err?.name === 'CanceledError') return;
                 if (id !== conversationIdRef.current) return;
                 setError(err.response?.data?.message || 'Konverzaci se nepodařilo načíst.');
-            } finally {
-                if (id === conversationIdRef.current) setLoading(false);
+                setMessagesLoading(false);
+                setLoading(false);
             }
         })();
 
         return () => controller.abort();
+        // listSeed záměrně jen při změně id — seed z aktuálního kliku
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [conversationId, applyConversation, onListRefresh]);
 
     useEffect(() => {
@@ -538,21 +565,17 @@ function ConversationThread({ conversationId, onListRefresh, onLeaveThread, real
         );
     }
 
-    const showingWrongThread = conversation && conversation.id !== conversationId;
-    const stillLoading = loading || showingWrongThread || (!conversation && !error);
+    const shell =
+        conversation?.id === conversationId
+            ? conversation
+            : listSeed?.id === conversationId
+              ? { ...listSeed, messages: listSeed.messages ?? [] }
+              : null;
 
-    if (stillLoading) {
-        return (
-            <div className="flex flex-1 items-center justify-center bg-gray-50/80 dark:bg-gray-900/50">
-                <p className="text-gray-500">Načítání konverzace…</p>
-            </div>
-        );
-    }
-
-    if (error || !conversation) {
+    if (error && !shell) {
         return (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8">
-                <p className="text-red-600">{error || 'Konverzaci se nepodařilo načíst.'}</p>
+                <p className="text-red-600">{error}</p>
                 <button type="button" onClick={load} className="text-sm text-orange-600 underline">
                     Zkusit znovu
                 </button>
@@ -560,20 +583,29 @@ function ConversationThread({ conversationId, onListRefresh, onLeaveThread, real
         );
     }
 
-    const guestMeta = localeMeta(conversation.guest_locale);
+    if (!shell) {
+        return (
+            <div className="flex flex-1 items-center justify-center bg-gray-50/80 dark:bg-gray-900/50">
+                <p className="text-gray-500">Načítání konverzace…</p>
+            </div>
+        );
+    }
+
+    const guestMeta = localeMeta(shell.guest_locale);
     const mode =
-        conversation.handler_mode === 'waiting' || conversation.handler_mode === 'staff'
-            ? conversation.handler_mode
+        shell.handler_mode === 'waiting' || shell.handler_mode === 'staff'
+            ? shell.handler_mode
             : 'bot';
     const isBotMode = mode === 'bot';
     const isWaiting = mode === 'waiting';
     const isStaffMode = mode === 'staff';
-    const isClosed = conversation.status === 'closed' || conversation.status === 'archived';
+    const isClosed = shell.status === 'closed' || shell.status === 'archived';
     const canCompose = isStaffMode || isWaiting;
-    const hasPendingSatisfaction = (conversation.messages ?? []).some(
+    const messages = shell.messages ?? [];
+    const waitingForMessages = messagesLoading || loading;
+    const hasPendingSatisfaction = messages.some(
         (m) => m.is_satisfaction_check && !m.satisfaction_answer,
     );
-    const messages = conversation.messages ?? [];
     const lastMsg = messages[messages.length - 1];
     const waitingForGuestReply =
         canCompose &&
@@ -610,14 +642,14 @@ function ConversationThread({ conversationId, onListRefresh, onLeaveThread, real
                             title="Otevřít kartu hosta a rychlé akce"
                         >
                             <h2 className="truncate text-lg font-semibold text-gray-900 underline-offset-2 group-hover:underline dark:text-white">
-                                {conversation.guest_name}
+                                {shell.guest_name}
                             </h2>
                             <span className="material-symbols-outlined shrink-0 text-[18px] text-orange-500 opacity-70 group-hover:opacity-100">
                                 open_in_new
                             </span>
                         </button>
                         <GuestPresenceBadge online={guestOnline} typing={guestTyping} />
-                        <GuestLocaleFlag locale={conversation.guest_locale} size="lg" showLabel />
+                        <GuestLocaleFlag locale={shell.guest_locale} size="lg" showLabel />
                         {isBotMode ? (
                             <span className="inline-flex items-center gap-1 rounded-full bg-violet-600 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">
                                 <span className="material-symbols-outlined text-[14px]">smart_toy</span>
@@ -640,12 +672,12 @@ function ConversationThread({ conversationId, onListRefresh, onLeaveThread, real
                         onClick={() => setGuestOpsOpen(true)}
                         className="text-left text-xs text-gray-500 hover:text-orange-600 dark:text-gray-400 dark:hover:text-orange-400"
                     >
-                        {conversation.guest_room ? `Pokoj ${conversation.guest_room} · ` : ''}
+                        {shell.guest_room ? `Pokoj ${shell.guest_room} · ` : ''}
                         Host preferuje {guestMeta.label} · klikni pro kartu hosta
                     </button>
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                    {conversation.guest_banned ? (
+                    {shell.guest_banned ? (
                         <button
                             type="button"
                             onClick={async () => {
@@ -653,7 +685,7 @@ function ConversationThread({ conversationId, onListRefresh, onLeaveThread, real
                                 setUnbanning(true);
                                 try {
                                     const { data } = await http.post(
-                                        `/api/concierge/conversations/${conversation.id}/unban`,
+                                        `/api/concierge/conversations/${shell.id}/unban`,
                                     );
                                     if (data?.conversation) applyConversation(data.conversation);
                                     onListRefresh?.({ silent: true });
@@ -757,7 +789,7 @@ function ConversationThread({ conversationId, onListRefresh, onLeaveThread, real
                         odpověď (tím chat převezmeš), nebo kliknout „Převzít kontrolu“.
                     </p>
                 </div>
-            ) : conversation.translation_enabled ? (
+            ) : shell.translation_enabled ? (
                 <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
                     <span className="material-symbols-outlined mr-1 align-middle text-base">translate</span>
                     Chat řídíš ty. Hostovy zprávy vidíš v češtině; ty odpovídáš česky — host uvidí překlad do{' '}
@@ -784,11 +816,14 @@ function ConversationThread({ conversationId, onListRefresh, onLeaveThread, real
                 }`}
             >
                 <div className="mx-auto flex max-w-2xl flex-col gap-3">
+                    {waitingForMessages && messages.length === 0 ? (
+                        <p className="py-10 text-center text-sm text-gray-500">Načítám zprávy…</p>
+                    ) : null}
                     {messages.map((msg) => (
                         <MessageBubble
                             key={msg.id}
                             message={msg}
-                            guestLocale={conversation.guest_locale}
+                            guestLocale={shell.guest_locale}
                         />
                     ))}
                     {guestTyping ? (
@@ -837,7 +872,7 @@ function ConversationThread({ conversationId, onListRefresh, onLeaveThread, real
                                 <span className="material-symbols-outlined">handshake</span>
                                 {takingOver ? 'Přebírám kontrolu…' : 'Převzít kontrolu'}
                             </button>
-                            {conversation.guest_banned ? null : (
+                            {shell.guest_banned ? null : (
                                 <button
                                     type="button"
                                     onClick={() => setBanOpen(true)}
@@ -901,7 +936,7 @@ function ConversationThread({ conversationId, onListRefresh, onLeaveThread, real
                                 disabled={sending || isClosed || !canCompose}
                                 placeholder={
                                     isClosed
-                                        ? conversation.status === 'archived'
+                                        ? shell.status === 'archived'
                                           ? 'Konverzace je archivovaná'
                                           : 'Konverzace je uzavřená'
                                         : isWaiting
@@ -931,8 +966,8 @@ function ConversationThread({ conversationId, onListRefresh, onLeaveThread, real
 
             {guestOpsOpen ? (
                 <GuestOpsModal
-                    conversationId={conversation.id}
-                    guestBanned={Boolean(conversation.guest_banned)}
+                    conversationId={shell.id}
+                    guestBanned={Boolean(shell.guest_banned)}
                     onClose={() => setGuestOpsOpen(false)}
                     onUpdated={(data) => {
                         if (data?.conversation) {
@@ -962,8 +997,8 @@ function ConversationThread({ conversationId, onListRefresh, onLeaveThread, real
             ) : null}
             {banOpen ? (
                 <BanGuestModal
-                    conversationId={conversation.id}
-                    guestName={conversation.guest_name}
+                    conversationId={shell.id}
+                    guestName={shell.guest_name}
                     onClose={() => setBanOpen(false)}
                     onBanned={() => {
                         onListRefresh?.({ silent: true });
@@ -1063,6 +1098,7 @@ export function Concierge() {
     );
 
     const visibleConversations = conversations
+        .filter((c) => Boolean(c.last_message_iso || c.preview))
         .filter((c) => (modeFilter === 'all' ? true : resolveHandlerMode(c.handler_mode) === modeFilter))
         .slice()
         .sort((a, b) => {
@@ -1303,6 +1339,7 @@ export function Concierge() {
                     <ConversationThread
                         key={selectedId ?? 'none'}
                         conversationId={selectedId}
+                        listSeed={conversations.find((c) => c.id === selectedId) || null}
                         onListRefresh={loadConversations}
                         onLeaveThread={() => setSelectedId(null)}
                         realtimeMode={realtimeMode}

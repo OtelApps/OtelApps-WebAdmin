@@ -35,7 +35,8 @@ class ConciergeChatController extends Controller
         $hotel = $this->resolveHotel($request);
         $query = HotelConciergeConversation::query()
             ->where('hotel_id', $hotel->id)
-            ->where('status', '!=', 'archived');
+            ->where('status', 'open')
+            ->hasGuestMessages();
 
         if ($request->boolean('unread_only')) {
             $query->where('unread_staff_count', '>', 0)
@@ -80,6 +81,11 @@ class ConciergeChatController extends Controller
         $bannedLookup = array_fill_keys($bannedGuests, true);
         $conversations = $conversations
             ->reject(fn ($c) => isset($bannedLookup[trim((string) $c->guest_external_id)]))
+            ->unique(function ($c) {
+                $guest = trim((string) $c->guest_external_id);
+
+                return $guest !== '' ? $guest : (string) $c->id;
+            })
             ->values();
 
         $unreadQuery = HotelConciergeConversation::query()

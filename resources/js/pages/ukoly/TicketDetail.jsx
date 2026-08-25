@@ -1,4 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { shareTicketToWhatsApp } from '../../lib/whatsappShare';
+import http from '../../lib/http';
+import { GuestDetailModal } from '../crm/guests/GuestDetailModal';
 import { PRIORITY_STYLES, formatTicketTime, eventLabel } from './ticketLabels';
 import { StatusCell } from './ticketStatus';
 
@@ -8,8 +11,29 @@ const AVAIL = {
     offline: { label: 'Offline', className: 'text-gray-400' },
 };
 
-export function TicketDetail({ detail, loading, onClaim, onComplete, onStatus, onEdit, onDelete, acting }) {
+export function TicketDetail({
+    detail,
+    loading,
+    onClaim,
+    onComplete,
+    onStatus,
+    onEdit,
+    onDelete,
+    onCommented,
+    acting,
+}) {
     const [note, setNote] = useState('');
+    const [comment, setComment] = useState('');
+    const [commentSaving, setCommentSaving] = useState(false);
+    const [commentError, setCommentError] = useState('');
+    const [guestKey, setGuestKey] = useState(null);
+
+    useEffect(() => {
+        setNote('');
+        setComment('');
+        setCommentError('');
+        setGuestKey(null);
+    }, [detail?.ticket?.id]);
 
     if (loading && !detail) {
         return (
@@ -39,6 +63,30 @@ export function TicketDetail({ detail, loading, onClaim, onComplete, onStatus, o
         permissions.complete &&
         ticket.status === 'in_progress';
     const canEdit = Boolean(permissions.edit);
+    const canComment = Boolean(permissions.comment ?? permissions.edit);
+    const displayGuestName = room?.guest_name || ticket.guest_display_name;
+    const crmGuestKey = room?.guest_key || null;
+
+    const submitComment = async (e) => {
+        e.preventDefault();
+        const body = comment.trim();
+        if (!body || !ticket?.id) return;
+        setCommentSaving(true);
+        setCommentError('');
+        try {
+            await http.patch(`/api/tickets/${ticket.id}`, { comment: body });
+            setComment('');
+            await onCommented?.();
+        } catch (err) {
+            setCommentError(
+                err.response?.data?.message
+                || err.response?.data?.errors?.ticket?.[0]
+                || 'Komentář se nepodařilo uložit.',
+            );
+        } finally {
+            setCommentSaving(false);
+        }
+    };
 
     return (
         <div className="flex h-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white">
@@ -52,26 +100,37 @@ export function TicketDetail({ detail, loading, onClaim, onComplete, onStatus, o
                             {ticket.guest_display_name ? ` · ${ticket.guest_display_name}` : ''}
                         </p>
                     </div>
-                    {canEdit ? (
-                        <div className="flex shrink-0 items-center gap-1">
-                            <button
-                                type="button"
-                                onClick={() => onEdit(ticket)}
-                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-blue-500 hover:bg-blue-50"
-                                title="Upravit"
-                            >
-                                <span className="material-symbols-outlined text-[22px]">edit</span>
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => onDelete(ticket)}
-                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-red-500 hover:bg-red-50"
-                                title="Smazat"
-                            >
-                                <span className="material-symbols-outlined text-[22px]">cancel</span>
-                            </button>
-                        </div>
-                    ) : null}
+                    <div className="flex shrink-0 items-center gap-1">
+                        <button
+                            type="button"
+                            onClick={() => shareTicketToWhatsApp(ticket, room)}
+                            className="inline-flex h-9 items-center gap-1 rounded-lg px-2 text-emerald-600 hover:bg-emerald-50"
+                            title="Sdílet na WhatsApp"
+                        >
+                            <span className="material-symbols-outlined text-[22px]">chat</span>
+                            <span className="hidden text-xs font-semibold sm:inline">WhatsApp</span>
+                        </button>
+                        {canEdit ? (
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={() => onEdit(ticket)}
+                                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-blue-500 hover:bg-blue-50"
+                                    title="Upravit"
+                                >
+                                    <span className="material-symbols-outlined text-[22px]">edit</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => onDelete(ticket)}
+                                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-red-500 hover:bg-red-50"
+                                    title="Smazat"
+                                >
+                                    <span className="material-symbols-outlined text-[22px]">cancel</span>
+                                </button>
+                            </>
+                        ) : null}
+                    </div>
                 </div>
                 <div className="mt-3">
                     <StatusCell
@@ -171,6 +230,31 @@ export function TicketDetail({ detail, loading, onClaim, onComplete, onStatus, o
                     </ol>
                 </section>
 
+                {canComment ? (
+                    <section className="mb-5">
+                        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                            Komentář
+                        </h3>
+                        <form onSubmit={submitComment} className="space-y-2">
+                            <textarea
+                                rows={2}
+                                value={comment}
+                                onChange={(e) => setComment(e.target.value)}
+                                placeholder="Poznámka pro tým…"
+                                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                            />
+                            {commentError ? <p className="text-sm text-red-600">{commentError}</p> : null}
+                            <button
+                                type="submit"
+                                disabled={commentSaving || !comment.trim()}
+                                className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                            >
+                                {commentSaving ? 'Ukládám…' : 'Přidat komentář'}
+                            </button>
+                        </form>
+                    </section>
+                ) : null}
+
                 {room ? (
                     <section className="rounded-lg border border-gray-200 bg-slate-50 p-3">
                         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
@@ -181,8 +265,21 @@ export function TicketDetail({ detail, loading, onClaim, onComplete, onStatus, o
                             {room.floor != null ? ` · ${room.floor}. patro` : ''}
                             {room.room_type ? ` · ${room.room_type}` : ''}
                         </p>
-                        {room.guest_name ? (
-                            <p className="mt-1 text-sm text-gray-600">Host: {room.guest_name}</p>
+                        {displayGuestName ? (
+                            crmGuestKey ? (
+                                <button
+                                    type="button"
+                                    onClick={() => setGuestKey(crmGuestKey)}
+                                    className="mt-1 text-left text-sm font-medium text-orange-600 hover:underline"
+                                >
+                                    Host: {displayGuestName}
+                                </button>
+                            ) : (
+                                <p className="mt-1 text-sm text-gray-600">Host: {displayGuestName}</p>
+                            )
+                        ) : null}
+                        {room.guest_phone ? (
+                            <p className="text-xs text-gray-500">{room.guest_phone}</p>
                         ) : null}
                         {room.stay_range ? (
                             <p className="text-xs text-gray-500">Pobyt: {room.stay_range}</p>
@@ -224,7 +321,16 @@ export function TicketDetail({ detail, loading, onClaim, onComplete, onStatus, o
                 {!canClaim && !canComplete && ticket.status === 'solved' ? (
                     <p className="text-center text-sm text-emerald-600">Úkol je hotový</p>
                 ) : null}
+                {!canClaim && !canComplete && ticket.status !== 'solved' && ticket.assigned_user_id && !canEdit ? (
+                    <p className="text-center text-sm text-gray-500">
+                        Úkol je přiřazen jinému uživateli — stav mění jen on.
+                    </p>
+                ) : null}
             </div>
+
+            {guestKey ? (
+                <GuestDetailModal guestKey={guestKey} onClose={() => setGuestKey(null)} />
+            ) : null}
         </div>
     );
 }

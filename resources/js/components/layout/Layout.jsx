@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { Outlet, useLocation } from 'react-router-dom';
 import { MainNavigation } from './MainNavigation';
 import { Sidebar } from './Sidebar';
-import { FloatingHelp } from '../ui/FloatingHelp';
 import { NotificationProvider } from '../../context/NotificationContext';
 import { NotificationToasts } from '../notifications/NotificationToasts';
 import { NotificationSettingsModal } from '../notifications/NotificationSettingsModal';
@@ -74,7 +73,6 @@ export function Layout() {
                     </main>
                 </div>
 
-                <FloatingHelp />
                 <NotificationToasts />
 
                 {typeof document !== 'undefined' &&

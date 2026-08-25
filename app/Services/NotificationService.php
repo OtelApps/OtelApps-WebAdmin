@@ -189,6 +189,7 @@ class NotificationService
             $botChats = (int) HotelConciergeConversation::query()
                 ->where('hotel_id', $hotel->id)
                 ->where('status', 'open')
+                ->hasGuestMessages()
                 ->where(function ($q) {
                     $q->whereNull('metadata->mode')
                         ->orWhere('metadata->mode', 'bot')
@@ -198,7 +199,8 @@ class NotificationService
 
             $waitingZeroUnread = (int) HotelConciergeConversation::query()
                 ->where('hotel_id', $hotel->id)
-                ->where('status', '!=', 'archived')
+                ->where('status', 'open')
+                ->hasGuestMessages()
                 ->where('metadata->mode', 'waiting')
                 ->where('unread_staff_count', 0)
                 ->count();
@@ -288,6 +290,7 @@ class NotificationService
         $conversations = HotelConciergeConversation::query()
             ->where('hotel_id', $hotel->id)
             ->where('status', '!=', 'archived')
+            ->hasGuestMessages()
             ->where(function ($q) {
                 $q->where(function ($attention) {
                     $attention->where('metadata->mode', 'waiting')
@@ -390,6 +393,7 @@ class NotificationService
             $activeIds = HotelConciergeConversation::query()
                 ->where('hotel_id', $hotel->id)
                 ->where('status', '!=', 'archived')
+                ->hasGuestMessages()
                 ->where(function ($q) {
                     $q->where('metadata->mode', 'waiting')
                         ->orWhere(function ($staff) {

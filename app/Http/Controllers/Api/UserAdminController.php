@@ -169,6 +169,52 @@ class UserAdminController extends Controller
         ]);
     }
 
+    public function storeUser(Request $request): JsonResponse
+    {
+        if (! $request->user()?->hasAnyPermission(['users.manage_types', 'users.manage_users'])) {
+            return response()->json(['message' => 'Nemáte oprávnění.'], 403);
+        }
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'password' => ['required', 'string', 'min:8', 'max:120'],
+            'job_title' => ['nullable', 'string', 'max:120'],
+            'user_type_id' => ['required', Rule::exists('user_types', 'id')],
+            'is_active' => ['sometimes', 'boolean'],
+        ]);
+
+        $user = new User;
+        $user->name = $data['name'];
+        $user->email = $data['email'];
+        $user->password = $data['password'];
+        $user->job_title = $data['job_title'] ?? null;
+        $user->user_type_id = $data['user_type_id'];
+        $user->is_active = array_key_exists('is_active', $data) ? (bool) $data['is_active'] : true;
+        $user->availability_status = 'available';
+        $user->initials = $user->makeInitials();
+        $user->save();
+        $user->load('userType');
+
+        return response()->json([
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'initials' => $user->initials ?: $user->makeInitials(),
+                'job_title' => $user->job_title,
+                'is_active' => $user->is_active,
+                'availability_status' => $user->availability_status,
+                'user_type_id' => $user->user_type_id,
+                'user_type' => $user->userType ? [
+                    'id' => $user->userType->id,
+                    'slug' => $user->userType->slug,
+                    'name' => $user->userType->name,
+                ] : null,
+            ],
+        ], 201);
+    }
+
     public function updateUser(Request $request, User $user): JsonResponse
     {
         if (! $request->user()?->hasAnyPermission(['users.manage_types', 'users.manage_users'])) {

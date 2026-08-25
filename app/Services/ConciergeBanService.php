@@ -329,6 +329,7 @@ class ConciergeBanService
             ]);
 
             $conversation->update([
+                'status' => 'open',
                 'last_message_preview' => 'Ban zrušen',
                 'last_message_at' => now(),
             ]);

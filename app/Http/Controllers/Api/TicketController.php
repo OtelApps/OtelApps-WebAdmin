@@ -104,6 +104,7 @@ class TicketController extends Controller
             'due_at' => ['sometimes', 'nullable', 'date'],
             'request_text' => ['sometimes', 'string', 'max:2000'],
             'staff_note' => ['sometimes', 'nullable', 'string', 'max:2000'],
+            'comment' => ['sometimes', 'string', 'max:2000'],
             'status' => ['sometimes', Rule::in(['new', 'pending', 'in_progress', 'solved', 'rejected', 'archived'])],
             'guest_display_name' => ['sometimes', 'string', 'max:255'],
             'room_number' => ['sometimes', 'string', 'max:40'],
