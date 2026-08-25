@@ -34,6 +34,8 @@ php artisan queue:work --tries=1 --sleep=1 &
 echo "Starting scheduler ..."
 php artisan schedule:work &
 
-LISTEN_PORT="${PORT:-8080}"
-echo "Starting FrankenPHP on :${LISTEN_PORT} ..."
+# Railway HTTP proxy targets 8080. Do not use $PORT — a TCP proxy
+# (Postgres) on this service sets PORT=5432 and would steal HTTP.
+LISTEN_PORT=8080
+echo "Starting FrankenPHP on :${LISTEN_PORT} (env PORT=${PORT:-unset}) ..."
 exec frankenphp php-server --listen ":${LISTEN_PORT}" --root /app/public
