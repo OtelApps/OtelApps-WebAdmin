@@ -9,10 +9,31 @@ echo "DEBUG_START_CMD=start-container.sh"
 echo "DEBUG_APP_KEY_SET=$([ -n "$APP_KEY" ] && echo yes || echo no)"
 # endregion
 
-if [ -z "$APP_KEY" ]; then
-    echo "FATAL: APP_KEY is not set. In Railway → Variables add APP_KEY from: php artisan key:generate --show" >&2
-    exit 1
-fi
+# AES-256-CBC needs 32 raw bytes. A non-empty APP_KEY can still be invalid
+# (e.g. "base64:" with no payload → Encrypter('', 'AES-256-CBC') → HTTP 500).
+php -r '
+$key = getenv("APP_KEY");
+if ($key === false || $key === "") {
+    fwrite(STDERR, "FATAL: APP_KEY is not set. In Railway → Variables paste the full output of: php artisan key:generate --show\n");
+    exit(1);
+}
+$raw = $key;
+if (str_starts_with($key, "base64:")) {
+    $payload = substr($key, 7);
+    $decoded = base64_decode($payload, true);
+    if ($payload === "" || $decoded === false) {
+        fwrite(STDERR, "FATAL: APP_KEY starts with base64: but the rest is empty or not valid base64. Paste the FULL value including the base64: prefix, without quotes.\n");
+        exit(1);
+    }
+    $raw = $decoded;
+}
+$len = strlen($raw);
+if ($len !== 16 && $len !== 32) {
+    fwrite(STDERR, "FATAL: APP_KEY decodes to {$len} bytes; AES-256-CBC needs 32. Generate a new one: php artisan key:generate --show\n");
+    exit(1);
+}
+echo "APP_KEY_OK bytes={$len}\n";
+'
 
 mkdir -p storage/framework/{cache,sessions,views} storage/logs bootstrap/cache database
 
