@@ -6,7 +6,13 @@ cd /app
 # region agent log
 echo "DEBUG_PHP_VERSION=$(php -r 'echo PHP_VERSION;')"
 echo "DEBUG_START_CMD=start-container.sh"
+echo "DEBUG_APP_KEY_SET=$([ -n "$APP_KEY" ] && echo yes || echo no)"
 # endregion
+
+if [ -z "$APP_KEY" ]; then
+    echo "FATAL: APP_KEY is not set. In Railway → Variables add APP_KEY from: php artisan key:generate --show" >&2
+    exit 1
+fi
 
 mkdir -p storage/framework/{cache,sessions,views} storage/logs bootstrap/cache database
 
@@ -26,7 +32,6 @@ fi
 php artisan storage:link --force || true
 php artisan package:discover --ansi || true
 php artisan optimize:clear
-php artisan optimize
 
 echo "Starting queue worker ..."
 php artisan queue:work --tries=1 --sleep=1 &
