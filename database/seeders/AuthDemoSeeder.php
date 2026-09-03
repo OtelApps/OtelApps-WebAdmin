@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Hotel;
 use App\Models\Permission;
 use App\Models\User;
 use App\Models\UserType;
@@ -184,6 +185,7 @@ class AuthDemoSeeder extends Seeder
                 'initials' => 'SA',
                 'job_title' => 'Superadmin',
                 'type' => 'superadmin',
+                'password' => 'SuperAdmin',
             ],
             [
                 'email' => 'recepce@otelapps.test',
@@ -191,6 +193,7 @@ class AuthDemoSeeder extends Seeder
                 'initials' => 'AD',
                 'job_title' => 'Recepce',
                 'type' => 'recepce',
+                'password' => 'password',
             ],
             [
                 'email' => 'uklid@otelapps.test',
@@ -198,6 +201,7 @@ class AuthDemoSeeder extends Seeder
                 'initials' => 'JN',
                 'job_title' => 'Pokojská',
                 'type' => 'uklid',
+                'password' => 'password',
             ],
             [
                 'email' => 'donaska@otelapps.test',
@@ -205,6 +209,7 @@ class AuthDemoSeeder extends Seeder
                 'initials' => 'PS',
                 'job_title' => 'Room service',
                 'type' => 'donaska',
+                'password' => 'password',
             ],
             [
                 'email' => 'manazer@otelapps.test',
@@ -212,18 +217,32 @@ class AuthDemoSeeder extends Seeder
                 'initials' => 'ZS',
                 'job_title' => 'Manažer provozu',
                 'type' => 'manazer',
+                'password' => 'password',
             ],
         ];
+
+        $defaultHotel = (string) config('otelapps.hotel_slug', 'default');
+        try {
+            if (! Hotel::bySlug($defaultHotel)) {
+                $fallback = Hotel::query()->orderBy('name')->value('slug');
+                if (is_string($fallback) && $fallback !== '') {
+                    $defaultHotel = $fallback;
+                }
+            }
+        } catch (\Throwable) {
+            // Laravel-only prostředí bez Supabase tabulek.
+        }
 
         foreach ($profiles as $profile) {
             User::query()->updateOrCreate(
                 ['email' => $profile['email']],
                 [
                     'user_type_id' => $types[$profile['type']]->id,
+                    'hotel_slug' => $profile['type'] === 'superadmin' ? null : $defaultHotel,
                     'name' => $profile['name'],
                     'initials' => $profile['initials'],
                     'job_title' => $profile['job_title'],
-                    'password' => Hash::make('password'),
+                    'password' => Hash::make($profile['password']),
                     'email_verified_at' => now(),
                     'is_active' => true,
                     'availability_status' => 'available',

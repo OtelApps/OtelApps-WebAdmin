@@ -6,7 +6,7 @@ export function Login() {
     const { login, isAuthenticated } = useAuth();
     const navigate = useNavigate();
     const [email, setEmail] = useState('superadmin@otelapps.test');
-    const [password, setPassword] = useState('password');
+    const [password, setPassword] = useState('SuperAdmin');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
@@ -81,7 +81,7 @@ export function Login() {
                 </form>
 
                 <p className="mt-6 text-center text-xs text-gray-400">
-                    Demo: superadmin@otelapps.test / password
+                    Demo: superadmin@otelapps.test / SuperAdmin
                 </p>
             </div>
         </div>

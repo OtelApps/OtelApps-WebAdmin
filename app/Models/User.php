@@ -15,6 +15,7 @@ class User extends Authenticatable
 
     protected $fillable = [
         'user_type_id',
+        'hotel_slug',
         'name',
         'initials',
         'job_title',
@@ -46,6 +47,11 @@ class User extends Authenticatable
     public function isSuperAdmin(): bool
     {
         return $this->userType?->isSuperAdmin() === true;
+    }
+
+    public function hotelSlug(): string
+    {
+        return strtolower(trim((string) $this->hotel_slug));
     }
 
     public function permissionKeys(): array
@@ -132,6 +138,7 @@ class User extends Authenticatable
             'availability_status' => $this->availability_status,
             'is_active' => $this->is_active,
             'is_superadmin' => $this->isSuperAdmin(),
+            'hotel_slug' => $this->isSuperAdmin() ? null : ($this->hotelSlug() ?: null),
             'user_type' => $type ? [
                 'id' => $type->id,
                 'slug' => $type->slug,

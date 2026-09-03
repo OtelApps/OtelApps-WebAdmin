@@ -33,7 +33,7 @@ class Hotel extends Model
 
     /**
      * Slug z X-Hotel-Slug / ?hotel_slug= / /h/{slug} / env.
-     * Staff bez superadmina nesmí přepnout mimo OTELAPPS_HOTEL_SLUG.
+     * Staff bez SuperAdmina je vázaný na svůj hotel_slug (fallback env).
      */
     public static function requestedSlug(?\Illuminate\Http\Request $request = null): string
     {
@@ -57,7 +57,12 @@ class Hotel extends Model
         }
 
         $user = $request->user();
-        if ($user && method_exists($user, 'isSuperAdmin') && ! $user->isSuperAdmin() && $candidate !== $env) {
+        if ($user && method_exists($user, 'isSuperAdmin') && ! $user->isSuperAdmin()) {
+            $locked = method_exists($user, 'hotelSlug') ? $user->hotelSlug() : '';
+            if ($locked !== '') {
+                return $locked;
+            }
+
             return $env;
         }
 

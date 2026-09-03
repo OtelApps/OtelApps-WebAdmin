@@ -243,4 +243,33 @@ class HotelModulesTest extends TestCase
             ->assertOk()
             ->assertJsonPath('slug', $envHotel->slug);
     }
+
+    public function test_staff_is_locked_to_own_hotel_slug(): void
+    {
+        $this->requireHotelSettings();
+        $this->seed(AuthDemoSeeder::class);
+
+        $user = User::query()->where('email', 'recepce@otelapps.test')->first();
+        $envHotel = Hotel::query()->where('slug', config('otelapps.hotel_slug', 'default'))->first();
+        if (! $user || ! $envHotel) {
+            $this->markTestSkipped('Chybí demo user nebo hotel.');
+        }
+
+        $other = Hotel::query()->where('slug', '!=', $envHotel->slug)->first();
+        if (! $other) {
+            $this->markTestSkipped('Pro test je potřeba druhý hotel v DB.');
+        }
+
+        $user->hotel_slug = $other->slug;
+        $user->save();
+
+        $this->actingAs($user)
+            ->withHeaders(['X-Hotel-Slug' => $envHotel->slug])
+            ->getJson('/api/hotel/modules')
+            ->assertOk()
+            ->assertJsonPath('slug', $other->slug);
+
+        $user->hotel_slug = $envHotel->slug;
+        $user->save();
+    }
 }

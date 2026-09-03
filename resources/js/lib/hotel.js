@@ -32,13 +32,13 @@ export function syncStaffHotelPath(user) {
     if (!user || user.is_superadmin) {
         return;
     }
-    const envSlug = window.__OTELAPPS_BOOTSTRAP__?.envHotelSlug;
-    if (!envSlug) {
+    const locked = user.hotel_slug || window.__OTELAPPS_BOOTSTRAP__?.envHotelSlug;
+    if (!locked) {
         return;
     }
-    if (getHotelSlug() === envSlug) {
+    if (getHotelSlug() === locked) {
         return;
     }
     const rest = window.location.pathname.replace(/^\/h\/[^/]+/, '') || '/';
-    window.location.replace(`/h/${envSlug}${rest}${window.location.search}${window.location.hash}`);
+    window.location.replace(`/h/${locked}${rest}${window.location.search}${window.location.hash}`);
 }

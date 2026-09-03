@@ -58,7 +58,7 @@ npm run dev
 
 Aplikace: `http://127.0.0.1:8000/h/{OTELAPPS_HOTEL_SLUG}/` (redirect z `/` na `/h/{slug}/`)
 
-Demo loginy (heslo `password`): `superadmin@otelapps.test`, `recepce@otelapps.test`, `manazer@otelapps.test`, …
+Demo loginy: `superadmin@otelapps.test` / `SuperAdmin`; ostatní (`recepce@otelapps.test`, `manazer@otelapps.test`, …) heslo `password`.
 
 ### Supabase
 
