@@ -1,20 +1,21 @@
 export const DEFAULT_LAYOUT = [
     'hotel_overview',
+    'ops_pulse',
     'guest_requests',
+    'concierge_inbox',
     'revenue_upsell',
-    'add_content',
-    'manage_requests',
 ];
 
 export const WIDGET_META = {
-    hotel_overview: { title: 'Hotel Overview', icon: 'apartment' },
-    guest_requests: { title: 'Guest Requests', icon: 'moving' },
-    revenue_upsell: { title: 'Revenue & Upsell', icon: 'payments' },
-    add_content: { title: 'Add Content', icon: 'article' },
-    manage_requests: { title: 'Manage Requests', icon: 'checklist' },
-    concierge_inbox: { title: 'Concierge Inbox', icon: 'chat' },
-    crm_snapshot: { title: 'CRM Snapshot', icon: 'group' },
-    insights_revenue: { title: 'Insights Revenue', icon: 'bar_chart' },
+    hotel_overview: { title: 'Přehled hotelu', icon: 'apartment' },
+    ops_pulse: { title: 'Směna teď', icon: 'bolt' },
+    guest_requests: { title: 'Otevřené úkoly', icon: 'task_alt' },
+    revenue_upsell: { title: 'Tržby a upsell', icon: 'payments' },
+    add_content: { title: 'Přidat obsah', icon: 'article' },
+    manage_requests: { title: 'Správa úkolů', icon: 'checklist' },
+    concierge_inbox: { title: 'Concierge inbox', icon: 'chat' },
+    crm_snapshot: { title: 'CRM přehled', icon: 'group' },
+    insights_revenue: { title: 'Tržby (týden)', icon: 'bar_chart' },
 };
 
 export function reorderWidgets(list, fromId, toId) {

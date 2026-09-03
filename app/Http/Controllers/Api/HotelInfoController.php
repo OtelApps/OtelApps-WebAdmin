@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\FindsHotelScopedSlug;
 use App\Http\Controllers\Controller;
 use App\Models\Hotel;
 use App\Models\HotelInfoSection;
@@ -13,6 +14,8 @@ use Illuminate\Validation\Rule;
 
 class HotelInfoController extends Controller
 {
+    use FindsHotelScopedSlug;
+
     private const NAVIGATION_SCREENS = [
         'HotelDetail',
         'RecepceDetail',
@@ -53,7 +56,7 @@ class HotelInfoController extends Controller
                 'string',
                 'max:120',
                 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
-                Rule::unique(HotelInfoTopic::class, 'slug'),
+                $this->uniqueSlugPerHotel(HotelInfoTopic::class, $hotel),
             ],
             'title' => ['required', 'string', 'max:255'],
         ]);
@@ -191,7 +194,7 @@ class HotelInfoController extends Controller
 
     private function findTopic(string $slug): HotelInfoTopic
     {
-        return HotelInfoTopic::where('slug', $slug)->firstOrFail();
+        return $this->findByHotelSlug(HotelInfoTopic::class, $slug);
     }
 
     private function listItem(HotelInfoTopic $topic): array

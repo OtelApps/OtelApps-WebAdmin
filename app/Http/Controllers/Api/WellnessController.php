@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\FindsHotelScopedSlug;
 use App\Http\Controllers\Controller;
 use App\Models\Hotel;
 use App\Models\WellnessFacility;
@@ -15,6 +16,8 @@ use Illuminate\Validation\Rule;
 
 class WellnessController extends Controller
 {
+    use FindsHotelScopedSlug;
+
     private const DETAIL_SCREENS = ['PoolDetail', 'WellnessDetail', 'ThaiMassageDetail'];
 
     public function index(Request $request): JsonResponse
@@ -47,7 +50,7 @@ class WellnessController extends Controller
                 'string',
                 'max:120',
                 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
-                Rule::unique(WellnessFacility::class, 'slug'),
+                $this->uniqueSlugPerHotel(WellnessFacility::class, $hotel),
             ],
             'title' => ['required', 'string', 'max:255'],
         ]);
@@ -326,7 +329,7 @@ class WellnessController extends Controller
 
     private function findFacility(string $slug): WellnessFacility
     {
-        return WellnessFacility::where('slug', $slug)->firstOrFail();
+        return $this->findByHotelSlug(WellnessFacility::class, $slug);
     }
 
     private function seedDefaultHours(WellnessFacility $facility): void

@@ -21,6 +21,7 @@
     </div>
     <script>
         window.__OTELAPPS_BOOTSTRAP__ = @json(\App\Services\ModuleService::getClientBootstrap(auth()->user()));
+        window.__OTELAPPS_HOTEL_SLUG__ = @json(\App\Models\Hotel::requestedSlug());
     </script>
 </body>
 </html>

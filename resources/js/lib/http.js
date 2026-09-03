@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getHotelSlug } from './hotel';
 
 /**
  * Sdílený HTTP klient pro Laravel (session + CSRF).
@@ -17,6 +18,10 @@ function applyCsrfHeader(config) {
     const token = document.head.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
     if (token) {
         config.headers.set('X-CSRF-TOKEN', token);
+    }
+    const slug = getHotelSlug();
+    if (slug) {
+        config.headers.set('X-Hotel-Slug', slug);
     }
     return config;
 }

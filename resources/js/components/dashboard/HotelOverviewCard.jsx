@@ -10,9 +10,9 @@ function TrendBadge({ trend }) {
 
     return (
         <span
-            className={`font-semibold flex items-center ${up ? 'text-green-500' : 'text-red-500'}`}
+            className={`flex items-center font-semibold ${up ? 'text-green-500' : 'text-red-500'}`}
         >
-            <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="mr-1 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 {up ? (
                     <path
                         strokeLinecap="round"
@@ -43,15 +43,15 @@ const SOURCE_HINTS = {
 
 export function HotelOverviewCard({ data, loading, error, onManageRooms, onViewGuests }) {
     return (
-        <div className="bg-white dark:bg-gray-700 rounded-lg shadow-md border-2 border-gray-300 dark:border-gray-500 p-6 flex flex-col h-full">
+        <div className="flex h-full flex-col rounded-lg border-2 border-gray-300 bg-white p-6 shadow-md dark:border-gray-500 dark:bg-gray-700">
             <div className="mb-4 flex items-start justify-between gap-2">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Hotel Overview</h2>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Přehled hotelu</h2>
                 {data?.hotel_name && (
                     <span className="truncate text-xs text-gray-400">{data.hotel_name}</span>
                 )}
             </div>
 
-            <div className="space-y-3 flex-1">
+            <div className="flex-1 space-y-3">
                 {loading ? (
                     <WidgetBodySkeleton rows={4} />
                 ) : error ? (
@@ -59,24 +59,24 @@ export function HotelOverviewCard({ data, loading, error, onManageRooms, onViewG
                 ) : data ? (
                     <>
                         <div className="flex justify-between">
-                            <span className="text-gray-600 dark:text-gray-400">Guests staying:</span>
+                            <span className="text-gray-600 dark:text-gray-400">Hosté na pokojích:</span>
                             <span className="font-semibold text-gray-900 dark:text-white">
                                 {data.guests_staying}/{data.room_capacity}
                             </span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-gray-600 dark:text-gray-400">Arrivals / Departures:</span>
+                            <span className="text-gray-600 dark:text-gray-400">Příjezdy / odjezdy:</span>
                             <span className="font-semibold text-gray-900 dark:text-white">
                                 {data.arrivals_today} / {data.departures_today}
                             </span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-gray-600 dark:text-gray-400">Occupancy:</span>
+                            <span className="text-gray-600 dark:text-gray-400">Obsazenost:</span>
                             <span className="font-semibold text-gray-900 dark:text-white">
                                 {data.occupancy_percent}%
                             </span>
                         </div>
-                        <div className="flex justify-between items-center">
+                        <div className="flex items-center justify-between">
                             <span className="text-gray-600 dark:text-gray-400">Trend (vs. včera):</span>
                             <TrendBadge trend={data.occupancy_trend} />
                         </div>
@@ -106,17 +106,17 @@ export function HotelOverviewCard({ data, loading, error, onManageRooms, onViewG
                     type="button"
                     disabled={!data?.links?.rooms}
                     onClick={onManageRooms}
-                    className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 rounded-lg bg-gray-200 px-4 py-2 text-gray-700 transition-colors hover:bg-gray-300 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-600 dark:text-gray-300 dark:hover:bg-gray-500"
                 >
-                    Manage Rooms
+                    Recepce
                 </button>
                 <button
                     type="button"
                     disabled={!data}
                     onClick={onViewGuests}
-                    className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 rounded-lg bg-orange-500 px-4 py-2 text-white transition-colors hover:bg-orange-600 disabled:opacity-50"
                 >
-                    {data?.crm_enabled ? 'View Guests' : 'View Activity'}
+                    {data?.crm_enabled ? 'Hosté' : 'Úkoly'}
                 </button>
             </div>
         </div>

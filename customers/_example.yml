@@ -1,0 +1,98 @@
+# Zkopíruj na customers/{slug}.yml a vyplň. Tajnosti sem nedávej.
+# Pravda je DB (hotels + hotel_profiles + hotel_module_settings); YAML je šablona / export.
+#   php artisan hotel:provision customers/grand-hotel.yml
+#   php artisan hotel:env-files customers/grand-hotel.yml
+#   php artisan hotel:modules grand-hotel --enable=recepce,concierge --disable=insights
+
+slug: grand-hotel
+name: Grand Hotel Praha
+
+brand:
+  app_name: Grand Hotel
+
+domains:
+  admin: https://admin.grandhotel.cz
+  web: https://app.grandhotel.cz
+
+geo:
+  lat: 50.0875
+  lng: 14.4213
+
+staff:
+  admin_email: recepce@grandhotel.cz
+
+stores:
+  app_store: ""
+  play_store: ""
+
+# Chybějící klíč = default z config/modules.php
+modules:
+  recepce: true
+  ukoly: true
+  finance: true
+  dashboard: true
+  content: true
+  my_app: false
+  activity: true
+  crm: true
+  feedback: true
+  concierge: true
+  insights: false
+  facilities: true
+  services: true
+  leisure: true
+  other: true
+  welcome_message: true
+  smart_assistant: true
+  legal_texts: true
+  mobile_app: true
+  web_app: true
+  requests: true
+  guests: true
+  alerts: true
+  promotions: true
+  tasks: true
+  history: true
+  surveys: true
+  surveys_welcome: true
+  surveys_generic: true
+  surveys_facilities: true
+  surveys_checkout: true
+  external_platforms: true
+  inbox: true
+  stats: true
+  users: true
+  transactions: true
+  revenue: true
+  behavior: true
+  staff: true
+  finance_overview: true
+  finance_closings: true
+  finance_transactions: true
+  finance_deposits: true
+  finance_reports: true
+  restaurants_bars: true
+  relax_sport: false
+  wellness_spa: true
+  sports: true
+  other_facilities: true
+  hotel_info: true
+  hotel_rooms: true
+  parking: true
+  places_of_interest: true
+  transportation: true
+  where_to_go: true
+  generic_other: true
+  required_content: true
+  room_service: true
+  amenities: true
+  laundry: true
+  issues_repairs: true
+  check_in_out: true
+  booking_system: true
+  concierge_chat: true
+  upsell: true
+  image_gallery: true
+  menu_editor: true
+  qr_code: true
+  web_app_access: true

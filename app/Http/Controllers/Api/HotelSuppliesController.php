@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\FindsHotelScopedSlug;
 use App\Http\Controllers\Controller;
 use App\Models\Hotel;
 use App\Models\HotelSupplies;
@@ -14,6 +15,8 @@ use Illuminate\Support\Facades\DB;
 
 class HotelSuppliesController extends Controller
 {
+    use FindsHotelScopedSlug;
+
     public function index(Request $request): JsonResponse
     {
         $supplies = $this->resolveSupplies($request);
@@ -269,7 +272,7 @@ class HotelSuppliesController extends Controller
 
     private function findSupplies(string $slug): HotelSupplies
     {
-        return HotelSupplies::where('slug', $slug)->firstOrFail();
+        return $this->findByHotelSlug(HotelSupplies::class, $slug);
     }
 
     private function listItem(HotelSuppliesItem $item, string $suppliesSlug, string $categoryTitle): array

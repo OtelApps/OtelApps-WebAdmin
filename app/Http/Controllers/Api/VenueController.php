@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\FindsHotelScopedSlug;
 use App\Http\Controllers\Controller;
 use App\Models\Allergen;
 use App\Models\Hotel;
@@ -17,6 +18,8 @@ use Illuminate\Validation\Rule;
 
 class VenueController extends Controller
 {
+    use FindsHotelScopedSlug;
+
     public function index(Request $request): JsonResponse
     {
         $hotel = $this->resolveHotel($request);
@@ -80,7 +83,7 @@ class VenueController extends Controller
                 'string',
                 'max:120',
                 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
-                Rule::unique(Venue::class, 'slug'),
+                $this->uniqueSlugPerHotel(Venue::class, $hotel),
             ],
             'title' => ['required', 'string', 'max:255'],
             'venue_type' => ['required', Rule::in(['restaurant', 'bar'])],
@@ -320,11 +323,11 @@ class VenueController extends Controller
             }
 
             $menusToRemoveIds = VenueMenu::where('venue_id', $venue->id)->whereNotIn('id', $keptMenuIds)->pluck('id')->toArray();
-            if (!empty($menusToRemoveIds)) {
+            if (! empty($menusToRemoveIds)) {
                 $categoriesToRemoveIds = MenuCategory::whereIn('menu_id', $menusToRemoveIds)->pluck('id')->toArray();
-                if (!empty($categoriesToRemoveIds)) {
+                if (! empty($categoriesToRemoveIds)) {
                     $itemsToRemoveIds = MenuItem::whereIn('category_id', $categoriesToRemoveIds)->pluck('id')->toArray();
-                    if (!empty($itemsToRemoveIds)) {
+                    if (! empty($itemsToRemoveIds)) {
                         DB::connection(config('otelapps.db_connection'))
                             ->table('menu_item_allergens')
                             ->whereIn('menu_item_id', $itemsToRemoveIds)
@@ -361,7 +364,7 @@ class VenueController extends Controller
         }
 
         $itemsToRemoveIds = $query->pluck('id')->toArray();
-        if (!empty($itemsToRemoveIds)) {
+        if (! empty($itemsToRemoveIds)) {
             DB::connection(config('otelapps.db_connection'))
                 ->table('menu_item_allergens')
                 ->whereIn('menu_item_id', $itemsToRemoveIds)
@@ -379,9 +382,9 @@ class VenueController extends Controller
         }
 
         $categoriesToRemoveIds = $query->pluck('id')->toArray();
-        if (!empty($categoriesToRemoveIds)) {
+        if (! empty($categoriesToRemoveIds)) {
             $itemsToRemoveIds = MenuItem::whereIn('category_id', $categoriesToRemoveIds)->pluck('id')->toArray();
-            if (!empty($itemsToRemoveIds)) {
+            if (! empty($itemsToRemoveIds)) {
                 DB::connection(config('otelapps.db_connection'))
                     ->table('menu_item_allergens')
                     ->whereIn('menu_item_id', $itemsToRemoveIds)
@@ -401,7 +404,7 @@ class VenueController extends Controller
 
     private function findVenue(string $slug): Venue
     {
-        return Venue::where('slug', $slug)->firstOrFail();
+        return $this->findByHotelSlug(Venue::class, $slug);
     }
 
     private function listItem(Venue $venue): array

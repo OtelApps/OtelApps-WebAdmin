@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Hotel extends Model
 {
@@ -23,6 +24,59 @@ class Hotel extends Model
     {
         parent::__construct($attributes);
         $this->connection = config('otelapps.db_connection');
+    }
+
+    public static function bySlug(string $slug): ?self
+    {
+        return static::query()->where('slug', $slug)->first();
+    }
+
+    /**
+     * Slug z X-Hotel-Slug / ?hotel_slug= / /h/{slug} / env.
+     * Staff bez superadmina nesmí přepnout mimo OTELAPPS_HOTEL_SLUG.
+     */
+    public static function requestedSlug(?\Illuminate\Http\Request $request = null): string
+    {
+        $env = (string) config('otelapps.hotel_slug', 'default');
+        try {
+            $request ??= request();
+        } catch (\Throwable) {
+            return $env;
+        }
+
+        $header = strtolower(trim((string) $request->header('X-Hotel-Slug', '')));
+        $query = strtolower(trim((string) $request->query('hotel_slug', '')));
+        $fromPath = null;
+        if (preg_match('#(?:^|/)h/([a-z0-9]+(?:-[a-z0-9]+)*)#', $request->path(), $m)) {
+            $fromPath = $m[1];
+        }
+
+        $candidate = $header !== '' ? $header : ($query !== '' ? $query : ($fromPath ?: $env));
+        if ($candidate === '') {
+            $candidate = $env;
+        }
+
+        $user = $request->user();
+        if ($user && method_exists($user, 'isSuperAdmin') && ! $user->isSuperAdmin() && $candidate !== $env) {
+            return $env;
+        }
+
+        return $candidate;
+    }
+
+    public static function current(): ?self
+    {
+        return static::bySlug(static::requestedSlug());
+    }
+
+    public function moduleSetting(): HasOne
+    {
+        return $this->hasOne(HotelModuleSetting::class, 'hotel_id');
+    }
+
+    public function profile(): HasOne
+    {
+        return $this->hasOne(HotelProfile::class, 'hotel_id');
     }
 
     public function venues(): HasMany

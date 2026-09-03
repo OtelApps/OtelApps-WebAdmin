@@ -6,6 +6,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { ModulesProvider } from './context/ModulesContext';
 import { AuthProvider } from './context/AuthContext';
 import { queryClient } from './lib/queryClient';
+import { ensureHotelPath, hotelBasename } from './lib/hotel';
 import Alpine from 'alpinejs';
 import React from 'react';
 
@@ -26,6 +27,10 @@ function showBootError(rootElement, error) {
 }
 
 async function initReact() {
+    if (!ensureHotelPath()) {
+        return;
+    }
+
     const rootElement = document.getElementById('react-root');
     if (!rootElement) {
         console.error('React root element not found!');
@@ -45,7 +50,11 @@ async function initReact() {
                     React.createElement(
                         AuthProvider,
                         null,
-                        React.createElement(BrowserRouter, null, React.createElement(App)),
+                        React.createElement(
+                            BrowserRouter,
+                            { basename: hotelBasename() },
+                            React.createElement(App),
+                        ),
                     ),
                 ),
             ),

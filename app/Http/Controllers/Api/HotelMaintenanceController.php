@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\FindsHotelScopedSlug;
 use App\Http\Controllers\Controller;
 use App\Models\Hotel;
 use App\Models\HotelMaintenance;
@@ -15,6 +16,8 @@ use Illuminate\Validation\Rule;
 
 class HotelMaintenanceController extends Controller
 {
+    use FindsHotelScopedSlug;
+
     private const ICON_LIBRARIES = ['ionicons', 'material-community'];
 
     public function index(Request $request): JsonResponse
@@ -278,7 +281,7 @@ class HotelMaintenanceController extends Controller
 
     private function findMaintenance(string $slug): HotelMaintenance
     {
-        return HotelMaintenance::where('slug', $slug)->firstOrFail();
+        return $this->findByHotelSlug(HotelMaintenance::class, $slug);
     }
 
     private function listItem(HotelMaintenanceItem $item, string $maintenanceSlug, string $categoryTitle): array

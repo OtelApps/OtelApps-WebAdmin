@@ -13,11 +13,15 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->validateCsrfTokens(except: [
             'api/concierge/guest/*',
+            'api/platform/*',
         ]);
         $middleware->alias([
             'permission' => \App\Http\Middleware\EnsurePermission::class,
+            'superadmin' => \App\Http\Middleware\EnsureSuperAdmin::class,
         ]);
-        $middleware->redirectGuestsTo('/login');
+        $middleware->redirectGuestsTo(function () {
+            return '/h/'.\App\Models\Hotel::requestedSlug().'/login';
+        });
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

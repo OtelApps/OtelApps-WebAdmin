@@ -2,8 +2,15 @@
 
 namespace App\Services;
 
+use App\Models\Hotel;
+use App\Models\HotelModuleSetting;
+use Throwable;
+
 class ModuleService
 {
+    /** @var array<string, array<string, bool>> */
+    private static array $enabledCacheBySlug = [];
+
     private static $sidebarMap = [
         'content' => [
             'facilities' => [
@@ -93,12 +100,104 @@ class ModuleService
         ],
     ];
 
+    public static function resetEnabledCache(): void
+    {
+        self::$enabledCacheBySlug = [];
+    }
+
+    /**
+     * Katalog defaultů + per-hotel override z hotel_module_settings.
+     *
+     * @return array<string, bool>
+     */
+    public static function enabledMap(?string $hotelSlug = null): array
+    {
+        $slug = $hotelSlug ?: Hotel::requestedSlug();
+        if (isset(self::$enabledCacheBySlug[$slug])) {
+            return self::$enabledCacheBySlug[$slug];
+        }
+
+        $defaults = [];
+        foreach (config_array('modules.enabled') as $key => $value) {
+            $defaults[(string) $key] = (bool) $value;
+        }
+
+        $overlay = [];
+        try {
+            $hotel = Hotel::bySlug($slug);
+            if ($hotel) {
+                $row = HotelModuleSetting::query()->find($hotel->id);
+                $raw = $row?->enabled_modules;
+                if (is_array($raw)) {
+                    foreach ($raw as $key => $value) {
+                        if (! is_string($key) || $key === '') {
+                            continue;
+                        }
+                        $overlay[$key] = (bool) $value;
+                    }
+                }
+            }
+        } catch (Throwable) {
+            $overlay = [];
+        }
+
+        $merged = $defaults;
+        foreach ($overlay as $key => $value) {
+            if (array_key_exists($key, $merged)) {
+                $merged[$key] = $value;
+            }
+        }
+
+        self::$enabledCacheBySlug[$slug] = $merged;
+
+        return $merged;
+    }
+
+    /**
+     * Uloží partial override modulů pro hotel.
+     *
+     * @param  array<string, mixed>  $modules
+     * @return array<string, bool>
+     */
+    public static function saveEnabledMap(Hotel $hotel, array $modules): array
+    {
+        $defaults = config_array('modules.enabled');
+        $existing = [];
+        $row = HotelModuleSetting::query()->find($hotel->id);
+        if (is_array($row?->enabled_modules)) {
+            $existing = $row->enabled_modules;
+        }
+
+        $normalized = [];
+        foreach ($existing as $key => $value) {
+            if (is_string($key) && array_key_exists($key, $defaults)) {
+                $normalized[$key] = (bool) $value;
+            }
+        }
+        foreach ($modules as $key => $value) {
+            if (! is_string($key) || ! array_key_exists($key, $defaults)) {
+                continue;
+            }
+            $normalized[$key] = (bool) $value;
+        }
+
+        HotelModuleSetting::query()->updateOrCreate(
+            ['hotel_id' => $hotel->id],
+            ['enabled_modules' => $normalized],
+        );
+
+        unset(self::$enabledCacheBySlug[$hotel->slug]);
+
+        return self::enabledMap($hotel->slug);
+    }
+
     /**
      * Zkontroluje, zda je modul zapnutý
      */
     public static function isEnabled(string $module): bool
     {
-        $config = config_array('modules.enabled');
+        $config = self::enabledMap();
+
         return $config[$module] ?? false;
     }
 
@@ -108,6 +207,7 @@ class ModuleService
     public static function getLabel(string $module): string
     {
         $labels = config_array('modules.labels');
+
         return $labels[$module] ?? ucfirst(str_replace('_', ' ', $module));
     }
 
@@ -117,6 +217,7 @@ class ModuleService
     public static function getIcon(string $module): string
     {
         $icons = config_array('modules.icons');
+
         return $icons[$module] ?? 'square';
     }
 
@@ -125,8 +226,55 @@ class ModuleService
      */
     public static function getEnabledModules(): array
     {
-        $config = config_array('modules.enabled');
-        return array_filter($config, fn ($enabled) => $enabled === true);
+        return array_filter(self::enabledMap(), fn ($enabled) => $enabled === true);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public static function publicConfig(string $slug): ?array
+    {
+        $hotel = Hotel::bySlug($slug);
+        if (! $hotel) {
+            return null;
+        }
+
+        $hotel->loadMissing('profile');
+        $profile = $hotel->profile;
+
+        return [
+            'slug' => $hotel->slug,
+            'name' => $hotel->name,
+            'app_name' => $profile?->app_name ?: $hotel->name,
+            'modules' => self::enabledMap($hotel->slug),
+            'geo' => [
+                'lat' => $profile?->lat,
+                'lng' => $profile?->lng,
+            ],
+            'stores' => [
+                'app_store' => (string) ($profile?->app_store_url ?? ''),
+                'play_store' => (string) ($profile?->play_store_url ?? ''),
+            ],
+        ];
+    }
+
+    /**
+     * @return list<array{key: string, label: string, enabled_default: bool}>
+     */
+    public static function catalog(): array
+    {
+        $enabled = config_array('modules.enabled');
+        $labels = config_array('modules.labels');
+        $out = [];
+        foreach ($enabled as $key => $value) {
+            $out[] = [
+                'key' => (string) $key,
+                'label' => (string) ($labels[$key] ?? $key),
+                'enabled_default' => (bool) $value,
+            ];
+        }
+
+        return $out;
     }
 
     /**
@@ -195,7 +343,9 @@ class ModuleService
      */
     public static function resolveSection(?string $moduleKey): ?string
     {
-        if (!$moduleKey) return null;
+        if (! $moduleKey) {
+            return null;
+        }
 
         // Pokud je to přímo klíč sekce
         if (isset(self::$sidebarMap[$moduleKey])) {
@@ -234,7 +384,7 @@ class ModuleService
         // Resolve section in case a module key was passed
         $section = self::resolveSection($section);
 
-        if (!$section || !isset(self::$sidebarMap[$section])) {
+        if (! $section || ! isset(self::$sidebarMap[$section])) {
             return [];
         }
 
@@ -245,8 +395,8 @@ class ModuleService
             if (is_array($value)) {
                 // Má sub-moduly
                 if (self::isEnabled($key)) {
-                    $subModules = array_filter($value, fn($sub) => self::isEnabled($sub));
-                    if (!empty($subModules)) {
+                    $subModules = array_filter($value, fn ($sub) => self::isEnabled($sub));
+                    if (! empty($subModules)) {
                         $result[$key] = array_values($subModules);
                     }
                 }
@@ -280,6 +430,7 @@ class ModuleService
                 }
             }
         }
+
         return $map;
     }
 
@@ -336,7 +487,7 @@ class ModuleService
         }
 
         return [
-            'enabled' => config_array('modules.enabled'),
+            'enabled' => self::enabledMap(),
             'mainNavigation' => [
                 'modules' => $mainModules,
                 'labels' => $labels,
@@ -346,6 +497,8 @@ class ModuleService
             'sidebars' => $sidebars,
             'user' => $user ? $user->toAuthArray() : null,
             'demo_user_switcher' => (bool) config('otelapps.demo_user_switcher'),
+            'hotelSlug' => Hotel::requestedSlug(),
+            'envHotelSlug' => (string) config('otelapps.hotel_slug', 'default'),
         ];
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\FindsHotelScopedSlug;
 use App\Http\Controllers\Controller;
 use App\Models\Hotel;
 use App\Models\HotelRoomServiceCategory;
@@ -16,6 +17,8 @@ use Illuminate\Validation\Rule;
 
 class HotelRoomServiceController extends Controller
 {
+    use FindsHotelScopedSlug;
+
     private const NAVIGATION_SCREENS = ['SnidaneScreen', 'ObedScreen', 'VecereScreen'];
 
     private const CONFIRM_SCREENS = ['ConfirmSnidaneScreen', 'ConfirmObedScreen', 'ConfirmVecereScreen'];
@@ -286,7 +289,7 @@ class HotelRoomServiceController extends Controller
 
     private function findMenu(string $slug): HotelRoomServiceMenu
     {
-        return HotelRoomServiceMenu::where('slug', $slug)->firstOrFail();
+        return $this->findByHotelSlug(HotelRoomServiceMenu::class, $slug);
     }
 
     private function listItem(HotelRoomServiceMenu $menu, array $imageMap): array

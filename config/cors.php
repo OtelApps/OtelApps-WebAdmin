@@ -7,14 +7,18 @@ return [
     | Cross-Origin Resource Sharing (CORS)
     |--------------------------------------------------------------------------
     |
-    | Veřejné guest concierge endpointy volá HostWebClient z jiného originu.
-    | Staff SPA běží same-origin a CORS nepotřebuje.
+    | Guest concierge + public hotel config volá HostWeb z jiného originu.
+    | HQ (Netlify) volá /api/platform/* s Bearer tokenem.
     |
     */
 
-    'paths' => ['api/concierge/guest/*'],
+    'paths' => [
+        'api/concierge/guest/*',
+        'api/public/hotel/*',
+        'api/platform/*',
+    ],
 
-    'allowed_methods' => ['POST', 'OPTIONS'],
+    'allowed_methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 
     'allowed_origins' => array_values(array_filter(array_map(
         'trim',

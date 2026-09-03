@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\FindsHotelScopedSlug;
 use App\Http\Controllers\Controller;
 use App\Models\Hotel;
 use App\Models\HotelRoomType;
@@ -10,10 +11,11 @@ use App\Models\HotelRoomTypeImage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 
 class HotelRoomController extends Controller
 {
+    use FindsHotelScopedSlug;
+
     public function index(Request $request): JsonResponse
     {
         $hotel = $this->resolveHotel($request);
@@ -44,7 +46,7 @@ class HotelRoomController extends Controller
                 'string',
                 'max:120',
                 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
-                Rule::unique(HotelRoomType::class, 'slug'),
+                $this->uniqueSlugPerHotel(HotelRoomType::class, $hotel),
             ],
             'title' => ['required', 'string', 'max:255'],
         ]);
@@ -228,7 +230,7 @@ class HotelRoomController extends Controller
 
     private function findRoomType(string $slug): HotelRoomType
     {
-        return HotelRoomType::where('slug', $slug)->firstOrFail();
+        return $this->findByHotelSlug(HotelRoomType::class, $slug);
     }
 
     private function listItem(HotelRoomType $roomType): array

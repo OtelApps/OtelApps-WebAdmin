@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\FindsHotelScopedSlug;
 use App\Http\Controllers\Controller;
 use App\Models\Hotel;
 use App\Models\HotelHousekeeping;
@@ -14,6 +15,8 @@ use Illuminate\Support\Facades\DB;
 
 class HotelHousekeepingController extends Controller
 {
+    use FindsHotelScopedSlug;
+
     public function index(Request $request): JsonResponse
     {
         $housekeeping = $this->resolveHousekeeping($request);
@@ -267,7 +270,7 @@ class HotelHousekeepingController extends Controller
 
     private function findHousekeeping(string $slug): HotelHousekeeping
     {
-        return HotelHousekeeping::where('slug', $slug)->firstOrFail();
+        return $this->findByHotelSlug(HotelHousekeeping::class, $slug);
     }
 
     private function listItem(HotelHousekeepingItem $item, string $housekeepingSlug, string $categoryTitle): array

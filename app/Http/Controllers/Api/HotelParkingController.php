@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Http\Controllers\Api\Concerns\FindsHotelScopedSlug;
 use App\Http\Controllers\Controller;
 use App\Models\Hotel;
 use App\Models\HotelParkingTopic;
@@ -11,6 +12,8 @@ use Illuminate\Validation\Rule;
 
 class HotelParkingController extends Controller
 {
+    use FindsHotelScopedSlug;
+
     private const NAVIGATION_SCREEN = 'ParkingDetail';
 
     public function index(Request $request): JsonResponse
@@ -43,7 +46,7 @@ class HotelParkingController extends Controller
                 'string',
                 'max:120',
                 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/',
-                Rule::unique(HotelParkingTopic::class, 'slug'),
+                $this->uniqueSlugPerHotel(HotelParkingTopic::class, $hotel),
             ],
             'title' => ['required', 'string', 'max:255'],
         ]);
@@ -135,7 +138,7 @@ class HotelParkingController extends Controller
 
     private function findTopic(string $slug): HotelParkingTopic
     {
-        return HotelParkingTopic::where('slug', $slug)->firstOrFail();
+        return $this->findByHotelSlug(HotelParkingTopic::class, $slug);
     }
 
     private function listItem(HotelParkingTopic $topic): array

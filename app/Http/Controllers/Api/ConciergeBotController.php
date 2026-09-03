@@ -4,12 +4,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessConciergeGuestMessage;
+use App\Models\Hotel;
 use App\Models\HotelConciergeConversation;
 use App\Models\HotelConciergeMessage;
 use App\Services\ConciergeBanService;
 use App\Services\ConciergeBotService;
 use App\Services\ConciergePresenceService;
-use App\Models\Hotel;
+use App\Services\ModuleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -30,6 +31,10 @@ class ConciergeBotController extends Controller
         ]);
 
         $slug = $data['hotel_slug'] ?? config('otelapps.hotel_slug', 'default');
+        if ($denied = $this->deniedIfModuleDisabled($slug)) {
+            return $denied;
+        }
+
         $hotel = Hotel::query()->where('slug', $slug)->first();
         if (! $hotel) {
             return response()->json(['allowed' => true, 'reason' => null, 'expires_at' => null]);
@@ -64,6 +69,10 @@ class ConciergeBotController extends Controller
 
         if (! $conversation) {
             return response()->json(['message' => 'Konverzace nenalezena.'], 404);
+        }
+
+        if ($denied = $this->deniedIfModuleDisabled($this->slugFromConversation($conversation))) {
+            return $denied;
         }
 
         if ($denied = $this->deniedIfBanned($conversation)) {
@@ -108,6 +117,10 @@ class ConciergeBotController extends Controller
             return response()->json(['message' => 'Konverzace nenalezena.'], 404);
         }
 
+        if ($denied = $this->deniedIfModuleDisabled($this->slugFromConversation($conversation))) {
+            return $denied;
+        }
+
         if ($denied = $this->deniedIfBanned($conversation)) {
             return $denied;
         }
@@ -144,6 +157,10 @@ class ConciergeBotController extends Controller
             return response()->json(['message' => 'Konverzace nenalezena.'], 404);
         }
 
+        if ($denied = $this->deniedIfModuleDisabled($this->slugFromConversation($conversation))) {
+            return $denied;
+        }
+
         if ($denied = $this->deniedIfBanned($conversation)) {
             return $denied;
         }
@@ -176,6 +193,10 @@ class ConciergeBotController extends Controller
 
         if (! $conversation) {
             return response()->json(['message' => 'Konverzace nenalezena.'], 404);
+        }
+
+        if ($denied = $this->deniedIfModuleDisabled($this->slugFromConversation($conversation))) {
+            return $denied;
         }
 
         if ($denied = $this->deniedIfBanned($conversation)) {
@@ -229,6 +250,10 @@ class ConciergeBotController extends Controller
 
         if (! $conversation) {
             return response()->json(['message' => 'Konverzace nenalezena.'], 404);
+        }
+
+        if ($denied = $this->deniedIfModuleDisabled($this->slugFromConversation($conversation))) {
+            return $denied;
         }
 
         if ($denied = $this->deniedIfBanned($conversation)) {
@@ -299,5 +324,32 @@ class ConciergeBotController extends Controller
         }
 
         return response()->json($this->banService->bannedResponse($ban), 403);
+    }
+
+    private function deniedIfModuleDisabled(?string $hotelSlug): ?JsonResponse
+    {
+        if (! $hotelSlug) {
+            return response()->json([
+                'message' => 'Concierge není k dispozici.',
+                'code' => 'module_disabled',
+            ], 403);
+        }
+
+        $map = ModuleService::enabledMap($hotelSlug);
+        if (($map['concierge'] ?? false) && ($map['concierge_chat'] ?? false)) {
+            return null;
+        }
+
+        return response()->json([
+            'message' => 'Concierge není k dispozici.',
+            'code' => 'module_disabled',
+        ], 403);
+    }
+
+    private function slugFromConversation(HotelConciergeConversation $conversation): ?string
+    {
+        $conversation->loadMissing('hotel');
+
+        return $conversation->hotel?->slug;
     }
 }

@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import http from '../lib/http';
+import { syncStaffHotelPath } from '../lib/hotel';
 import { useModules } from './ModulesContext';
 
 const AuthContext = createContext(null);
@@ -35,6 +36,7 @@ export function AuthProvider({ children }) {
                         user: payload.user,
                     };
                 }
+                syncStaffHotelPath(payload.user);
             }
             if (typeof payload?.demo_user_switcher === 'boolean') {
                 setDemoUserSwitcher(payload.demo_user_switcher);
