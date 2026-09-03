@@ -63,6 +63,8 @@ Route::prefix('api')->group(function () {
             Route::put('/hotels/{slug}', [PlatformHotelController::class, 'update']);
             Route::put('/hotels/{slug}/modules', [PlatformHotelController::class, 'updateModules']);
             Route::get('/hotels/{slug}/health', [PlatformHotelController::class, 'health']);
+            Route::get('/hotels/{slug}/env', [PlatformHotelController::class, 'env']);
+            Route::delete('/hotels/{slug}', [PlatformHotelController::class, 'destroy']);
         });
     });
 

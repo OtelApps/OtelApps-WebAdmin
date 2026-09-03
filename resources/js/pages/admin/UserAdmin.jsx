@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import http from '../../lib/http';
+import { getHotelSlug } from '../../lib/hotel';
 import { useAuth } from '../../context/AuthContext';
 
 export function UserAdmin() {
     const { hasPermission } = useAuth();
     const [types, setTypes] = useState([]);
     const [users, setUsers] = useState([]);
+    const [hotels, setHotels] = useState([]);
     const [permGroups, setPermGroups] = useState({});
     const [groupLabels, setGroupLabels] = useState({});
     const [selectedId, setSelectedId] = useState(null);
@@ -20,6 +22,7 @@ export function UserAdmin() {
         password: '',
         job_title: '',
         user_type_id: '',
+        hotel_slug: '',
     });
     const [creating, setCreating] = useState(false);
 
@@ -36,6 +39,7 @@ export function UserAdmin() {
         setGroupLabels(permRes.data.group_labels || {});
         setTypes(typesRes.data.user_types || []);
         setUsers(usersRes.data.users || []);
+        setHotels(usersRes.data.hotels || []);
         if (!selectedId && typesRes.data.user_types?.[0]) {
             setSelectedId(typesRes.data.user_types[0].id);
         }
@@ -129,8 +133,32 @@ export function UserAdmin() {
     };
 
     const updateUserType = async (userId, userTypeId) => {
-        await http.put(`/api/admin/users/${userId}`, { user_type_id: Number(userTypeId) || null });
-        await load();
+        const type = types.find((t) => String(t.id) === String(userTypeId));
+        const row = users.find((u) => u.id === userId);
+        const payload = { user_type_id: Number(userTypeId) || null };
+        if (type?.slug !== 'superadmin') {
+            payload.hotel_slug = row?.hotel_slug || hotels[0]?.slug || getHotelSlug() || null;
+        }
+        try {
+            await http.put(`/api/admin/users/${userId}`, payload);
+            await load();
+        } catch (err) {
+            setError(err.response?.data?.message || 'Úprava uživatele selhala.');
+        }
+    };
+
+    const updateUserHotel = async (userId, hotelSlug) => {
+        try {
+            await http.put(`/api/admin/users/${userId}`, { hotel_slug: hotelSlug || null });
+            await load();
+        } catch (err) {
+            setError(err.response?.data?.message || 'Úprava hotelu selhala.');
+        }
+    };
+
+    const isSuperAdminType = (typeId) => {
+        const type = types.find((t) => String(t.id) === String(typeId));
+        return type?.slug === 'superadmin';
     };
 
     const openCreateUser = () => {
@@ -140,6 +168,7 @@ export function UserAdmin() {
             password: '',
             job_title: '',
             user_type_id: selectedId ? String(selectedId) : (types[0] ? String(types[0].id) : ''),
+            hotel_slug: getHotelSlug() || hotels[0]?.slug || '',
         });
         setCreateOpen(true);
         setError('');
@@ -157,6 +186,7 @@ export function UserAdmin() {
                 password: createForm.password,
                 job_title: createForm.job_title.trim() || null,
                 user_type_id: Number(createForm.user_type_id),
+                hotel_slug: createForm.hotel_slug || null,
             });
             setCreateOpen(false);
             await load();
@@ -324,6 +354,24 @@ export function UserAdmin() {
                                     <p className="truncate text-xs text-gray-400">{u.job_title}</p>
                                 ) : null}
                             </div>
+                            {u.user_type?.slug === 'superadmin' ? (
+                                <span className="rounded-lg bg-slate-100 px-2 py-1.5 text-xs text-slate-600">
+                                    SuperAdmin · všechny hotely
+                                </span>
+                            ) : (
+                                <select
+                                    className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+                                    value={u.hotel_slug || ''}
+                                    onChange={(e) => updateUserHotel(u.id, e.target.value)}
+                                >
+                                    <option value="">— hotel —</option>
+                                    {hotels.map((h) => (
+                                        <option key={h.slug} value={h.slug}>
+                                            {h.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            )}
                             <select
                                 className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
                                 value={u.user_type_id || ''}
@@ -413,6 +461,28 @@ export function UserAdmin() {
                                     ))}
                                 </select>
                             </div>
+                            {isSuperAdminType(createForm.user_type_id) ? (
+                                <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                                    SuperAdmin není vázaný na jeden hotel.
+                                </p>
+                            ) : (
+                                <div>
+                                    <label className="mb-1 block text-xs font-medium text-gray-500">Hotel</label>
+                                    <select
+                                        required
+                                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                                        value={createForm.hotel_slug}
+                                        onChange={(e) => setCreateForm((f) => ({ ...f, hotel_slug: e.target.value }))}
+                                    >
+                                        <option value="">— vyberte hotel —</option>
+                                        {hotels.map((h) => (
+                                            <option key={h.slug} value={h.slug}>
+                                                {h.name} ({h.slug})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
                             <button
                                 type="submit"
                                 disabled={creating}

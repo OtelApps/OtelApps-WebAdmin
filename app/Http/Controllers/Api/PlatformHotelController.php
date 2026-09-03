@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Hotel;
+use App\Models\User;
 use App\Services\HotelProvisionService;
 use App\Services\ModuleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use InvalidArgumentException;
 
 class PlatformHotelController extends Controller
@@ -60,7 +62,10 @@ class PlatformHotelController extends Controller
             return response()->json(['message' => 'Hotel nenalezen.'], 404);
         }
 
-        return response()->json($this->provision->toArray($hotel));
+        $payload = $this->provision->toArray($hotel);
+        $payload['staff'] = $this->staffPayload($hotel->slug);
+
+        return response()->json($payload);
     }
 
     public function update(Request $request, string $slug): JsonResponse
@@ -124,6 +129,67 @@ class PlatformHotelController extends Controller
             'slug' => $hotel->slug,
             'files' => $this->provision->envTemplates($hotel),
         ]);
+    }
+
+    public function destroy(Request $request, string $slug): JsonResponse
+    {
+        $hotel = Hotel::bySlug($slug);
+        if (! $hotel) {
+            return response()->json(['message' => 'Hotel nenalezen.'], 404);
+        }
+
+        $data = $request->validate([
+            'confirmation' => ['required', 'string', 'max:80'],
+            'password' => ['required', 'string'],
+        ]);
+
+        if ($data['confirmation'] !== $hotel->slug) {
+            return response()->json(['message' => 'Potvrzení slugu nesouhlasí.'], 422);
+        }
+
+        if (! Hash::check($data['password'], (string) $request->user()?->password)) {
+            return response()->json(['message' => 'Neplatné heslo SuperAdmina.'], 422);
+        }
+
+        $this->deleteHotelStaff($hotel->slug);
+        $hotel->delete();
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * @return list<array{id: int, name: string, email: string, user_type: string|null}>
+     */
+    private function staffPayload(string $slug): array
+    {
+        return User::query()
+            ->with('userType')
+            ->where('hotel_slug', $slug)
+            ->orderBy('name')
+            ->get()
+            ->reject(fn (User $user) => $user->isSuperAdmin())
+            ->map(fn (User $user) => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'user_type' => $user->userType?->name,
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function deleteHotelStaff(string $slug): void
+    {
+        $staff = User::query()
+            ->with('userType')
+            ->where('hotel_slug', $slug)
+            ->get()
+            ->reject(fn (User $user) => $user->isSuperAdmin());
+
+        foreach ($staff as $user) {
+            $user->tokens()->delete();
+            $user->delete();
+        }
     }
 
     /**

@@ -127,11 +127,98 @@ class PlatformApiTest extends TestCase
         }
     }
 
+    public function test_platform_delete_requires_confirmation_and_password(): void
+    {
+        $this->requireHotelSettings();
+        $this->seed(AuthDemoSeeder::class);
+
+        $slug = 'hq-del-'.substr(bin2hex(random_bytes(4)), 0, 8);
+        $token = $this->superadminToken();
+
+        try {
+            $this->withToken($token)
+                ->postJson('/api/platform/hotels', [
+                    'slug' => $slug,
+                    'name' => 'Delete Guard Hotel',
+                ])
+                ->assertCreated();
+
+            $this->withToken($token)
+                ->deleteJson('/api/platform/hotels/'.$slug, [
+                    'confirmation' => 'wrong-slug',
+                    'password' => 'SuperAdmin',
+                ])
+                ->assertStatus(422);
+
+            $this->withToken($token)
+                ->deleteJson('/api/platform/hotels/'.$slug, [
+                    'confirmation' => $slug,
+                    'password' => 'not-the-password',
+                ])
+                ->assertStatus(422);
+
+            $this->assertNotNull(Hotel::bySlug($slug));
+        } finally {
+            $this->deleteTestHotel($slug);
+        }
+    }
+
+    public function test_platform_delete_removes_hotel_and_staff_keeps_superadmin(): void
+    {
+        $this->requireHotelSettings();
+        $this->seed(AuthDemoSeeder::class);
+
+        $slug = 'hq-gone-'.substr(bin2hex(random_bytes(4)), 0, 8);
+        $token = $this->superadminToken();
+        $staffEmail = 'staff-'.$slug.'@otelapps.test';
+
+        try {
+            $this->withToken($token)
+                ->postJson('/api/platform/hotels', [
+                    'slug' => $slug,
+                    'name' => 'Gone Hotel',
+                ])
+                ->assertCreated();
+
+            $recepce = \App\Models\UserType::query()->where('slug', 'recepce')->first();
+            $this->assertNotNull($recepce);
+
+            User::query()->create([
+                'name' => 'Staff Gone',
+                'email' => $staffEmail,
+                'password' => 'password',
+                'user_type_id' => $recepce->id,
+                'hotel_slug' => $slug,
+                'is_active' => true,
+            ]);
+
+            $this->withToken($token)
+                ->getJson('/api/platform/hotels/'.$slug)
+                ->assertOk()
+                ->assertJsonPath('staff.0.email', $staffEmail);
+
+            $this->withToken($token)
+                ->deleteJson('/api/platform/hotels/'.$slug, [
+                    'confirmation' => $slug,
+                    'password' => 'SuperAdmin',
+                ])
+                ->assertOk()
+                ->assertJsonPath('ok', true);
+
+            $this->assertNull(Hotel::bySlug($slug));
+            $this->assertNull(User::query()->where('email', $staffEmail)->first());
+            $this->assertNotNull(User::query()->where('email', 'superadmin@otelapps.test')->first());
+        } finally {
+            User::query()->where('email', $staffEmail)->delete();
+            $this->deleteTestHotel($slug);
+        }
+    }
+
     private function superadminToken(): string
     {
         $response = $this->postJson('/api/platform/login', [
             'email' => 'superadmin@otelapps.test',
-            'password' => 'password',
+            'password' => 'SuperAdmin',
         ]);
         $response->assertOk()->assertJsonStructure(['token']);
 
